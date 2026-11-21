@@ -3,7 +3,10 @@
     .venv/bin/python graph/load.py schema                 # ograniczenia i indeksy
     .venv/bin/python graph/load.py meta                   # wszystkie reklamy z data/meta/ads.jsonl (~97 tys.)
     .venv/bin/python graph/load.py meta --payer "alex alex" --limit 80   # tylko próbka
+    .venv/bin/python graph/load.py meta --file ../data/meta/sample_s1.jsonl  # próbka S1 z graph/sample.py
+    .venv/bin/python graph/load.py export                 # teksty z grafu dla embsim (ad_texts.jsonl, ad_meta.jsonl)
     .venv/bin/python graph/load.py nask                   # przypadki z indeksu `fejki demo build` + podobieństwa i kampanie
+    .venv/bin/python graph/load.py synth                  # syntetyka z prawdą (generuje data/synth, jeśli nie ma)
     .venv/bin/python graph/load.py all                    # schema + meta + nask
 
 Połączenie: NEO4J_URI / NEO4J_USER / NEO4J_PASSWORD z code/.env (albo ze zmiennych środowiska; środowisko ma pierwszeństwo).
@@ -116,6 +119,8 @@ def meta_record(r: dict, persons) -> dict:
         "platforms": [str(x) for x in as_list(r.get("publisher_platforms"))],
         "library_url": f"https://www.facebook.com/ads/library/?id={r['id']}",  # publiczny link, bez tokenu
         "flag": flag, "query": q,
+        # odcisk tekstu (jak w embsim.eda): ta sama reklama w wielu kopiach = jeden węzeł Text i jeden wektor
+        "text_hash": hashlib.sha1(body.encode()).hexdigest()[:12] if body.strip() else None,
         "page_id": r["page_id"], "page_name": r.get("page_name") or r["page_id"], "mixed": mixed_script(r.get("page_name") or ""),
         "payers": payers, "domains": domains, "topic": q[3:] if q.startswith("kw:") else None,
         "persons": [{"name": k, "count": v} for k, v in find_persons(f"{title} {body}", persons).items()] if body or title else [],
@@ -128,7 +133,8 @@ MERGE (a:Ad {id: r.id})
   SET a.source = 'meta_ad_library', a.name = r.name, a.title = r.title, a.body = r.body,
       a.created = date(r.created), a.delivery_start = date(r.start),
       a.delivery_stop = CASE WHEN r.stop IS NULL THEN null ELSE date(r.stop) END,
-      a.eu_reach = r.reach, a.platforms = r.platforms, a.library_url = r.library_url, a.meta_flag = r.flag, a.found_by = r.query
+      a.eu_reach = r.reach, a.platforms = r.platforms, a.library_url = r.library_url, a.meta_flag = r.flag, a.found_by = r.query,
+      a.text_hash = r.text_hash
 MERGE (adv:Advertiser {key: 'fb:' + r.page_id})
   SET adv.name = r.page_name, adv.name_norm = r.page_norm, adv.page_id = r.page_id, adv.mixed_script = r.mixed
 MERGE (a)-[:BY]->(adv)
@@ -139,12 +145,12 @@ FOREACH (p IN r.persons | MERGE (pe:Person {name: p.name}) MERGE (a)-[m:MENTIONS
 """
 
 
-def load_meta(session, payers: set[str] | None, limit: int | None) -> None:
+def load_meta(session, payers: set[str] | None, limit: int | None, path: Path = ADS) -> None:
     from fejki.demo.material import load_persons
 
     persons = load_persons()
     rows, per = [], {}
-    for line in ADS.open(encoding="utf-8"):
+    for line in path.open(encoding="utf-8"):
         r = json.loads(line)
         if payers:
             ps = {p.get("payer") for p in as_list(r.get("beneficiary_payers")) if isinstance(p, dict)} & payers
@@ -221,7 +227,8 @@ MERGE (m:Material {id: r.id})
       m.keywords = r.keywords, m.missing = r.missing, m.cloaking = r.cloaking, m.pages = r.pages, m.notes = r.notes,
       m.observed_at = CASE WHEN r.observed_at IS NULL THEN null ELSE localdatetime(r.observed_at) END,
       m.observed_last = CASE WHEN r.observed_last IS NULL THEN null ELSE localdatetime(r.observed_last) END,
-      m.dataset = 'nask'
+      m.dataset = r.dataset, m.truth_campaign = r.truth_campaign, m.truth_operator = r.truth_operator,
+      m.truth_kind = r.truth_kind
 FOREACH (f IN r.files | MERGE (a:Artifact {sha256: f.sha}) SET a.name = f.name, a.kind = f.kind, a.size = f.size
                         MERGE (m)-[:HAS_ARTIFACT]->(a))
 FOREACH (i IN r.images | MERGE (h:ImageHash {phash: i.phash}) SET h.name = i.phash MERGE (m)-[x:HAS_IMAGE]->(h) SET x.file = i.file, x.role = i.role)
@@ -242,12 +249,13 @@ FOREACH (k IN r.kits | MERGE (pk:PageKit {prefix: k}) SET pk.name = k MERGE (m)-
 FOREACH (s IN r.schemes | MERGE (us:UrlScheme {fingerprint: s}) SET us.name = s MERGE (m)-[:USES_URL_SCHEME]->(us))
 WITH m, r
 UNWIND (CASE WHEN size(r.advertisers) = 0 THEN [null] ELSE r.advertisers END) AS adv
-WITH m, adv WHERE adv IS NOT NULL
-OPTIONAL MATCH (known:Advertiser {name_norm: adv.norm})
-WITH m, adv, collect(known) AS ks
+WITH m, r, adv WHERE adv IS NOT NULL
+OPTIONAL MATCH (known:Advertiser {name_norm: adv.norm}) WHERE r.dataset = 'nask'
+WITH m, adv, r, collect(known) AS ks
 FOREACH (k IN ks | MERGE (m)-[:ADVERTISED_BY]->(k))
 FOREACH (_ IN CASE WHEN size(ks) = 0 THEN [1] ELSE [] END |
-  MERGE (n:Advertiser {key: 'name:' + adv.norm}) SET n.name = adv.name, n.name_norm = adv.norm
+  MERGE (n:Advertiser {key: CASE r.dataset WHEN 'nask' THEN '' ELSE r.dataset + ':' END + 'name:' + adv.norm})
+    SET n.name = adv.name, n.name_norm = adv.norm
   MERGE (m)-[:ADVERTISED_BY]->(n))
 """
 
@@ -274,7 +282,8 @@ MERGE (a)-[s:SIMILAR]->(b)
 
 GROUP_CYPHER = """
 UNWIND $rows AS r
-MERGE (c:Campaign {id: r.id}) SET c.name = r.id + ': ' + r.name, c.strength = r.strength, c.persons = r.persons, c.domains = r.domains
+MERGE (c:Campaign {id: r.id}) SET c.name = r.id + ': ' + r.name, c.strength = r.strength, c.persons = r.persons, c.domains = r.domains,
+  c.dataset = r.dataset
 WITH c, r
 UNWIND r.members AS mid
 MATCH (m:Material {id: mid}) MERGE (m)-[:IN_CAMPAIGN]->(c)
@@ -282,23 +291,54 @@ MATCH (m:Material {id: mid}) MERGE (m)-[:IN_CAMPAIGN]->(c)
 
 NET_CYPHER = """
 UNWIND $rows AS r
-MERGE (n:Network {id: r.id}) SET n.name = 'Sieć ' + r.id, n.strength = r.strength
+MERGE (n:Network {id: r.id}) SET n.name = 'Sieć ' + r.id, n.strength = r.strength, n.dataset = r.dataset
 WITH n, r
 UNWIND r.members AS mid
 MATCH (m:Material {id: mid})-[:IN_CAMPAIGN]->(c:Campaign) MERGE (c)-[:IN_NETWORK]->(n)
 """
 
 
+SYNTH_DIR = ROOT.parent / "data" / "synth"
+SYNTH_INDEX = ROOT / "artifacts" / "demo" / "index_synth.json"
+
+
 def load_nask(session, min_score: float) -> None:
     from fejki.demo import store
-    from fejki.demo.similar import all_pairs, campaigns
 
     idx = store.load()
     if not idx:
         sys.exit("brak indeksu: najpierw `fejki demo build` (z katalogu code/)")
-    base = ROOT
-    rows = [case_record(m, base) for m in idx.materials]
-    print(f"NASK: {len(rows)} przypadków (zbudowano {idx.built_at})")
+    load_cases(session, idx, "nask", min_score)
+
+
+def load_synth(session, min_score: float) -> None:
+    """Syntetyka (`fejki demo synth`) jako osobny zbiór: Material.dataset='synth' + prawda (truth_*), kampanie z prefiksem `synth:`.
+    Domeny .example/.test i reklamodawcy z kluczem `synth:` nie sklejają się z prawdziwymi danymi; wspólne są tylko osoby (z tekstu)."""
+    from fejki.demo import store
+    from fejki.demo.synth_cases import generate
+
+    if not (SYNTH_DIR / "prawda.json").exists():
+        generate(SYNTH_DIR, 6, 2, 3, 1)
+    idx = store.load(SYNTH_INDEX)
+    if not idx or idx.data_dir != str(SYNTH_DIR):
+        idx = store.build(SYNTH_DIR, ocr=False)
+        store.save(idx, SYNTH_INDEX)
+    truth = json.loads((SYNTH_DIR / "prawda.json").read_text(encoding="utf-8"))
+    load_cases(session, idx, "synth", min_score, truth)
+
+
+def load_cases(session, idx, dataset: str, min_score: float, truth: dict | None = None) -> None:
+    from fejki.demo import store
+    from fejki.demo.similar import all_pairs, campaigns
+
+    pre = "" if dataset == "nask" else f"{dataset}:"
+    rows = []
+    for m in idx.materials:
+        r = case_record(m, ROOT)
+        t = (truth or {}).get(m.id, {})
+        rows.append({**r, "dataset": dataset, "truth_campaign": t.get("kampania"), "truth_operator": t.get("operator"),
+                     "truth_kind": t.get("rodzaj")})
+    print(f"{dataset}: {len(rows)} przypadków (zbudowano {idx.built_at})")
     run_batches(session, CASE_CYPHER, rows, "przypadki")
 
     infra, canon = [], {}
@@ -319,28 +359,48 @@ def load_nask(session, min_score: float) -> None:
     sims = [{"a": p.a, "b": p.b, "score": round(p.score, 3), "relation": p.relation, "text_sim": round(p.text_sim, 3),
              "channels": sorted({e.channel for e in p.evidence}), "reasons": [e.reason for e in p.evidence[:8]]}
             for p in pairs if p.score >= min_score]
-    session.run("MATCH (:Material {dataset:'nask'})-[s:SIMILAR]->(:Material {dataset:'nask'}) DELETE s").consume()
+    session.run("MATCH (:Material {dataset: $d})-[s:SIMILAR]->(:Material {dataset: $d}) DELETE s", d=dataset).consume()
     run_batches(session, SIM_CYPHER, sims, "podobieństwa (SIMILAR)")
 
-    session.run("MATCH (m:Material {dataset:'nask'})-[r:IN_CAMPAIGN]->() DELETE r").consume()
+    session.run("MATCH (m:Material {dataset: $d})-[r:IN_CAMPAIGN]->() DELETE r", d=dataset).consume()
     session.run("MATCH (c:Campaign) WHERE NOT (c)<-[:IN_CAMPAIGN]-() DETACH DELETE c").consume()
+    session.run("MATCH (n:Network) WHERE coalesce(n.dataset, 'nask') = $d DETACH DELETE n", d=dataset).consume()
     camps = campaigns(idx.materials, pairs, 0.7, "kampania")
     nets = [n for n in campaigns(idx.materials, pairs, 0.7, "sieć") if len(n.members) > 1]
-    dump = lambda cs: [{"id": c.id, "name": c.name, "members": c.members, "strength": c.strength, "persons": c.persons,
-                        "domains": c.domains} for c in cs]
+    dump = lambda cs: [{"id": pre + c.id, "name": c.name, "members": c.members, "strength": c.strength, "persons": c.persons,
+                        "domains": c.domains, "dataset": dataset} for c in cs]
     run_batches(session, GROUP_CYPHER, dump(camps), "kampanie")
-    session.run("MATCH (n:Network) DETACH DELETE n").consume()
     run_batches(session, NET_CYPHER, dump(nets), "sieci")
 
 
 # --------------------------------------------------------------------------------------------------------------------
 
 
+def export_texts(session, out: Path) -> None:
+    """Teksty reklam z grafu dla embsim: ad_texts.jsonl (h, text) do `python -m embsim.batch` i ad_meta.jsonl (id, h, fold,
+    subject) do `python -m embsim.meta_eval`. Fold i subject są puste, dopóki nie uruchomisz `graph/subjects.py split --write-graph`."""
+    out.mkdir(parents=True, exist_ok=True)
+    texts, n = {}, 0
+    with (out / "ad_meta.jsonl").open("w", encoding="utf-8") as f:
+        for r in session.run("MATCH (a:Ad) RETURN a.id AS id, a.text_hash AS h, a.body AS body, a.fold AS fold, "
+                             "a.subject AS subject"):
+            f.write(json.dumps({"id": r["id"], "h": r["h"], "fold": r["fold"], "subject": r["subject"]}) + "\n")
+            if r["h"]:
+                texts.setdefault(r["h"], r["body"])
+            n += 1
+    with (out / "ad_texts.jsonl").open("w", encoding="utf-8") as f:
+        for h, t in texts.items():
+            f.write(json.dumps({"h": h, "text": t}, ensure_ascii=False) + "\n")
+    print(f"eksport: {n} reklam, {len(texts)} unikalnych tekstów -> {out}")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("what", choices=["schema", "meta", "nask", "all"])
+    ap.add_argument("what", choices=["schema", "meta", "nask", "synth", "all", "export"])
     ap.add_argument("--payer", action="append", help="meta: tylko reklamy tych płatników (próbka)")
     ap.add_argument("--limit", type=int, help="meta: maks. reklam na płatnika")
+    ap.add_argument("--file", type=Path, default=ADS, help="meta: inny plik JSONL, np. próbka z graph/sample.py")
+    ap.add_argument("--out", type=Path, default=ROOT / "artifacts" / "meta", help="export: katalog na ad_texts/ad_meta")
     ap.add_argument("--min-score", type=float, default=0.4, help="nask: zapisuj SIMILAR od tego wyniku")
     args = ap.parse_args()
     drv = driver()
@@ -348,9 +408,13 @@ def main() -> None:
         if args.what in ("schema", "all"):
             schema(s)
         if args.what in ("meta", "all"):
-            load_meta(s, set(args.payer) if args.payer else None, args.limit)
+            load_meta(s, set(args.payer) if args.payer else None, args.limit, args.file)
         if args.what in ("nask", "all"):
             load_nask(s, args.min_score)
+        if args.what == "synth":
+            load_synth(s, args.min_score)
+        if args.what == "export":
+            export_texts(s, args.out)
         print("w bazie:", {r["l"]: r["n"] for r in s.run("MATCH (n) RETURN labels(n)[0] AS l, count(*) AS n ORDER BY n DESC")})
     drv.close()
 

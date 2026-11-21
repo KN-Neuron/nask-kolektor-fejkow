@@ -37,6 +37,7 @@ CREATE CONSTRAINT cert_serial      IF NOT EXISTS FOR (n:Certificate) REQUIRE n.s
 // ---------- 6. Wynik grupowania ----------
 CREATE CONSTRAINT campaign_id      IF NOT EXISTS FOR (n:Campaign)    REQUIRE n.id IS UNIQUE;     // ten sam przekaz
 CREATE CONSTRAINT network_id       IF NOT EXISTS FOR (n:Network)     REQUIRE n.id IS UNIQUE;     // ten sam operator (wspólna infra)
+CREATE CONSTRAINT creator_id       IF NOT EXISTS FOR (n:Creator)     REQUIRE n.id IS UNIQUE;     // twórca: strony+płatnicy jednego operatora (graph/creators.py)
 
 // ---------- Indeksy pomocnicze ----------
 CREATE INDEX material_source   IF NOT EXISTS FOR (n:Material) ON (n.source);
