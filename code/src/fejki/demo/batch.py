@@ -87,15 +87,21 @@ def materials_from(path: Path, ocr: bool = True, progress=None) -> list[Material
 
 
 def analyze(idx: Index, new: list[Material], thr: float = 0.7, maybe: float = 0.4, infra: dict | None = None,
-            semantic: bool = False) -> tuple[pd.DataFrame, list[dict]]:
+            semantic: bool = False, visual: bool = False, model: dict | None = None) -> tuple[pd.DataFrame, list[dict]]:
     """Każdy nowy materiał dopasowuje do znanego zbioru; nieprzypisane grupuje w propozycje nowych kampanii."""
     known = idx.materials
-    pairs = all_pairs(known, infra, semantic)
+    vec = None
+    if visual:
+        from .vision import material_vectors, model_available
+
+        if model_available():
+            vec = material_vectors(known + new)
+    pairs = all_pairs(known, infra, semantic, vec, model)
     camps, nets = campaigns(known, pairs, thr, "kampania"), campaigns(known, pairs, thr, "sieć")
     rows, unassigned = [], []
     for m in new:
         base = [k for k in known if k.id != m.id]
-        r = match(m, base, camps, nets, thr, maybe, infra, semantic)
+        r = match(m, base, camps, nets, thr, maybe, infra, semantic, vec, model)
         top = r.ranking[0] if r.ranking else None
         assigned = r.decision.startswith("przypisano")
         rows.append({
@@ -108,7 +114,7 @@ def analyze(idx: Index, new: list[Material], thr: float = 0.7, maybe: float = 0.
             unassigned.append(m)
     proposals = []
     if len(unassigned) > 1:
-        up = all_pairs(unassigned, infra, semantic)
+        up = all_pairs(unassigned, infra, semantic, vec, model)
         for k, c in enumerate(campaigns(unassigned, up, thr, "kampania")):
             if len(c.members) > 1:
                 proposals.append({"id": f"N{k + 1}", "materiały": c.members, "nazwa": c.name,

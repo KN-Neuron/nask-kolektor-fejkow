@@ -45,15 +45,24 @@ def infra_or_none(idx):
     return None
 
 
+def _pair_model():
+    return json.loads(_pm_path.read_text(encoding="utf-8")) if st.session_state.get("use_model") and _pm_path.exists() else None
+
+
 @st.cache_data(show_spinner="Liczę podobieństwa…")
-def _pairs(materials_json: str, infra_json: str, semantic: bool = False):
+def _pairs(materials_json: str, infra_json: str, semantic: bool = False, visual: bool = False, model_json: str = ""):
     mats = [Material.model_validate(m) for m in json.loads(materials_json)]
     infra = None
     if infra_json != "{}":
         from fejki.infra.collect import InfraRecord
 
         infra = {d: InfraRecord.model_validate(r) for d, r in json.loads(infra_json).items()}
-    return [p.model_dump() for p in all_pairs(mats, infra, semantic)]
+    vec = None
+    if visual:
+        from fejki.demo.vision import material_vectors
+
+        vec = material_vectors(mats)
+    return [p.model_dump() for p in all_pairs(mats, infra, semantic, vec, json.loads(model_json) if model_json else None)]
 
 
 def get_pairs(idx):
@@ -61,7 +70,8 @@ def get_pairs(idx):
 
     infra = idx.infra if st.session_state.get("use_infra") else {}
     raw = _pairs(json.dumps([m.model_dump() for m in idx.materials]), json.dumps(infra, sort_keys=True),
-                 bool(st.session_state.get("use_sem")))
+                 bool(st.session_state.get("use_sem")), bool(st.session_state.get("use_vis")),
+                 json.dumps(_pair_model()) if _pair_model() else "")
     return [Pair.model_validate(p) for p in raw]
 
 
@@ -84,6 +94,17 @@ st.session_state.use_infra = st.sidebar.toggle("Kanał infrastruktury (DNS, RDAP
 st.session_state.use_sem = st.sidebar.toggle(
     "Kanał semantyczny (bge-m3)", value=False,
     help="Podobieństwo znaczenia tekstu (model BAAI/bge-m3, MIT, ~2,2 GB, musi być pobrany). Wolniejsze liczenie przy pierwszym użyciu.")
+
+from fejki.demo import vision as _vision  # noqa: E402
+
+_vis_ok = _vision.model_available()
+st.session_state.use_vis = st.sidebar.toggle(
+    "Kanał obrazu (PE-Core)", value=False, disabled=not _vis_ok,
+    help="Embeddingi zrzutów i kreacji (Meta Perception Encoder B/16, Apache-2.0, 1,8 GB). Wyłączony, gdy model nie jest pobrany.")
+_pm_path = ROOT / "artifacts" / "demo" / "pair_model.json"
+st.session_state.use_model = st.sidebar.toggle(
+    "Wyuczony model par", value=False, disabled=not _pm_path.exists(),
+    help="Wynik pary z regresji logistycznej uczonej na zbiorze urlscan (zamiast ręcznych wag). Przesłanki bez zmian.")
 
 with st.sidebar.expander("Zbiór danych i indeks"):
     data_dir = st.text_input("Folder z przypadkami", str(DEFAULT_DATA))
@@ -269,7 +290,8 @@ with tab_new:
                 store.collect_infra(idx, [new])
                 store.save(idx)
             infra = store.infra_records(idx)
-        r = match(new, base, bc, bn, thr=thr, maybe=maybe, infra=infra, semantic=bool(st.session_state.get("use_sem")))
+        r = match(new, base, bc, bn, thr=thr, maybe=maybe, infra=infra, semantic=bool(st.session_state.get("use_sem")),
+                  model=_pair_model())
         st.subheader("Wynik")
         box = st.success if r.best_campaign else st.warning if r.best_score >= maybe else st.info
         box(f"**{r.decision}** · najlepszy wynik {r.best_score:.2f} ({confidence_label(r.best_score)})")
@@ -322,7 +344,8 @@ with tab_batch:
             bar = st.progress(0.0, "start")
             new_mats = materials_from(bpath, ocr=ocr_b, progress=lambda k, n, d: bar.progress((k + 1) / n, f"materiał {d}"))
             infra_b = store.infra_records(idx) if (st.session_state.use_infra and idx.infra) else None
-            df_b, proposals = batch_analyze(idx, new_mats, thr, maybe, infra_b, st.session_state.get("use_sem", False))
+            df_b, proposals = batch_analyze(idx, new_mats, thr, maybe, infra_b, st.session_state.get("use_sem", False),
+                                            st.session_state.get("use_vis", False), _pair_model())
             st.session_state.batch = (df_b, proposals, len(new_mats))
     if st.session_state.get("batch"):
         df_b, proposals, n_new = st.session_state.batch

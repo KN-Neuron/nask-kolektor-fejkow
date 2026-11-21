@@ -81,6 +81,7 @@ class Material(BaseModel):
     tracker_ids: list[str] = Field(default_factory=list)
     ad_accounts: list[str] = Field(default_factory=list)
     contacts: list[str] = Field(default_factory=list)
+    base_dir: str | None = None  # katalog z plikami materiału (do liczenia embeddingów obrazu)
     logos: list[str] = Field(default_factory=list)  # marki/portale podrabiane wg nazw logotypów w zasobach strony
     advertisers: list[str] = Field(default_factory=list)  # nazwa strony-reklamodawcy z kreacji (np. zrzut z „Sponsorowane”)
     dom_tokens: list[str] = Field(default_factory=list)
@@ -538,6 +539,7 @@ def build_material(mid: str, label: str, source: str, files: list[Path] | None =
             if ocr:
                 ocr_parts.append(_ocr(img))
     m.logos = brand_logos(files)
+    m.base_dir = str(base) if base else (str(files[0].parent) if files else None)
     m.ocr_text = " ".join(x for x in ocr_parts if x)[:20000]
     m.advertisers = advertisers(m.ocr_text)
     # zrzut karty reklamy z Meta Ad Library: „Identyfikator biblioteki: 2186…” / „Library ID: …”

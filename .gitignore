@@ -35,3 +35,6 @@ data/si.txt
 data/testy_apki/
 data/testy_aplikacji/
 data/*test*/
+
+# Syntetyczne przypadki (generowane lokalnie)
+data/synth/

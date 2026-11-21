@@ -16,7 +16,7 @@ Kolumna „Jak sprawdzić” zawiera polecenie lub miejsce w interfejsie, które
 | 3.6 | zbierać i porządkować: tekst, słowa kluczowe, tematykę | ✅ | tekst strony i OCR, słowa kluczowe, tematyka (słownik), DNA perswazji (10 ruchów) | zakładka „Materiały” |
 | 3.7 | wizerunki osób | ⚠️ | osoby po nazwiskach w tekście i OCR (baza `config/osoby.txt`, odmiana polska); **bez rozpoznawania twarzy** (pkt 5 dopuszcza małą bazę referencyjną) | karta materiału: „Osoby” |
 | 3.8 | logotypy | ⚠️ | marka/portal podrabiany rozpoznawana po nazwach logotypów w zasobach strony (np. `logo-gazeta.svg`); **bez detekcji logotypu na obrazie** | dowód „podrabiana ta sama marka” |
-| 3.9 | cechy wizualne | ⚠️ | pHash zrzutów, kreacji, klatek i obrazów ze stron; szablon strony (klasy HTML); **brak embeddingów obrazu** (kandydat: Meta Perception Encoder, Apache-2.0), więc same zrzuty łączą się słabo | `fejki demo eval` (niepełne wejście: **same zrzuty trafiają do właściwej sieci w 0 z 4 przypadków**, sam HTML i sam HAR w 5 z 5) |
+| 3.9 | cechy wizualne | ⚠️ | pHash zrzutów, kreacji, klatek i obrazów ze stron; szablon strony (klasy HTML); embeddingi obrazu (Meta PE-Core B/16, opcjonalnie): na zrzutach stron AUC 0,75, ale na kartach reklam nie rozróżniają kampanii (pomiar w METODYKA 5d), więc same zrzuty nadal łączą się słabo | `fejki demo eval` (niepełne wejście: **same zrzuty trafiają do właściwej sieci w 0 z 4 przypadków**, sam HTML i sam HAR w 5 z 5) |
 | 3.10 | domeny, przekierowania, linki, struktura stron | ✅ | domeny docelowe, usługi zewnętrzne, przekierowania z HAR, linki, klasy HTML, cloaking | karta materiału |
 | 3.11 | publiczne metadane domen i infrastruktury | ✅ | DNS, ASN (Team Cymru), RDAP (rejestrator, data), crt.sh; wiek domeny | panel boczny → „Zbierz dane infrastruktury” |
 | 3.12 | zamieniać dane na zestaw cech do porównań | ✅ | model `Material` (pydantic, ~35 pól) | `code/src/fejki/demo/material.py` |
@@ -88,8 +88,8 @@ oraz z danych dodatkowych; nie mamy etykiet organizatora. Ryzyka: [08_KRYTYKA_I_
 
 ## Co jeszcze warto zrobić (w kolejności wpływu)
 
-1. Embeddingi obrazu (Perception Encoder) i model wizyjno-językowy do OCR zrzutów: domyka 3.7–3.9.
-2. Wpiąć model par w grupowanie i skalibrować próg na urlscan i Mecie.
-3. Generator syntetycznych przypadków z ablacją kanałów.
-4. Blokowanie kandydatów i indeks inkrementalny (skalowalność).
+1. Dostrojenie embeddingów obrazu kontrastowo na zrzutach urlscan (surowy PE-Core nie rozróżnia kampanii na kartach reklam) oraz model wizyjno-językowy do OCR; domyka 3.7–3.9.
+2. Skalibrować próg modelu par i włączyć go domyślnie (dziś opcjonalny przełącznik).
+3. Rozszerzyć syntetykę o obrazy (zrzuty) i trudniejsze zbieżności schematów.
+4. Indeks inkrementalny (blokowanie kandydatów jest, kosztem czułości przy małych zbiorach).
 5. Nowy token Meta przed demonstracją (scheduler na żywo).

@@ -91,6 +91,7 @@ def train_and_save(materials: list[Material], group_of: dict[str, str], path: Pa
 
 
 def score_with(model: dict, ev, text_sim: float) -> float:
-    x = pair_features(ev, text_sim)
-    z = model["intercept"] + sum(model["coef"][f] * v for f, v in zip(model["features"], x, strict=True))
+    """Wynik z modelu; cechy dobierane po nazwach, więc model starszy od kodu (brak nowych kanałów) nadal działa."""
+    named = dict(zip(FEATURES, pair_features(ev, text_sim), strict=True))
+    z = model["intercept"] + sum(model["coef"].get(f, 0.0) * named.get(f, 0.0) for f in model["features"])
     return float(1 / (1 + np.exp(-z)))

@@ -138,6 +138,28 @@ tekstu materiały jednego operatora powinny być bliżej siebie.
   dopasowanie do kampanii, historia w `data/meta/watch_report.csv`; wymaga aktualnego tokenu (czytelny komunikat po wygaśnięciu).
 - **Eksport grafu** (`fejki demo export`): GraphML, Cypher dla Neo4j, CSV (węzły: Material, Domain, Pixel, Person, Campaign, Network).
 
+## 5d. Kanał obrazu, dowód przeciwny, blokowanie, ablacja (wyniki zmierzone 2026-11-21)
+
+- **Kanał obrazu** (`demo/vision.py`, Meta Perception Encoder PE-Core B/16, Apache-2.0, 1,79 GB, opcjonalny): wektor materiału = średnia
+  embeddingów jego zrzutów i kreacji; dowód „podobny wygląd” dopiero od podobieństwa **0,92** (`VIS_FLOOR`).
+  Pomiary: (a) **zrzuty reklam ze zbioru organizatora** (karty z telefonu): podobieństwo odzwierciedla format, nie kampanię
+  (48↔61, ta sama kampania: 0,41; 10↔14, różni operatorzy: 0,84), więc niska podłoga łączyłaby fałszywie; (b) **117 zrzutów stron z urlscan**:
+  ROC AUC 0,753, AP 0,822 (baza 0,473), przy podobieństwie ≥ 0,8 precyzja 0,998 (548 par), ≥ 0,92 prawie to samo. Wniosek: wygląd strony
+  wskazuje ten sam zestaw (kit), ale ogólny wygląd karty reklamy nie rozróżnia kampanii; kanał działa jako wykrywacz niemal-duplikatów.
+- **Dowód przeciwny** (`similar.conflict`): różne piksele Meta albo różne schematy TDS przy braku wspólnej domeny, piksela, id reklamy
+  i trackera obniżają wynik ×0,6 i są pokazywane jako przesłanka „przeciw”. Powód: ablacja na syntetyce wykazała, że wspólny zestaw stron
+  i generyczny schemat `utm_*` sklejają różnych operatorów (sieć F1 0,473). Po poprawce: sieć F1 **0,849** (kampania 0,909 → 0,984);
+  zbiór organizatora bez zmian; urlscan F1 0,614 → 0,608.
+- **Blokowanie kandydatów** (powyżej 300 materiałów, `BLOCK_ABOVE`): liczymy pary ze wspólnym kluczem (domena, piksel, id reklamy, schemat,
+  katalog, wzorzec ścieżki, usługa, tytuł, reklamodawca, logo, kontakt) lub z 12 najbliższych sąsiadów w tekście. Na 122 skanach urlscan:
+  7381 → 1168 par (czas 0,9 s → 0,2 s), **kosztem czułości** (F1 0,614 → 0,49, gdy wymuszone na małym zbiorze); dlatego włączane dopiero
+  przy dużych zbiorach. Na zbiorze organizatora wynik identyczny.
+- **Model par** (`demo/learn.py`) opcjonalnie zastępuje ręczne wagi (przełącznik w UI i parametr `model`): ROC AUC 0,791 wobec 0,775.
+- **Syntetyka i ablacja** (`fejki demo synth`, `fejki demo ablate`): 42 przypadki (6 operatorów, w tym dwóch ze wspólnym zestawem stron;
+  ta sama narracja u różnych operatorów; 6 negatywów z tymi samymi osobami), domeny `.example`/`.test`. Ablacja: bez tekstu kampania F1
+  spada 0,98 → 0,60 (najważniejszy kanał przy braku wspólnych identyfikatorów); sam tekst daje kampanię F1 0,91; sam „adres” tylko 0,60.
+  Ograniczenie: syntetyka sprawdza odzyskanie podłożonej struktury, nie realizm kampanii.
+
 ## 6. Testy (`fejki demo eval`)
 
 Nie mamy etykiet kampanii od organizatora, więc „oczekiwane” = wynik na pełnym zbiorze. Test mierzy stabilność i odporność,

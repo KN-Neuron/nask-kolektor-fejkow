@@ -118,3 +118,45 @@ def test_logo_brand_and_semantic_channel(tmp_path):
     ts.sem = {"1": np.array([1.0, 0.0]), "3": np.array([0.6, 0.8])}  # cos = 0,6: poniżej tła, brak dowodu
     assert "semantic" not in {e.code for e in evidence(a, c, ts, {"person": {}, "topic": {}, "host": {}, "prefix": {}})[0]}
     assert TDS  # (import wykorzystany)
+
+
+def test_conflict_evidence_lowers_operator_link(tmp_path):
+    from fejki.demo.similar import conflict
+
+    a = _case(tmp_path, "1", "Wiem, kto strzelał: zamach", STORY, "alpha-news.live", pixel="1111111111111111")
+    b = _case(tmp_path, "2", "Wiem, kto strzelał: zamach", STORY, "beta-news.live", pixel="2222222222222222")  # ten sam zestaw i tekst, inny piksel
+    c = _case(tmp_path, "3", "Wiem, kto strzelał: zamach", STORY, "gamma-news.live", pixel="1111111111111111")
+    assert "różne piksele" in conflict(a, b)
+    assert conflict(a, c) is None  # wspólny piksel: brak konfliktu
+    pairs = {(p.a, p.b): p for p in all_pairs([a, b, c])}
+    assert pairs[("1", "2")].score < pairs[("1", "3")].score
+    assert any(e.code == "conflict" for e in pairs[("1", "2")].evidence)
+
+
+def test_candidate_blocking_keeps_shared_trace_pairs(tmp_path):
+    from fejki.demo.similar import candidate_pairs
+
+    idx = _index(tmp_path)
+    ts = TextSpace(idx.materials)
+    cand = candidate_pairs(idx.materials, ts, k=1)
+    assert ("1", "2") in cand  # wspólny piksel i zestaw
+    blocked = all_pairs(idx.materials, block=True)
+    full = all_pairs(idx.materials, block=False)
+    top = lambda ps: {(p.a, p.b) for p in ps if p.score >= 0.7}  # noqa: E731
+    assert top(blocked) == top(full)
+
+
+def test_synthetic_generator_and_ablation(tmp_path):
+    from fejki.demo.ablate import run
+    from fejki.demo.synth_cases import generate
+
+    truth = generate(tmp_path / "s", n_operators=3, campaigns_per_op=2, variants=3, seed=2)
+    assert any(v["rodzaj"] == "negatyw" for v in truth.values())
+    for f in (tmp_path / "s").rglob("*"):  # bezpieczeństwo: tylko domeny zarezerwowane
+        if f.suffix == ".har":
+            assert f.name.endswith((".example.har", ".test.har"))
+    mats = materials_from(tmp_path / "s", ocr=False)
+    df = run(mats, tmp_path / "s" / "prawda.json")
+    full = df.set_index("wariant").loc["wszystkie kanały"]
+    assert full["kampania F1"] >= 0.7 and full["negatywy doklejone"] == 0
+    assert "bez: tekst (TF-IDF)" in set(df["wariant"])

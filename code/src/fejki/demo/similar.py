@@ -21,7 +21,7 @@ W = {
     "shared_contact": 0.9, "same_scheme": 0.6, "same_path_template": 0.7, "shared_prefix": 0.5, "shared_host": 0.6,
     "shared_redirect": 0.6, "text_dup": 0.9, "text_max": 0.8, "same_title": 0.7, "person": 0.3, "person_cap": 0.5,
     "same_product": 0.75, "img_shot": 0.7, "img_asset": 0.6, "dom_max": 0.35, "topic": 0.1, "infra_scale": 0.9,
-    "shared_advertiser": 0.7, "semantic": 0.5, "same_logo": 0.3,
+    "shared_advertiser": 0.7, "semantic": 0.5, "same_logo": 0.3, "visual": 0.6,
 }
 CHANNELS = {
     "same_landing": "domena", "shared_ad_id": "śledzenie", "shared_pixel": "śledzenie", "shared_tracker": "śledzenie",
@@ -29,10 +29,11 @@ CHANNELS = {
     "shared_prefix": "adres", "shared_host": "adres", "shared_redirect": "przekierowania", "text": "tekst", "same_title": "tekst",
     "person": "osoby", "same_product": "produkt", "img_shot": "obraz", "img_asset": "obraz", "dom": "szablon strony",
     "topic": "tematyka", "infra": "infrastruktura", "shared_advertiser": "reklamodawca", "semantic": "semantyka",
-    "same_logo": "obraz",
+    "same_logo": "obraz", "visual": "obraz", "conflict": "konflikt",
 }
 
 
+VIS_FLOOR = 0.92  # embeddingi zrzutów odzwierciedlają głównie format (telefon vs komputer): 0,80 łączyłoby różnych operatorów (10↔14: 0,84), więc tylko niemal-duplikaty
 DOM_MIN = 25  # minimalna liczba różnych klas/elementów HTML, by szablon był dowodem
 SEM_FLOOR = 0.88  # poniżej tego podobieństwa bge-m3 nie jest dowodem: tło między różnymi sieciami sięga 0,86
 
@@ -96,6 +97,7 @@ class TextSpace:
         self.terms = np.array(self.vec.get_feature_names_out()) if self.X is not None else np.array([])
         self.idx = {i: k for k, i in enumerate(self.ids)}
         self.sem: dict[str, np.ndarray] | None = None
+        self.vis: dict[str, np.ndarray] | None = None
 
     def enable_semantic(self, materials: list[Material], encoder: str = "bge-m3") -> None:
         """Wektory znaczenia tekstu (średnia z fragmentów) z enkodera semantycznego; bez modelu na dysku nic nie robi."""
@@ -105,6 +107,15 @@ class TextSpace:
             return
         sp = TemplateSpace(materials, encoder=encoder)
         self.sem = dict(sp.X["surowe"])
+
+    def enable_visual(self, vectors: dict[str, np.ndarray]) -> None:
+        """Wektory wyglądu (embeddingi zrzutów i kreacji) policzone w `demo/vision.py`."""
+        self.vis = vectors or None
+
+    def vis_sim(self, a: str, b: str) -> float | None:
+        if not self.vis or a not in self.vis or b not in self.vis:
+            return None
+        return float(self.vis[a] @ self.vis[b])
 
     def sem_sim(self, a: str, b: str) -> float | None:
         if not self.sem or a not in self.sem or b not in self.sem:
@@ -196,6 +207,10 @@ def evidence(a: Material, b: Material, ts: TextSpace, df: dict[str, Counter], in
     if sm is not None and sm >= SEM_FLOOR:  # tło: wszystkie strony oszustw są do siebie podobne (~0,68), więc liczy się tylko nadwyżka
         add("semantic", W["semantic"] * min(1.0, (sm - SEM_FLOOR) / (1 - SEM_FLOOR)),
             f"podobne znaczenie tekstu (bge-m3, podobieństwo {sm:.2f}, tło oszustw {SEM_FLOOR:.2f})")
+    vs = ts.vis_sim(a.id, b.id)
+    if vs is not None and vs >= VIS_FLOOR:
+        add("visual", W["visual"] * min(1.0, (vs - VIS_FLOOR) / (1 - VIS_FLOOR)),
+            f"podobny wygląd reklamy lub strony (embedding obrazu, podobieństwo {vs:.2f})")
     lg = sorted(set(a.logos) & set(b.logos))
     if lg:
         add("same_logo", W["same_logo"], f"podrabiana ta sama marka / portal: {', '.join(lg[:3])} (logo w zasobach strony)")
@@ -265,6 +280,23 @@ def evidence(a: Material, b: Material, ts: TextSpace, df: dict[str, Counter], in
     return ev, s
 
 
+CONFLICT_FACTOR = 0.6
+
+
+def conflict(a: Material, b: Material) -> str | None:
+    """Ślady wykluczające wspólnego operatora: różne piksele Meta albo różne schematy TDS przy braku jakiegokolwiek wspólnego śladu
+    identyfikującego (domena, piksel, identyfikator reklamy, tracker). Wspólny zestaw stron sam nie wystarcza, by uznać jednego operatora."""
+    shared_id = (set(a.landing_domains) & set(b.landing_domains)) or (set(a.pixel_ids) & set(b.pixel_ids)) \
+        or (set(a.ad_ids) & set(b.ad_ids)) or (set(a.tracker_ids) & set(b.tracker_ids))
+    if shared_id:
+        return None
+    if a.pixel_ids and b.pixel_ids and not set(a.pixel_ids) & set(b.pixel_ids):
+        return f"różne piksele Meta ({a.pixel_ids[0]} vs {b.pixel_ids[0]}): przeciw wspólnemu kontu reklamowemu"
+    if a.url_schemes and b.url_schemes and not set(a.url_schemes) & set(b.url_schemes):
+        return "różne schematy parametrów adresu (inny system kierowania ruchu): przeciw wspólnemu operatorowi"
+    return None
+
+
 def combine(ev: list[Evidence]) -> float:
     """noisy-OR w kanale (osoby z limitem), potem noisy-OR między kanałami."""
     per: dict[str, float] = defaultdict(float)
@@ -291,17 +323,71 @@ def relation(ev: list[Evidence], text_sim: float) -> str:
     return "podobieństwo treści" if codes else "brak"
 
 
-def pair(a: Material, b: Material, ts: TextSpace, df, infra=None) -> Pair:
+def pair(a: Material, b: Material, ts: TextSpace, df, infra=None, model: dict | None = None) -> Pair:
     ev, s = evidence(a, b, ts, df, infra)
-    return Pair(a=a.id, b=b.id, score=combine(ev), relation=relation(ev, s), text_sim=s, evidence=sorted(ev, key=lambda e: -e.weight))
+    if model:
+        from .learn import score_with
+
+        score = round(score_with(model, ev, s), 3)  # wynik z wyuczonych wag; przesłanki bez zmian
+    else:
+        score = combine(ev)
+    why = conflict(a, b)
+    if why:  # dowód PRZECIWKO wspólnemu operatorowi: obniżamy wynik i mówimy dlaczego
+        score = round(score * CONFLICT_FACTOR, 3)
+        ev = [*ev, Evidence(code="conflict", channel="konflikt", weight=0.0, reason=why)]
+    return Pair(a=a.id, b=b.id, score=score, relation=relation(ev, s), text_sim=s, evidence=sorted(ev, key=lambda e: -e.weight))
 
 
-def all_pairs(materials: list[Material], infra: dict | None = None, semantic: bool = False) -> list[Pair]:
+COVERAGE = 0.3  # minimalny udział par faktycznie policzonych przy średnim wiązaniu (w trybie pełnym = 100%)
+BLOCK_ABOVE = 300  # powyżej tylu materiałów liczymy tylko pary-kandydatów (skalowalność)
+
+
+def candidate_pairs(materials: list[Material], ts: TextSpace, k: int = 12) -> set[tuple[str, str]]:
+    """Pary-kandydaci: wspólny klucz blokujący (domena, piksel, identyfikator, schemat, katalog, tytuł, reklamodawca, logo,
+    kontakt) albo k najbliższych sąsiadów w tekście. Pozostałych par nie liczymy (wynik 0), więc koszt rośnie ~liniowo."""
+    keys: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for m in materials:
+        for kind, vals in (("d", m.landing_domains), ("px", m.pixel_ids), ("ad", m.ad_ids), ("tr", m.tracker_ids),
+                           ("sc", m.url_schemes), ("pf", m.path_prefixes), ("pt", [t for t in m.path_templates if t.count("/") >= 2]),
+                           ("th", m.third_party_hosts), ("rd", [r.split(" → ")[-1].split(" ")[0] for r in m.redirects]), ("ct", m.contacts), ("lg", m.logos),
+                           ("ti", [t.lower() for t in m.titles if len(t) > 15]), ("av", [x.lower() for x in m.advertisers]),
+                           ("pr", [x.lower() for x in m.products])):
+            for v in vals:
+                keys[(kind, v)].append(m.id)
+    out: set[tuple[str, str]] = set()
+    for ids in keys.values():
+        if 1 < len(ids) <= 200:  # klucze „masowe” (np. wspólny CDN) nie blokują
+            for a, b in combinations(sorted(set(ids)), 2):
+                out.add((a, b))
+    if ts.X is not None and ts.X.shape[0] > 1:
+        S = (ts.X @ ts.X.T).toarray()
+        np.fill_diagonal(S, 0)
+        for i in range(S.shape[0]):
+            for j in np.argsort(-S[i])[:k]:
+                if S[i, j] > 0:
+                    a, b = sorted((ts.ids[i], ts.ids[j]))
+                    out.add((a, b))
+    return out
+
+
+def all_pairs(materials: list[Material], infra: dict | None = None, semantic: bool = False,
+              visual: dict[str, np.ndarray] | None = None, model: dict | None = None, block: bool | None = None) -> list[Pair]:
+    """Wszystkie pary z wynikiem. `model`: wyuczony klasyfikator par (zamiast noisy-OR); `block`: tylko pary-kandydaci
+    (domyślnie włączone powyżej BLOCK_ABOVE materiałów)."""
     ts = TextSpace(materials)
     if semantic:
         ts.enable_semantic(materials)
+    if visual:
+        ts.enable_visual(visual)
     df = doc_freq(materials)
-    return sorted((pair(a, b, ts, df, infra) for a, b in combinations(materials, 2)), key=lambda p: -p.score)
+    use_block = block if block is not None else len(materials) > BLOCK_ABOVE
+    cand = candidate_pairs(materials, ts) if use_block else None
+    pairs = []
+    for a, b in combinations(materials, 2):
+        if cand is not None and tuple(sorted((a.id, b.id))) not in cand:
+            continue
+        pairs.append(pair(a, b, ts, df, infra, model))
+    return sorted(pairs, key=lambda p: -p.score)
 
 
 # --- kampanie -------------------------------------------------------------------------------------------------------
@@ -342,7 +428,9 @@ def _average_linkage(ids: list[str], keep: list[Pair], pairs: list[Pair], thr: f
                 A, B = clusters[keys[x]], clusters[keys[y]]
                 if not any((a, b) in allowed for a in A for b in B):
                     continue
-                avg = sum(score.get((a, b), 0.0) for a in A for b in B) / (len(A) * len(B))
+                got = [score[(a, b)] for a in A for b in B if (a, b) in score]
+                # pary nieliczone (blokowanie kandydatów) pomijamy, ale wymagamy pokrycia ≥ COVERAGE, by nie wrócić do łańcuchowania
+                avg = sum(got) / max(len(got), COVERAGE * len(A) * len(B))
                 if avg >= min_support and avg > best_avg:
                     best, best_avg = (keys[x], keys[y]), avg
         if best is None:
@@ -392,7 +480,8 @@ def campaigns(materials: list[Material], pairs: list[Pair], thr: float = 0.7, le
 
 
 def match(new: Material, materials: list[Material], camps: list[Campaign], nets: list[Campaign] | None = None, thr: float = 0.7,
-          maybe: float = 0.4, infra: dict | None = None, semantic: bool = False) -> MatchResult:
+          maybe: float = 0.4, infra: dict | None = None, semantic: bool = False, visual: dict | None = None,
+          model: dict | None = None) -> MatchResult:
     """Porównuje nowy materiał ze zbiorem.
 
     - ten sam przekaz (duplikat/wariant) z wynikiem >= thr: przypisanie do istniejącej kampanii,
@@ -404,8 +493,10 @@ def match(new: Material, materials: list[Material], camps: list[Campaign], nets:
     ts = TextSpace(pool)
     if semantic:
         ts.enable_semantic(pool)
+    if visual:
+        ts.enable_visual(visual)
     df = doc_freq(pool)
-    prs = sorted((pair(new, m, ts, df, infra) for m in pool if m.id != new.id), key=lambda p: -p.score)
+    prs = sorted((pair(new, m, ts, df, infra, model) for m in pool if m.id != new.id), key=lambda p: -p.score)
     camp_of = {mid: c.id for c in camps for mid in c.members}
     net_of = {mid: c.id for c in (nets or []) for mid in c.members}
     best: dict[str, Pair] = {}

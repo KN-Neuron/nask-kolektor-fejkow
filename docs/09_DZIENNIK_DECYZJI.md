@@ -53,3 +53,13 @@ Chronologicznie: co zrobiliśmy, **dlaczego**, co wyszło, co nie wyszło. Nowe 
 19. **Luki, których nie zamknęliśmy** (uczciwie): embeddingi obrazu i twarze (3.7–3.9), model par niewpięty w grupowanie, skala O(n²).
     Same zrzuty nadal 0/4 w teście niepełnego wejścia.
 20. **Obraz Dockera bez części badawczej**: zakładka „Schemat perswazji” importowała torch i concept-erasure, których podstawowy obraz nie ma (wykryte przy przeglądzie). LEACE wyłącza się łagodnie z ostrzeżeniem w UI; pełna wersja: `pip install -e ".[research]"`.
+
+## 2026-11-21 (modele, uczenie, ablacja)
+
+21. **PE-Core B/16 pobrany** (po sprostowaniu: 1,79 GB, nie „kilkaset MB”, i za zgodą). Pomiar: na kartach reklam z telefonu embedding
+    odzwierciedla format (10↔14 0,84, 48↔61 0,41), na 117 zrzutach stron urlscan AUC 0,753 / precyzja 0,998 przy ≥ 0,8. Decyzja: kanał
+    obrazu z podłogą 0,92 (niemal-duplikaty); ogólne „podobieństwo wyglądu” nie rozróżnia kampanii. Surowy model bez dostrojenia to za mało.
+22. **Ablacja na syntetyce znalazła błąd metody** (wspólny kit i generyczny schemat sklejają operatorów; sieć F1 0,47). Dodany dowód przeciwny
+    (różne piksele / różne schematy) → 0,85; organizator bez zmian. Dowód, że ablacja na danych podłożonych celowo się opłaca.
+23. **Blokowanie kandydatów**: 6× mniej par, ale tracimy czułość przy małych zbiorach (0,614 → 0,49), więc tylko > 300 materiałów.
+24. **Model par** wpięty jako opcja (przełącznik w UI, parametr `model`); kanał obrazu i model par w UI jako przełączniki.

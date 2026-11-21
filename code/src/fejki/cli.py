@@ -373,6 +373,36 @@ def demo_watch(keywords: str = "config/meta_keywords.txt", out: str = "../data/m
             typer.echo(df[["materiał", "decyzja", "najlepszy wynik"]].head(15).to_string(index=False))
 
 
+@demo_app.command("synth")
+def demo_synth(out: str = "../data/synth", operators: int = 6, campaigns_per_op: int = 2, variants: int = 3, seed: int = 1):
+    """Generuje syntetyczne przypadki (folder + HAR, domeny .example/.test) z prawdą w prawda.json."""
+    from pathlib import Path
+
+    from .demo.synth_cases import generate
+
+    truth = generate(Path(out), operators, campaigns_per_op, variants, seed)
+    typer.echo(f"{len(truth)} przypadków → {out} (oszustw {sum(v['rodzaj'] == 'oszustwo' for v in truth.values())}, negatywów {sum(v['rodzaj'] == 'negatyw' for v in truth.values())})")
+
+
+@demo_app.command("ablate")
+def demo_ablate(data: str = "../data/synth", thr: float = 0.7, out: str = "artifacts/demo/ablacja.csv"):
+    """Ablacja kanałów na syntetyce (wymaga `fejki demo synth`): wyniki B-cubed bez i z każdym kanałem."""
+    from pathlib import Path
+
+    import pandas as pd
+
+    from .demo.ablate import run
+    from .demo.batch import materials_from
+
+    mats = materials_from(Path(data), ocr=False)
+    df = run(mats, Path(data) / "prawda.json", thr)
+    po = path(out); po.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(po, index=False)
+    pd.set_option("display.width", 220)
+    typer.echo(df.to_string(index=False))
+    typer.echo(f"zapisano {po}")
+
+
 @demo_app.command("cards")
 def demo_cards(thr: float = 0.7):
     """Karty kampanii (Markdown) i lista domen do weryfikacji (CSV) w artifacts/demo/cards/."""
