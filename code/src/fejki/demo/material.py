@@ -163,15 +163,38 @@ def topics(text: str) -> dict[str, int]:
 
 
 SPONSORED = re.compile(r"(?:^|[\s|•·>])((?:[A-ZĄĆĘŁŃÓŚŹŻ][\w'&.-]*\s){0,3}[A-ZĄĆĘŁŃÓŚŹŻ][\w'&.-]+)\s+(?:Sponsorowane|Sponsored)")
+# kreacje „karta wyników” (Google/YouTube): „Sponsorowane · Nazwa” pod tytułem
+SPONSORED_AFTER = re.compile(r"(?:Sponsorowane|Sponsored)\s*[·•\-–.]\s*([A-ZĄĆĘŁŃÓŚŹŻ][\w'&.-]+(?:\s[A-ZĄĆĘŁŃÓŚŹŻ][\w'&.-]+){0,2})")
+_NOISE_TOKEN = re.compile(r"^(?:[^\w·•–-]{1,3}|[A-Za-z]|(\w)\1{1,})$")  # ikony i „…” odczytane jako e, eee, @, &
+_ADV_STOP = {"reklama", "facebook", "instagram", "sponsorowane", "sponsored"}
+
+# elementy interfejsu platformy: wspólne dla wszystkich reklam, więc nie niosą informacji o kampanii
+UI_BOILERPLATE = re.compile(
+    r"\b(?:Sponsorowane|Sponsored|Dowiedz si[eę] wi[eę]cej|Learn more|Zobacz wi[eę]cej|See more|Wy[sś]lij wiadomo[sś][cć]|"
+    r"Send message|Zarejestruj si[eę]|Sign up|Kup teraz|Shop now|Polub|Skomentuj|Udost[eę]pnij|Like|Comment|Share|"
+    r"Identyfikator biblioteki|Library ID|PL)\b",
+    flags=re.IGNORECASE)
+
+
+def _denoise(ocr_text: str) -> str:
+    """Usuwa z odczytu OCR pojedyncze znaki i powtórzenia (ikony awatara, „...”, „eee”), które rozrywają nazwę reklamodawcy."""
+    return " ".join(t for t in (ocr_text or "").split() if not _NOISE_TOKEN.match(t))
+
+
+def clean_ocr(ocr_text: str) -> str:
+    """Tekst kreacji bez elementów interfejsu platformy (do porównywania treści reklam)."""
+    return " ".join(UI_BOILERPLATE.sub(" ", _denoise(ocr_text)).split())
 
 
 def advertisers(ocr_text: str) -> list[str]:
-    """Nazwa reklamodawcy ze zrzutu reklamy z Facebooka/Instagrama: słowa z wielkiej litery tuż przed „Sponsorowane”."""
+    """Nazwa reklamodawcy ze zrzutu reklamy: słowa z wielkiej litery przed „Sponsorowane” (feed) albo po nim (karta wyników)."""
+    clean = _denoise(ocr_text)
     out = []
-    for m in SPONSORED.finditer(ocr_text or ""):
-        name = m.group(1).strip(" .-")
-        if 3 <= len(name) <= 50 and name.lower() not in ("reklama", "facebook", "instagram"):
-            out.append(name)
+    for rx in (SPONSORED, SPONSORED_AFTER):
+        for m in rx.finditer(clean):
+            name = m.group(1).strip(" .-")
+            if 3 <= len(name) <= 50 and name.lower() not in _ADV_STOP:
+                out.append(name)
     out = list(dict.fromkeys(out))
     # „V Sustain Studio” i „Sustain Studio” to ten sam odczyt z przyklejonym znakiem z ikony: zostaw krótszy
     return [n for n in out if not any(o != n and n.endswith(" " + o) for o in out)]

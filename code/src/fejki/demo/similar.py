@@ -14,7 +14,7 @@ import numpy as np
 from pydantic import BaseModel, Field
 from rapidfuzz import fuzz
 
-from .material import Material, hamming
+from .material import Material, clean_ocr, hamming
 
 W = {
     "same_landing": 0.9, "shared_ad_id": 0.95, "shared_pixel": 0.9, "shared_tracker": 0.85, "shared_account": 0.6,
@@ -90,7 +90,7 @@ class TextSpace:
 
         self.ids = [m.id for m in materials]
         # polskie znaki ujednolicone: OCR bez polskiego pakietu językowego gubi diakrytyki, HTML je ma
-        docs = [fold_pl(((" ".join(m.titles) + " ") * 3 + m.text)[:60000]) for m in materials]
+        docs = [fold_pl(((" ".join(m.titles) + " ") * 3 + m.text + " " + clean_ocr(m.ocr_text))[:60000]) for m in materials]
         self.vec = TfidfVectorizer(ngram_range=(1, 2), min_df=1, sublinear_tf=True, max_features=60000,
                                    token_pattern=r"(?u)\b[^\W\d_]{3,}\b", lowercase=True)
         self.X = self.vec.fit_transform(docs) if any(d.strip() for d in docs) else None

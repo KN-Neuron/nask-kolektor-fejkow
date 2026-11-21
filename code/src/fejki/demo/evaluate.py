@@ -50,7 +50,7 @@ def leave_one_out(materials, thr: float = 0.7) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-def partial_inputs(case_dirs: list[Path], materials, thr: float = 0.7, ocr: bool = False) -> pd.DataFrame:
+def partial_inputs(case_dirs: list[Path], materials, thr: float = 0.7, ocr: bool = True) -> pd.DataFrame:
     persons = load_persons()
     pairs = all_pairs(materials)
     nets = campaigns(materials, pairs, thr, "sieć")
