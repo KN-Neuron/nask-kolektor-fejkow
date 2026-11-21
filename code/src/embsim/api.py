@@ -5,8 +5,8 @@ sprawdzić dokładne zgodności kluczy (patrz `Decision.extra_shared`), a embsim
 
     from embsim.api import Gallery, case_from_meta_ad, case_from_folder, case_from_text
 
-    g = Gallery("adj")                        # progi i wagi z zamrożonej konfiguracji (artifacts/bench/frozen_adj.json)
-    g = Gallery.load("galeria.jsonl", "adj")  # albo z pliku
+    g = Gallery()                             # progi i wagi z zamrożonej konfiguracji (config/embsim/frozen_v3_mixed_pca.json)
+    g = Gallery.load("galeria.jsonl")         # albo z pliku
     d = g.add(case_from_meta_ad(rekord))      # decyzja względem dotychczasowej galerii, potem materiał trafia do galerii
     d.verdict                                 # "znana_kampania" | "znany_operator_nowa_kampania" | "nowy_wzorzec"
     d.matches[0].shared, d.matches[0].channels  # przesłanki: wspólne ślady i wynik per kanał
@@ -22,8 +22,8 @@ Ograniczenia (świadomie, do wiadomości integratora):
   * Kanały spoza zamrożonej konfiguracji (np. `payer`, `page`, `text_hash` z reklam Mety) NIE wchodzą do wyniku, bo nie były
     oceniane w harnessie; są tylko zwracane jako `extra_shared` (dokładne zgodności) dla warstwy grafu.
   * Progi pochodzą z kalibracji na syntetyce; na prawdziwych danych mogą wymagać ponownej kalibracji.
-  * Domyślna konfiguracja `adj` (korekta o dostępność dowodu) ma mniej fałszywych połączeń nowych wzorców niż `lex`; `lex` lepiej
-    grupuje znane kampanie, ale zbyt często dołącza nowe wzorce do znanych (zob. wyniki w harnessie).
+  * Domyślna konfiguracja `v3_mixed_pca` była dobrana na syntetyce v2 (szum jak w prawdziwym HAR); na prawdziwych kampaniach niesprawdzona.
+    Błędne dołączanie nowych wzorców do znanych kampanii zostaje najsłabszym punktem (ok. 0,15–0,19 w teście syntetycznym).
 """
 from __future__ import annotations
 
@@ -49,6 +49,9 @@ _CHANNEL_PL = {"text": "podobieństwo treści", "text_lex": "podobne brzmienie t
                "scheme": "ten sam schemat parametrów adresu", "host": "wspólna domena", "pixel": "ten sam piksel śledzący",
                "image": "podobny wygląd"}
 _EXTRA_PL = {"payer": "ten sam płatnik", "page": "ta sama strona reklamodawcy", "text_hash": "identyczny tekst"}
+# Konfiguracja domyślna (progi z kalibracji na syntetyce v2 z szumem jak w HAR): kampania = nakładanie śladów, operator = zawieranie,
+# kanał leksykalny, korekta PCA embeddingów, korekta o dostępność dowodu. Starsze: "adj", "lex" (syntetyka v1, gorzej przenoszą się).
+DEFAULT_CONFIG = "v3_mixed_pca"
 HOST = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}$")
 
 
@@ -178,7 +181,7 @@ def _default_embed(model: str):
 
 
 class Gallery:
-    def __init__(self, config: str | Config = "adj", embed_fn=None, refit_below: int = 200, refit_fraction: float = 0.10,
+    def __init__(self, config: str | Config = DEFAULT_CONFIG, embed_fn=None, refit_below: int = 200, refit_fraction: float = 0.10,
                  min_refit: int = 25):
         self.cfg = config if isinstance(config, Config) else load_frozen(config)[0]
         self.embed_fn = embed_fn if embed_fn is not None else _default_embed(self.cfg.model)
@@ -196,8 +199,11 @@ class Gallery:
         cases = [it["case"] for it in self.items]
         for c in cases:
             c.lex_vec = None                          # po pełnym dopasowaniu wiersze bierzemy z macierzy korpusu
+            c.vec_t = None
         mk = lambda w, lv: Corpus(list(cases), None, w, rotating=set(self.cfg.rotating),
-                                  adjust_ref=self.cfg.e_ref.get(lv) if lv in self.cfg.adjust_levels else None)
+                                  adjust_ref=self.cfg.e_ref.get(lv) if lv in self.cfg.adjust_levels else None,
+                                  trace_mode=(self.cfg.trace_mode_operator or self.cfg.trace_mode) if lv == "operator" else self.cfg.trace_mode,
+                                  combine=self.cfg.combine, embed_fix=self.cfg.embed_fix)
         self._corp = (mk(self.cfg.weights_campaign, "campaign"), mk(self.cfg.weights_operator, "operator"))
         self._fit_n = len(cases)
 
@@ -219,6 +225,7 @@ class Gallery:
         self._embed(q)
         cc, co = self._corp
         qc = cc.prepare(copy.copy(q))
+        q = co.prepare(copy.copy(q))
         rows = []
         for it in self.items:
             g = it["case"]
@@ -290,7 +297,7 @@ class Gallery:
                                     "vec": None if c.vec is None else [round(float(x), 6) for x in c.vec]}, ensure_ascii=False) + "\n")
 
     @classmethod
-    def load(cls, path: str | Path, config: str | Config = "adj", embed_fn=None, **kw) -> "Gallery":
+    def load(cls, path: str | Path, config: str | Config = DEFAULT_CONFIG, embed_fn=None, **kw) -> "Gallery":
         g = cls(config, embed_fn, **kw)
         for line in Path(path).open(encoding="utf-8"):
             r = json.loads(line)

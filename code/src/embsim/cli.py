@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import typer
 
+from .api import DEFAULT_CONFIG
 from .embed import DEFAULT_MODEL, DEFAULT_PROMPT, Embedder
 from .material import load_case, load_cases
 from .similarity import CHANNELS, case_vectors, clusters, sim_matrix
@@ -65,7 +66,7 @@ def _cases_from(item: str, text: bool, id: str | None):
 
 
 @app.command()
-def add(item: str, gallery: Path = Path("artifacts/gallery.jsonl"), config: str = "adj", text: bool = False,
+def add(item: str, gallery: Path = Path("artifacts/gallery.jsonl"), config: str = DEFAULT_CONFIG, text: bool = False,
         id: str = typer.Option(None, "--id", help="id dla trybu --text")):
     """Dodaje materiał do galerii i wypisuje decyzję (JSON). `item` = folder przypadku, plik .json/.jsonl z reklamami Meta albo tekst (--text)."""
     from .api import Gallery
@@ -79,7 +80,7 @@ def add(item: str, gallery: Path = Path("artifacts/gallery.jsonl"), config: str 
 
 
 @app.command()
-def query(item: str, gallery: Path = Path("artifacts/gallery.jsonl"), config: str = "adj", text: bool = False, top: int = 5):
+def query(item: str, gallery: Path = Path("artifacts/gallery.jsonl"), config: str = DEFAULT_CONFIG, text: bool = False, top: int = 5):
     """Jak `add`, ale bez dodawania do galerii."""
     from .api import Gallery
 

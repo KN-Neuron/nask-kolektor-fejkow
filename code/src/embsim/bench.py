@@ -1,6 +1,6 @@
 """Harness walidacji: kilka zbiorów, jawny podział dev / test / final, zamrożona konfiguracja, te same metryki wszędzie.
 
-    python -m embsim.bench calibrate --name base|adj   # progi (i e_ref) TYLKO na puli dev (ziarna 1–7); zamraża konfigurację
+    python -m embsim.bench calibrate --name X [--family 2 --trace contain --combine noisy_or --adjust --lexical]
     python -m embsim.bench run --name adj              # dev + test (ziarna 8–10) + scenariusze odporności, konfiguracja zamrożona
     python -m embsim.bench compare                     # adj vs lex (kanał leksykalny) na zbiorach test
     python -m embsim.bench run --final                 # dodatkowo 10 przypadków NASK (odkrywać raz, na końcu)
@@ -51,6 +51,24 @@ SYNTH_CFG = {2: dict(n_operators=8, campaigns_per_op=3, variants=3, missing_rate
              11: dict(n_operators=7, campaigns_per_op=3, variants=4, missing_rate=0.3),
              12: dict(n_operators=9, campaigns_per_op=2, variants=4, missing_rate=0.4),
              13: dict(n_operators=6, campaigns_per_op=2, variants=5, missing_rate=0.25)}
+# Rodzina 2: syntetyka v2 (szum jak w prawdziwym HAR, embsim/synth2.py). Dev 21–29 (27–29 posłużyły do wyboru trybów), test 30–32 (nowy).
+DEV_SEEDS2 = (21, 22, 23, 24, 25, 26, 27, 28, 29)
+TEST_SEEDS2 = (30, 31, 32, 33, 34, 35)               # 30–32 widziane przy wyborze trybów; 33–35 nowe (potwierdzenie)
+SYNTH2_CFG = {21: dict(n_operators=6, campaigns_per_op=2, variants=3, missing_rate=0.25),
+              22: dict(n_operators=8, campaigns_per_op=3, variants=3, missing_rate=0.25),
+              23: dict(n_operators=6, campaigns_per_op=2, variants=4, missing_rate=0.4),
+              24: dict(n_operators=10, campaigns_per_op=2, variants=3, missing_rate=0.25),
+              25: dict(n_operators=7, campaigns_per_op=3, variants=3, missing_rate=0.3),
+              26: dict(n_operators=5, campaigns_per_op=3, variants=5, missing_rate=0.4),
+              27: dict(n_operators=7, campaigns_per_op=3, variants=4, missing_rate=0.3),
+              28: dict(n_operators=9, campaigns_per_op=2, variants=4, missing_rate=0.4),
+              29: dict(n_operators=6, campaigns_per_op=2, variants=5, missing_rate=0.25),
+              30: dict(n_operators=7, campaigns_per_op=3, variants=4, missing_rate=0.35),
+              31: dict(n_operators=8, campaigns_per_op=2, variants=5, missing_rate=0.3),
+              32: dict(n_operators=6, campaigns_per_op=3, variants=3, missing_rate=0.45),
+              33: dict(n_operators=7, campaigns_per_op=2, variants=4, missing_rate=0.3),
+              34: dict(n_operators=9, campaigns_per_op=3, variants=3, missing_rate=0.35),
+              35: dict(n_operators=6, campaigns_per_op=2, variants=5, missing_rate=0.4)}
 LEVELS = ("campaign", "operator")
 
 
@@ -62,6 +80,10 @@ class Config:
     rotating: list = field(default_factory=lambda: sorted(ROTATING))
     adjust_levels: list = field(default_factory=list)  # poziomy z korektą wyniku o dostępność dowodu (score.py)
     lexical: bool = False                              # kanał leksykalny text_lex (TF-IDF znaków) na poziomie kampanii
+    trace_mode: str = "jaccard"                        # miara kanałów śladów: jaccard | contain | overlap (zob. score.Corpus)
+    combine: str = "mean"                              # łączenie kanałów: mean | noisy_or
+    embed_fix: str = "none"                            # korekta embeddingów tekstu: none | center | abtt1 (PCA korpusu, bez etykiet)
+    trace_mode_operator: str | None = None             # miara śladów dla poziomu operatora (None = jak trace_mode)
     thresholds: dict = field(default_factory=dict)   # {"campaign": t, "operator": t}, wypełnia calibrate
 
     def __post_init__(self):
@@ -71,6 +93,9 @@ class Config:
 
     def fingerprint(self) -> str:
         core = {k: v for k, v in asdict(self).items() if k not in ("thresholds", "e_ref")}
+        for k, default in (("trace_mode", "jaccard"), ("combine", "mean"), ("embed_fix", "none"), ("trace_mode_operator", None)):   # wsteczna zgodność odcisków zamrożonych konfiguracji
+            if core.get(k) == default:
+                core.pop(k, None)
         return hashlib.sha1(json.dumps(core, sort_keys=True).encode()).hexdigest()[:10]
 
 
@@ -109,6 +134,17 @@ def synth_seed(seed: int) -> Dataset:
     return _synth(f"synth:{seed}", role, d)
 
 
+def synth2_seed(seed: int) -> Dataset:
+    role = "dev" if seed in DEV_SEEDS2 else "test"
+    d = ART / f"synth2_seed{seed}"
+    if not (d / "prawda.json").exists():
+        from .synth2 import generate
+
+        d.mkdir(parents=True, exist_ok=True)
+        generate(d, seed=seed, **SYNTH2_CFG[seed])
+    return _synth(f"synth2:{seed}", role, d)
+
+
 def nask_final() -> Dataset:
     ids = sorted((p.name for p in NASK_DIR.iterdir() if p.is_dir()), key=lambda x: int(x))
     camp = {"1": "K1", "2": "K1", "48": "K2", "61": "K2"}
@@ -118,8 +154,8 @@ def nask_final() -> Dataset:
                    "UWAGA: prawda to nasze własne ustalenia (organizator nie podał etykiet); 10 przypadków, jedna sieć")
 
 
-def datasets(final: bool) -> list[Dataset]:
-    out = [synth_seed(s) for s in DEV_SEEDS + TEST_SEEDS]
+def datasets(final: bool, family: int = 1) -> list[Dataset]:
+    out = [synth_seed(s) for s in DEV_SEEDS + TEST_SEEDS] if family == 1 else [synth2_seed(s) for s in DEV_SEEDS2 + TEST_SEEDS2]
     return out + ([nask_final()] if final else [])
 
 
@@ -141,7 +177,9 @@ def vectors(cfg: Config, cases: list[Case]) -> np.ndarray:
 def corpus(cfg: Config, lv: str, cases: list[Case], V) -> Corpus:
     w = cfg.weights_campaign if lv == "campaign" else cfg.weights_operator
     ref = cfg.e_ref.get(lv) if lv in cfg.adjust_levels else None
-    return Corpus(copy.deepcopy(cases), V, w, rotating=set(cfg.rotating), adjust_ref=ref)
+    tm = (cfg.trace_mode_operator or cfg.trace_mode) if lv == "operator" else cfg.trace_mode
+    return Corpus(copy.deepcopy(cases), V, w, rotating=set(cfg.rotating), adjust_ref=ref, trace_mode=tm,
+                  combine=cfg.combine, embed_fix=cfg.embed_fix)
 
 
 def score_matrices(cfg: Config, cases: list[Case], V: np.ndarray | None) -> dict[str, np.ndarray]:
@@ -214,15 +252,18 @@ def frozen_path(name: str) -> Path:
     return local if local.exists() else FROZEN_DIR / f"frozen_{name}.json"
 
 
-def calibrate(name: str, adjust_levels: list, lexical: bool = False) -> None:
-    """Progi i e_ref dobierane na PULI dev (ziarna 1–10); test (11–13) i final nie są używane."""
-    cfg = Config(adjust_levels=adjust_levels, lexical=lexical)
-    dev = [d for d in datasets(final=False) if d.role == "dev"]
+def calibrate(name: str, adjust_levels: list, lexical: bool = False, family: int = 1, trace_mode: str = "jaccard",
+              combine: str = "mean", embed_fix: str = "none", trace_operator: str | None = None) -> None:
+    """Progi i e_ref dobierane na PULI dev (rodzina 1: ziarna 1–10; rodzina 2: 21–29); test i final nie są używane."""
+    cfg = Config(adjust_levels=adjust_levels, lexical=lexical, trace_mode=trace_mode, combine=combine, embed_fix=embed_fix,
+                 trace_mode_operator=trace_operator)
+    dev = [d for d in datasets(final=False, family=family) if d.role == "dev"]
     prep = [(d, d.cases, vectors(cfg, d.cases)) for d in dev]
     for lv in adjust_levels:
         cfg.e_ref[lv] = float(np.median([median_availability(cfg, lv, cs, V) for _, cs, V in prep]))
     mats = [(d, score_matrices(cfg, cs, V)) for d, cs, V in prep]
-    grid = [round(x, 2) for x in np.arange(0.05, 0.96, 0.05)]
+    # siatka do 0,99: konfiguracje z noisy-OR / nakładaniem kompresują wyniki blisko 1 i optimum bywa za 0,95
+    grid = sorted({round(float(x), 2) for x in np.arange(0.05, 0.96, 0.05)} | {round(float(x), 2) for x in np.arange(0.96, 1.0, 0.01)})
     for lv in LEVELS:
         ari = {t: float(np.mean([evaluate_level(M[lv], d.labels[lv], t)["ARI"] for d, M in mats])) for t in grid}
         best = max(ari.values())
@@ -232,7 +273,8 @@ def calibrate(name: str, adjust_levels: list, lexical: bool = False) -> None:
               + (f", e_ref={cfg.e_ref[lv]:.2f}" if lv in adjust_levels else ""))
     ART.mkdir(parents=True, exist_ok=True)
     # zapis zawsze lokalnie; aby konfigurację udostępnić zespołowi, skopiuj plik do code/config/embsim/ i zacommituj
-    (ART / f"frozen_{name}.json").write_text(json.dumps({"config": asdict(cfg), "fingerprint": cfg.fingerprint(), "dev": list(DEV_SEEDS),
+    (ART / f"frozen_{name}.json").write_text(json.dumps({"config": asdict(cfg), "fingerprint": cfg.fingerprint(), "family": family,
+                                             "dev": list(DEV_SEEDS if family == 1 else DEV_SEEDS2),
                                              "at": time.strftime("%F %T")}, ensure_ascii=False, indent=1))
     print(f"[{name}] zamrożono, odcisk {cfg.fingerprint()}")
 
@@ -243,7 +285,8 @@ def load_frozen(name: str, force: bool = False) -> tuple[Config, dict]:
         raise SystemExit(f"brak zamrożonej konfiguracji '{name}': najpierw `calibrate --name {name}` (na dev)")
     fr = json.loads(f.read_text())
     cfg = Config(**fr["config"])
-    now = Config(adjust_levels=cfg.adjust_levels, lexical=cfg.lexical)
+    now = Config(adjust_levels=cfg.adjust_levels, lexical=cfg.lexical, trace_mode=cfg.trace_mode, combine=cfg.combine,
+                 embed_fix=cfg.embed_fix, trace_mode_operator=cfg.trace_mode_operator)
     if now.fingerprint() != fr["fingerprint"] and not force:
         raise SystemExit("konfiguracja (model/wagi/rotujące/korekta) zmieniona po zamrożeniu: uruchom `calibrate` ponownie na dev; "
                          "wyniki na zbiorach test z poprzedniej wersji nie są już porównywalne (--force pomija to zabezpieczenie)")
@@ -256,7 +299,7 @@ def run(name: str, final: bool, force: bool) -> None:
     hist = [json.loads(l) for l in HISTORY.open()] if HISTORY.exists() else []
     seen = sum(1 for h in hist if h["fingerprint"] == fr["fingerprint"])
     report = {}
-    for ds in datasets(final):
+    for ds in datasets(final, fr.get("family", 1)):
         res = run_dataset(cfg, ds)
         report[ds.name] = {"role": ds.role, "results": res}
         print(fmt(res, ds))
@@ -267,7 +310,7 @@ def run(name: str, final: bool, force: bool) -> None:
     (ART / f"report_{name}.json").write_text(json.dumps(report, ensure_ascii=False, indent=1, default=float))
 
 
-def compare(force: bool, names: tuple = ("adj", "lex")) -> None:
+def compare(force: bool, names: tuple = ("adj", "lex"), family: int = 1, role: str = "test") -> None:
     """Zestawienie dwóch zamrożonych konfiguracji na zbiorach TEST; progi każdej dobrane na tej samej puli dev."""
     cfgs = {n: load_frozen(n, force)[0] for n in names}
     n1, n2 = names
@@ -275,7 +318,7 @@ def compare(force: bool, names: tuple = ("adj", "lex")) -> None:
     print(f"kolumny: {n1} / {n2}")
     print(f"{'zbiór':<10}{'poziom':<10}{'scenariusz':<14}" + "".join(f"{k:>22}" for k in keys))
     sums = {n: {lv: {k: [] for k in keys} for lv in LEVELS} for n in cfgs}
-    for ds in (d for d in datasets(False) if d.role == "test"):
+    for ds in (d for d in datasets(False, family) if d.role == role):
         res = {n: run_dataset(c, ds) for n, c in cfgs.items()}
         for lv in LEVELS:
             for sc in res[n1]:
@@ -298,17 +341,28 @@ def compare(force: bool, names: tuple = ("adj", "lex")) -> None:
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("cmd", choices=["calibrate", "run", "compare"])
-    ap.add_argument("--name", default="adj", choices=["base", "adj", "lex"],
-                    help="base = bez korekty, adj = korekta o dostępność dowodu (kampania), lex = adj + kanał leksykalny text_lex")
+    ap.add_argument("--name", default="adj", help="nazwa pliku frozen_<name>.json; base/adj/lex mają dawne znaczenie, gdy nie podano flag")
+    ap.add_argument("--names", nargs=2, default=["adj", "lex"], help="compare: dwie konfiguracje do porównania")
+    ap.add_argument("--family", type=int, default=1, choices=[1, 2], help="1 = syntetyka v1, 2 = syntetyka v2 (szum jak w prawdziwym HAR)")
+    ap.add_argument("--role", default="test", choices=["dev", "test"], help="compare: na którym zbiorze porównywać")
+    ap.add_argument("--adjust", action="store_true", help="korekta o dostępność dowodu dla poziomu kampanii")
+    ap.add_argument("--lexical", action="store_true", help="kanał leksykalny text_lex")
+    ap.add_argument("--trace", default="jaccard", choices=["jaccard", "contain", "overlap"])
+    ap.add_argument("--combine", default="mean", choices=["mean", "noisy_or"])
+    ap.add_argument("--trace-operator", default=None, choices=["jaccard", "contain", "overlap"], help="miara śladów tylko dla poziomu operatora")
+    ap.add_argument("--embed-fix", default="none", choices=["none", "center", "abtt1"], help="korekta PCA embeddingów tekstu")
     ap.add_argument("--final", action="store_true")
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args()
     if a.cmd == "calibrate":
-        calibrate(a.name, adjust_levels=(["campaign"] if a.name in ("adj", "lex") else []), lexical=(a.name == "lex"))
+        legacy = {"base": ([], False), "adj": (["campaign"], False), "lex": (["campaign"], True)}
+        explicit = a.adjust or a.lexical or a.trace != "jaccard" or a.combine != "mean" or a.family != 1 or a.embed_fix != "none" or a.trace_operator
+        adj, lex = legacy[a.name] if (a.name in legacy and not explicit) else (["campaign"] if a.adjust else [], a.lexical)
+        calibrate(a.name, adj, lex, a.family, a.trace, a.combine, a.embed_fix, a.trace_operator)
     elif a.cmd == "run":
         run(a.name, a.final, a.force)
     else:
-        compare(a.force)
+        compare(a.force, tuple(a.names), a.family, a.role)
 
 
 if __name__ == "__main__":

@@ -108,7 +108,10 @@ def test_frozen_config_loads_from_tracked_dir_in_clean_clone(tmp_path, monkeypat
     from embsim import bench
 
     monkeypatch.setattr(bench, "ART", tmp_path)               # brak lokalnych plików
-    for name in ("adj", "lex"):
+    for name in ("adj", "lex", "v3_mixed_pca"):
         cfg, fr = bench.load_frozen(name)
         assert cfg.thresholds["campaign"] > 0 and fr["fingerprint"]
     assert bench.load_frozen("adj")[0].adjust_levels == ["campaign"]
+    from embsim.api import DEFAULT_CONFIG
+    d = bench.load_frozen(DEFAULT_CONFIG)[0]
+    assert d.embed_fix == "abtt1" and d.trace_mode == "overlap" and d.trace_mode_operator == "contain"

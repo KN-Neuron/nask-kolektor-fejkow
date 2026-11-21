@@ -22,7 +22,8 @@ class Case:
     id: str
     text: str = ""
     sets: dict[str, set[str]] = field(default_factory=dict)  # kanał -> zbiór śladów
-    vec: object = None                                         # wektor tekstu (uzupełnia score.Corpus)
+    vec: object = None                                         # wektor tekstu z modelu (surowy)
+    vec_t: object = None                                       # wektor po korekcie PCA korpusu (uzupełnia score.Corpus; None = brak korekty)
     lex_i: int | None = None                                   # wiersz w macierzy TF-IDF korpusu (uzupełnia score.Corpus)
     lex_vec: object = None                                     # wiersz TF-IDF dla materiału spoza korpusu (zapytanie, późne dodanie)
     meta: dict = field(default_factory=dict)                   # dane opisowe, które nie wchodzą do wyniku (np. page_id, płatnik, daty)
