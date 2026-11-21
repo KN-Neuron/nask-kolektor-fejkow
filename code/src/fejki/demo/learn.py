@@ -92,6 +92,126 @@ def train_and_save(materials: list[Material], group_of: dict[str, str], path: Pa
 
 def score_with(model: dict, ev, text_sim: float) -> float:
     """Wynik z modelu; cechy dobierane po nazwach, więc model starszy od kodu (brak nowych kanałów) nadal działa."""
+    if model.get("kind") == "hgb":
+        return float(_estimator(model).predict_proba(pair_features(ev, text_sim).reshape(1, -1))[0, 1])
     named = dict(zip(FEATURES, pair_features(ev, text_sim), strict=True))
     z = model["intercept"] + sum(model["coef"].get(f, 0.0) * named.get(f, 0.0) for f in model["features"])
     return float(1 / (1 + np.exp(-z)))
+
+
+# --- uczenie na wielu zbiorach z etykietami ---------------------------------------------------------------------------
+
+def labelled_sets(urlscan_dir: Path | None = None, synth_dir: Path | None = None, progress=None):
+    """Zbiory z prawdą: (nazwa, materiały, grupa_materiału). Pary liczymy tylko w obrębie zbioru, nigdy między zbiorami.
+
+    - urlscan: etykieta pivotu (labels.csv); negatywy to osobne grupy jednoelementowe,
+    - synteza: operator z prawda.json (poziom sieci, bo wynik pary mówi „ten sam operator lub kampania”).
+    """
+    import csv
+
+    from . import store
+
+    out = []
+    if urlscan_dir and (Path(urlscan_dir) / "labels.csv").exists():
+        labels = {r["case_id"]: r for r in csv.DictReader((Path(urlscan_dir) / "labels.csv").open(encoding="utf-8"))}
+        idx = store.build(Path(urlscan_dir), ocr=False, progress=progress)
+        group = {m.id: (labels[m.id]["label"] if labels[m.id].get("kind") != "negatyw" else f"neg:{m.id}")
+                 for m in idx.materials if m.id in labels}
+        out.append(("urlscan", [m for m in idx.materials if m.id in group], group))
+    if synth_dir and (Path(synth_dir) / "prawda.json").exists():
+        truth = json.loads((Path(synth_dir) / "prawda.json").read_text(encoding="utf-8"))
+        idx = store.build(Path(synth_dir), ocr=False, progress=progress)
+        group = {m.id: truth[m.id]["operator"] if truth[m.id]["rodzaj"] != "negatyw" else f"neg:{m.id}"
+                 for m in idx.materials if m.id in truth}
+        out.append(("synteza", [m for m in idx.materials if m.id in group], group))
+    return out
+
+
+def fit_hgb(X: np.ndarray, y: np.ndarray):
+    """Gradient boosting z ograniczeniem monotoniczności: więcej dowodu w dowolnym kanale nigdy nie obniża wyniku."""
+    from sklearn.ensemble import HistGradientBoostingClassifier
+
+    m = HistGradientBoostingClassifier(monotonic_cst=[1] * X.shape[1], max_depth=3, learning_rate=0.1, max_iter=150,
+                                       class_weight="balanced", random_state=0)
+    return m.fit(X, y)
+
+
+_LOADED: dict[str, object] = {}
+
+
+def _estimator(model: dict):
+    f = model["file"]
+    if f not in _LOADED:
+        import joblib
+
+        from ..config import ROOT
+
+        _LOADED[f] = joblib.load(ROOT / f)
+    return _LOADED[f]
+
+
+def train_sets(sets, path: Path) -> dict:
+    """Uczy model par na wszystkich zbiorach i mierzy go walidacją leave-one-group-out (grupa testowa nigdy nie jest w treningu).
+    Porównuje: ręczne noisy-OR, regresję logistyczną (zapisywana) i monotoniczny gradient boosting."""
+    from sklearn.metrics import average_precision_score, roc_auc_score
+
+    Xs, ys, hs, ds, gp = [], [], [], [], []
+    counts: dict[str, int] = {}
+    for name, mats, group in sets:
+        X, y, hand, ab = build_pairs(mats, group)
+        Xs.append(X); ys.append(y); hs.append(hand)
+        ds += [name] * len(y)
+        gp += [(f"{name}:{group[a]}", f"{name}:{group[b]}") for a, b in ab]
+        for v in group.values():
+            counts[f"{name}:{v}"] = counts.get(f"{name}:{v}", 0) + 1
+    X, y, hand, ds = np.vstack(Xs), np.concatenate(ys), np.concatenate(hs), np.array(ds)
+    multi = sorted(g for g, c in counts.items() if c > 1)
+    makers = {"logistyczna": fit, "gradient_boosting_monotoniczny": fit_hgb}
+    pred = {k: np.zeros(len(y)) for k in makers}
+    tested = np.zeros(len(y), bool)
+    for g in multi:
+        test = np.array([a == g or b == g for a, b in gp])
+        if test.sum() == 0 or len(set(y[~test])) < 2:
+            continue
+        for k, mk in makers.items():
+            pred[k][test] = mk(X[~test], y[~test]).predict_proba(X[test])[:, 1]
+        tested |= test
+    metrics = {"pary": int(len(y)), "pozytywne": int(y.sum()), "grupy_wieloelementowe": len(multi),
+               "zbiory": {n: len(m) for n, m, _ in sets}}
+
+    def score(p, mask):
+        return {"roc_auc": round(roc_auc_score(y[mask], p[mask]), 3), "avg_precision": round(average_precision_score(y[mask], p[mask]), 3)}
+
+    val = {"pary_testowe": int(tested.sum())}
+    for part in ["razem", *sorted(set(ds))]:
+        mask = tested if part == "razem" else tested & (ds == part)
+        if mask.sum() and len(set(y[mask])) == 2:
+            val[part] = {"reczne_noisy_or": score(hand, mask), **{k: score(p, mask) for k, p in pred.items()}}
+    metrics["walidacja_leave_one_group_out"] = val
+    lr = fit(X, y)  # domyślny: logistyczna (wyjaśnialna: wkład dowodu = współczynnik × siła); boosting tylko w porównaniu
+    model = {"kind": "logistyczna", "features": FEATURES, "n_pairs": int(len(y)), "n_pos": int(y.sum()),
+             "intercept": float(lr.intercept_[0]), "coef": {f: round(float(c), 4) for f, c in zip(FEATURES, lr.coef_[0], strict=True)},
+             "metrics": metrics}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(model, indent=1, ensure_ascii=False), encoding="utf-8")
+    return model
+
+
+_DEFAULT: dict[str, dict | None] = {}
+
+
+def default_model() -> dict | None:
+    """Model uczony przez `fejki demo train` (artifacts/demo/pair_model.json); None, gdy nie został wytrenowany."""
+    from ..config import ROOT
+
+    if "m" not in _DEFAULT:
+        f = ROOT / "artifacts" / "demo" / "pair_model.json"
+        _DEFAULT["m"] = json.loads(f.read_text(encoding="utf-8")) if f.exists() else None
+    return _DEFAULT["m"]
+
+
+def resolve(model):
+    """None → model domyślny (jeśli jest), False → ręczne wagi noisy-OR, słownik → ten model."""
+    if model is False:
+        return None
+    return default_model() if model is None else model

@@ -154,7 +154,19 @@ tekstu materiały jednego operatora powinny być bliżej siebie.
   katalog, wzorzec ścieżki, usługa, tytuł, reklamodawca, logo, kontakt) lub z 12 najbliższych sąsiadów w tekście. Na 122 skanach urlscan:
   7381 → 1168 par (czas 0,9 s → 0,2 s), **kosztem czułości** (F1 0,614 → 0,49, gdy wymuszone na małym zbiorze); dlatego włączane dopiero
   przy dużych zbiorach. Na zbiorze organizatora wynik identyczny.
-- **Model par** (`demo/learn.py`) opcjonalnie zastępuje ręczne wagi (przełącznik w UI i parametr `model`): ROC AUC 0,791 wobec 0,775.
+- **Model par (wytrenowany, domyślny)** (`demo/learn.py`, `fejki demo train`): regresja logistyczna z wagami nieujemnymi (dowód nigdy nie obniża wyniku;
+  wkład dowodu = współczynnik × siła). Cechy: najsilniejszy dowód w każdym z 30 kodów + podobieństwo tekstu. Uczony na 8242 parach z 164 materiałów
+  z etykietami: 122 skany urlscan (etykiety z pivotów, negatywy osobno) i 42 przypadki syntetyczne (prawda.json, poziom operatora); pary tylko w obrębie
+  zbioru. Walidacja **leave-one-group-out** (grupa testowa nigdy nie jest w treningu; 9 grup wieloelementowych), na parach testowych:
+  razem ROC AUC 0,663 / AP 0,678 (ręczne noisy-OR: 0,688 / 0,646); syntetyka 0,975 / 0,961 (ręczne 0,964 / 0,839); urlscan 0,701 / 0,702 (ręczne 0,716 / 0,700).
+  Porównano też monotoniczny gradient boosting (razem 0,655 / 0,671): nie jest lepszy, a nie jest wyjaśnialny, więc zostaje regresja.
+  **Uczciwie:** model wyraźnie wygrywa tylko na syntetyce; na urlscan jest na poziomie ręcznych wag (tylko 3 grupy etykiet, więc test jest surowy).
+  Użyte wagi niezerowe: schemat adresu, zrzut, tekst, tytuł, usługa, piksel, produkt, domena. Model jest włączony domyślnie (CLI i UI);
+  `model=False` w `all_pairs`/`match` wraca do ręcznych wag.
+- **Indeks FAISS** (`demo/vindex.py`, `fejki demo index`, zapis w `artifacts/demo/faiss/`): wektor materiału = TF-IDF→LSA (128) ⊕ skrót kluczy
+  strukturalnych (512), `IndexFlatIP` (powyżej 20 tys. materiałów `IndexIVFFlat`). Nowy materiał jest porównywany z kandydatami: 40 najbliższymi z indeksu
+  plus wszystkie ze wspólnym kluczem (domena, piksel, schemat…) zamiast ze wszystkimi; w `all_pairs` indeks zastępuje macierz n×n przy blokowaniu.
+  Włączony od 60 materiałów. Biblioteka: faiss-cpu (MIT). Na macOS ustawiamy 1 wątek (konflikt libomp z torch powodował segfault).
 - **Syntetyka i ablacja** (`fejki demo synth`, `fejki demo ablate`): 42 przypadki (6 operatorów, w tym dwóch ze wspólnym zestawem stron;
   ta sama narracja u różnych operatorów; 6 negatywów z tymi samymi osobami), domeny `.example`/`.test`. Ablacja: bez tekstu kampania F1
   spada 0,98 → 0,60 (najważniejszy kanał przy braku wspólnych identyfikatorów); sam tekst daje kampanię F1 0,91; sam „adres” tylko 0,60.
@@ -183,10 +195,10 @@ lub identyfikatora reklamy podaje liczbę reklam, ile usuniętych przez Metę, s
 Nie mamy etykiet kampanii od organizatora, więc „oczekiwane” = wynik na pełnym zbiorze. Test mierzy stabilność i odporność,
 nie trafność względem podziału organizatora.
 
-- **pomiń-jeden** (10 przypadków): każdy przypadek dopasowany jako nowy do reszty zbioru. Wynik: spójność kampanii 100%, sieci 100%;
+- **pomiń-jeden** (132 materiały, z wyuczonym modelem par i kandydatami z FAISS): każdy dopasowany jako nowy do reszty zbioru. Wynik: spójność kampanii 97%, sieci 99% (przed modelem: 95% i 98%);
   pojedyncze przypadki nie zostały doklejone do żadnej grupy.
 - **niepełne wejście**: sam HTML albo sam HAR trafia do właściwej sieci we wszystkich sprawdzonych przypadkach (1, 2, 3, 48, 61).
-  **Same zrzuty ekranu nie wystarczają** (0 z 4): zrzut reklamy ma mało tekstu, a w zbiorze nie ma drugiego podobnego zrzutu.
+  **Same zrzuty ekranu nie wystarczają** (0 z 4, najlepszy wynik 0,38, poniżej progu „do weryfikacji” 0,4; semantyka samego tekstu ze zrzutu nie odróżnia sieci od tła): zrzut reklamy ma mało tekstu, a w zbiorze nie ma drugiego podobnego zrzutu.
 - testy jednostkowe na sztucznych plikach: `pytest tests/test_demo.py`.
 
 ## 7. Ograniczenia
@@ -212,7 +224,8 @@ nie trafność względem podziału organizatora.
 | pytesseract, Tesseract OCR | Apache-2.0 | OCR |
 | FFmpeg | LGPL-2.1+ (zależnie od kompilacji GPL) | klatki z nagrań |
 | dnspython | ISC | DNS |
-| scikit-learn | BSD-3 | TF-IDF, regresja logistyczna (model par) |
+| scikit-learn | BSD-3 | TF-IDF, LSA, regresja logistyczna (model par) |
+| faiss-cpu | MIT | indeks wektorowy kandydatów |
 | sentence-transformers, PyTorch | Apache-2.0, BSD-3 | enkoder semantyczny (opcjonalny) |
 | BAAI/bge-m3 (model) | MIT | embeddingi tekstu wielojęzyczne, ~2,2 GB, lokalnie |
 | concept-erasure (LEACE) | MIT | analiza „schemat perswazji” (część badawcza) |

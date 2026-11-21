@@ -324,7 +324,10 @@ def relation(ev: list[Evidence], text_sim: float) -> str:
 
 
 def pair(a: Material, b: Material, ts: TextSpace, df, infra=None, model: dict | None = None) -> Pair:
+    from .learn import resolve
+
     ev, s = evidence(a, b, ts, df, infra)
+    model = resolve(model)
     if model:
         from .learn import score_with
 
@@ -339,6 +342,8 @@ def pair(a: Material, b: Material, ts: TextSpace, df, infra=None, model: dict | 
 
 
 COVERAGE = 0.3  # minimalny udział par faktycznie policzonych przy średnim wiązaniu (w trybie pełnym = 100%)
+FAISS_FROM = 60  # powyżej tylu materiałów kandydatów dla nowego materiału wybiera indeks FAISS
+FAISS_K = 40  # ilu najbliższych sąsiadów z indeksu bierzemy (poza blokowaniem po kluczach)
 BLOCK_ABOVE = 300  # powyżej tylu materiałów liczymy tylko pary-kandydatów (skalowalność)
 
 
@@ -359,14 +364,10 @@ def candidate_pairs(materials: list[Material], ts: TextSpace, k: int = 12) -> se
         if 1 < len(ids) <= 200:  # klucze „masowe” (np. wspólny CDN) nie blokują
             for a, b in combinations(sorted(set(ids)), 2):
                 out.add((a, b))
-    if ts.X is not None and ts.X.shape[0] > 1:
-        S = (ts.X @ ts.X.T).toarray()
-        np.fill_diagonal(S, 0)
-        for i in range(S.shape[0]):
-            for j in np.argsort(-S[i])[:k]:
-                if S[i, j] > 0:
-                    a, b = sorted((ts.ids[i], ts.ids[j]))
-                    out.add((a, b))
+    if len(materials) > 2:  # k najbliższych sąsiadów z indeksu FAISS (zamiast macierzy n×n)
+        from .vindex import get_index
+
+        out |= get_index(materials).neighbours(materials, k)
     return out
 
 
@@ -496,7 +497,15 @@ def match(new: Material, materials: list[Material], camps: list[Campaign], nets:
     if visual:
         ts.enable_visual(visual)
     df = doc_freq(pool)
-    prs = sorted((pair(new, m, ts, df, infra, model) for m in pool if m.id != new.id), key=lambda p: -p.score)
+    others = [m for m in pool if m.id != new.id]
+    if len(others) > FAISS_FROM:  # wstępny wybór z indeksu FAISS: tekst + klucze strukturalne; reszta par ma wynik 0
+        from .vindex import blocking_keys, get_index
+
+        near = {i for i, _ in get_index(others).search(new, FAISS_K)}
+        nk = set(blocking_keys(new))
+        near |= {m.id for m in others if nk & set(blocking_keys(m))}
+        others = [m for m in others if m.id in near]
+    prs = sorted((pair(new, m, ts, df, infra, model) for m in others), key=lambda p: -p.score)
     camp_of = {mid: c.id for c in camps for mid in c.members}
     net_of = {mid: c.id for c in (nets or []) for mid in c.members}
     best: dict[str, Pair] = {}

@@ -5,7 +5,7 @@ description = "Kolekcjoner Fejkow: campaign discovery for scam ads (HackNation x
 requires-python = ">=3.11"
 # Zależności demonstratora (wystarczą do `fejki demo ...`).
 dependencies = [
-  "pydantic>=2", "typer", "httpx", "tldextract", "rapidfuzz", "numpy", "scipy", "scikit-learn>=1.3", "networkx", "pandas",
+  "pydantic>=2", "typer", "httpx", "tldextract", "rapidfuzz", "numpy", "scipy", "scikit-learn>=1.3", "faiss-cpu", "joblib", "networkx", "pandas",
   "pyyaml", "python-dotenv", "dnspython", "streamlit", "plotly", "pyvis", "beautifulsoup4", "lxml", "pillow", "pytesseract",
 ]
 [project.optional-dependencies]

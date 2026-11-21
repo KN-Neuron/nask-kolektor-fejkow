@@ -46,7 +46,9 @@ def infra_or_none(idx):
 
 
 def _pair_model():
-    return json.loads(_pm_path.read_text(encoding="utf-8")) if st.session_state.get("use_model") and _pm_path.exists() else None
+    if st.session_state.get("use_model") and _pm_path.exists():
+        return json.loads(_pm_path.read_text(encoding="utf-8"))
+    return False  # ręczne wagi noisy-OR (przełącznik wyłączony)
 
 
 @st.cache_data(show_spinner="Liczę podobieństwa…")
@@ -71,7 +73,7 @@ def get_pairs(idx):
     infra = idx.infra if st.session_state.get("use_infra") else {}
     raw = _pairs(json.dumps([m.model_dump() for m in idx.materials]), json.dumps(infra, sort_keys=True),
                  bool(st.session_state.get("use_sem")), bool(st.session_state.get("use_vis")),
-                 json.dumps(_pair_model()) if _pair_model() else "")
+                 json.dumps(_pair_model()) if _pair_model() else "false")
     return [Pair.model_validate(p) for p in raw]
 
 
@@ -103,7 +105,7 @@ st.session_state.use_vis = st.sidebar.toggle(
     help="Embeddingi zrzutów i kreacji (Meta Perception Encoder B/16, Apache-2.0, 1,8 GB). Wyłączony, gdy model nie jest pobrany.")
 _pm_path = ROOT / "artifacts" / "demo" / "pair_model.json"
 st.session_state.use_model = st.sidebar.toggle(
-    "Wyuczony model par", value=False, disabled=not _pm_path.exists(),
+    "Wyuczony model par", value=_pm_path.exists(), disabled=not _pm_path.exists(),
     help="Wynik pary z regresji logistycznej uczonej na zbiorze urlscan (zamiast ręcznych wag). Przesłanki bez zmian.")
 
 with st.sidebar.expander("Zbiór danych i indeks"):

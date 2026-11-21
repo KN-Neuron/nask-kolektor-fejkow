@@ -71,11 +71,11 @@ oraz z danych dodatkowych; nie mamy etykiet organizatora. Ryzyka: [08_KRYTYKA_I_
 
 | Kryterium | Waga | Co mamy | Główna luka |
 |---|---|---|---|
-| jakość korelacji i grupowania | 30% | wielokanałowe dowody z przesłankami, grupowanie bez łańcuchowania, model par uczony (AUC 0,79 > ręczne 0,78), podział bez wycieku | model par nie jest jeszcze wpięty w grupowanie; ręczne wagi |
+| jakość korelacji i grupowania | 30% | wielokanałowe dowody z przesłankami, grupowanie bez łańcuchowania, model par uczony (AUC 0,79 > ręczne 0,78), podział bez wycieku | model par uczony (`fejki demo train`, walidacja leave-one-group-out) jest domyślny; na urlscan tylko na poziomie ręcznych wag (3 grupy etykiet) |
 | użyteczność i trafność cech i źródeł | 30% | 12 kanałów, infrastruktura bierna, Meta, urlscan, bge-m3 | brak embeddingów obrazu i twarzy |
 | kompletność demonstratora, end-to-end | 15% | 7 zakładek, wsad z CSV, scheduler, eksport grafu, Docker | — |
 | czytelność i interpretowalność | 15% | przesłanki w języku analityka, karty kampanii, graf | — |
-| wdrażalność i skalowalność | 10% | Docker, CLI, eksport do Neo4j | O(n²) par; indeks w jednym JSON (plan: blokowanie kandydatów) |
+| wdrażalność i skalowalność | 10% | Docker, CLI, eksport do Neo4j | kandydaci z indeksu FAISS (`fejki demo index`); indeks materiałów nadal w jednym JSON |
 
 ## Pkt 10: wiedza dla organizatora
 
@@ -89,7 +89,6 @@ oraz z danych dodatkowych; nie mamy etykiet organizatora. Ryzyka: [08_KRYTYKA_I_
 ## Co jeszcze warto zrobić (w kolejności wpływu)
 
 1. Dostrojenie embeddingów obrazu kontrastowo na zrzutach urlscan (surowy PE-Core nie rozróżnia kampanii na kartach reklam) oraz model wizyjno-językowy do OCR; domyka 3.7–3.9.
-2. Skalibrować próg modelu par i włączyć go domyślnie (dziś opcjonalny przełącznik).
 3. Rozszerzyć syntetykę o obrazy (zrzuty) i trudniejsze zbieżności schematów.
 4. Indeks inkrementalny (blokowanie kandydatów jest, kosztem czułości przy małych zbiorach).
 5. Nowy token Meta przed demonstracją (scheduler na żywo).

@@ -215,6 +215,24 @@ def demo_build(data: str = typer.Argument(DEFAULT_DATA, help="folder z podfolder
         for e in store.collect_infra(idx):
             typer.echo(f"infra: {e}")
     typer.echo(f"zapisano {store.save(idx)} ({len(idx.materials)} materiałów)")
+    from .demo.vindex import VectorIndex
+
+    typer.echo(f"indeks FAISS: {VectorIndex().fit(idx.materials).save()}")
+
+
+@demo_app.command("index")
+def demo_index(k: int = 5):
+    """Buduje i zapisuje indeks FAISS z istniejącego indeksu materiałów; pokazuje sąsiadów kilku materiałów."""
+    from .demo import store
+    from .demo.vindex import VectorIndex
+
+    idx = store.load()
+    if not idx:
+        raise typer.Exit("brak indeksu: uruchom `fejki demo build`")
+    vi = VectorIndex().fit(idx.materials)
+    typer.echo(f"zapisano {vi.save()}: {vi.index.ntotal} wektorów, wymiar {vi.index.d}")
+    for m in [x for x in idx.materials if not x.id.startswith("u:")][:k]:
+        typer.echo(f"{m.id}: " + ", ".join(f"{i} ({s:.2f})" for i, s in vi.search(m, 5)))
 
 
 @demo_app.command("eval")
@@ -346,6 +364,24 @@ def demo_export(out: str = "artifacts/demo/export", thr: float = 0.4):
     for name, text in csvs(g).items():
         (d / name).write_text(text, encoding="utf-8")
     typer.echo(f"węzłów {g.number_of_nodes()}, krawędzi {g.number_of_edges()} → {d}")
+
+
+@demo_app.command("train")
+def demo_train(urlscan: str = URLSCAN_DIR if "URLSCAN_DIR" in globals() else "../data/urlscan", synth: str = "../data/synth",
+               out: str = "artifacts/demo/pair_model.json"):
+    """Uczy model par (regresja logistyczna) na zbiorach z etykietami i mierzy go walidacją leave-one-group-out."""
+    import json
+    from pathlib import Path
+
+    from .demo.learn import labelled_sets, train_sets
+
+    sets = labelled_sets(Path(urlscan), Path(synth), progress=lambda k, n, d: typer.echo(f"[{k + 1}/{n}] {d}") if k % 40 == 0 else None)
+    if not sets:
+        raise typer.Exit("brak zbiorów z etykietami (urlscan labels.csv, synth prawda.json)")
+    model = train_sets(sets, path(out))
+    typer.echo(json.dumps(model["metrics"], indent=1, ensure_ascii=False))
+    used = {k: v for k, v in model["coef"].items() if v > 0}
+    typer.echo("wagi niezerowe: " + ", ".join(f"{k}={v}" for k, v in sorted(used.items(), key=lambda x: -x[1])))
 
 
 @demo_app.command("watch")
