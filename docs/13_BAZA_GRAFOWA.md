@@ -207,7 +207,9 @@ a 6 negatywów wpada w jedną sieć (fałszywe połączenie, do poprawy w silnik
 .venv/bin/python graph/load_embeddings.py artifacts/meta/qwen_ads --dim 1024
 ```
 
-`text_hash` to pierwsze 12 znaków SHA-1 treści reklamy (jak w `embsim.eda`); reklamy zdjęte przez Metę nie mają tekstu, więc nie mają też odcisku.
+`text_hash` to pierwsze 12 znaków SHA-1 tekstu „tytuł + treść”, liczone tą samą funkcją co w `embsim.api` (`case_from_meta_ad`),
+więc `add` znajduje w grafie identyczny tekst. Reklamy zdjęte przez Metę nie mają tekstu, więc nie mają też odcisku.
+Uwaga: `embsim/eda.py` liczy swój odcisk z samej treści; to tylko statystyka, z grafem się nie łączy.
 
 ## Dane organizatora na serwerze
 
