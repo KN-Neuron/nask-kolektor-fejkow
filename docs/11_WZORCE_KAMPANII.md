@@ -16,7 +16,7 @@ Opis wzorców zidentyfikowanych w zbiorze organizatora (10 przypadków) i w dany
 | Kierowanie ruchu | ten sam schemat parametrów: `utm_id` (20 znaków losowych), `utm_medium`, `utm_campaign`, `utm_content` (po 10), `utm_visit` (UUIDv7) |
 | Rotacja | domeny: civicdaybook.live, acrosscommunities.live, novumfy.com, glowpixel.org, healthlinkq.pro; reklamodawcy: „Formal Favorable”, „EasyJoy”, „Sharon Coleman” |
 | Życie domen | rejestracja w odstępie ~1 minuty (civicdaybook.live / acrosscommunities.live), następna po ~95 minutach (healthlinkq.pro); materiał zebrany 0,5–1,2 dnia po rejestracji |
-| Dowód operatora | wspólny piksel Meta 2012165449475163 (przypadki 1 i 2); ta sama domena healthlinkq.pro (2 i 3); te same obrazy (48, 61, 3) |
+| Dowód operatora | wspólny piksel Meta 2012165449475163 (przypadki 1 i 2); ta sama domena healthlinkq.pro (2 i 3); te same obrazy (48 i 61; przypadek 3 nie ma wspólnych obrazów z żadnym innym, sprawdzone po pHash i nazwach plików) |
 
 **Wzorzec w wariantach:** ta sama strona na kilku domenach (duplikat), ta sama historia z innym produktem (wariant), różne
 historie z tym samym zestawem stron (sieć). Rozróżnienie „kampania / sieć” w narzędziu odpowiada tej strukturze.

@@ -74,7 +74,9 @@ def render() -> None:
         m3.metric("Zdjętych przez Metę", f"{card['n_flagged']} ({round(100 * (card['share'] or 0))}%)")
         m4.metric("Stron", card["n_pages"])
         m5.metric("Płatników", card["n_payers"])
-        st.caption(f"Okres emisji: {card['od']} – {card['do']} · różnych tekstów: {card['texts']} · "
+        texts = card["texts"] or ("0: Meta usunęła treść tych reklam, w Ad Library został tylko komunikat o usunięciu"
+                                  if card["n_flagged"] else 0)
+        st.caption(f"Okres emisji: {card['od']} – {card['do']} · różnych tekstów: {texts} · "
                    f"tematy (zapytania): {', '.join(card['topics']) or '—'}")
         st.subheader("Dlaczego to jeden twórca")
         if card["glue"]:

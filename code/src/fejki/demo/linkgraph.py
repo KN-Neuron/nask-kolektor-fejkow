@@ -105,7 +105,7 @@ def _bundle(ts: list[Trace]) -> list[tuple[str, str, list[str], set[str], float]
     b: dict[tuple[str, frozenset], list[Trace]] = {}
     for t in ts:
         b.setdefault((t.code, frozenset(t.members)), []).append(t)
-    rows = [(g[0].name, g[0].kind, [t.value for t in g], set(ms), max(t.weight for t in g)) for (_, ms), g in b.items()]
+    rows = [(g[0].name, g[0].kind, list(dict.fromkeys(t.value for t in g)), set(ms), max(t.weight for t in g)) for (_, ms), g in b.items()]
     return sorted(rows, key=lambda r: (-len(r[3]), -r[4]))
 
 
@@ -118,7 +118,7 @@ def _lc(s: str) -> str:
 
 
 def _esc(s: str) -> str:
-    return str(s).replace("\\", "/").replace('"', "'")
+    return str(s).replace("\\", "/").replace('"', "'").replace("\n", "\\n")
 
 
 def summary(net: Campaign, camps: list[Campaign], ts: list[Trace], label: dict[str, str]) -> list[str]:
@@ -131,7 +131,11 @@ def summary(net: Campaign, camps: list[Campaign], ts: list[Trace], label: dict[s
         if len(c.members) < 2:
             continue
         inside = [t for t in ts if t.members <= set(c.members)]
-        what = "; ".join(f"{_lc(n)} ({', '.join(_code(x) for x in v[:2])})" for n, _, v, _, _ in _bundle(inside)[:4])
+        seen: dict[str, list[str]] = {}  # ten sam rodzaj z kilku par = jedna pozycja z różnymi wartościami
+        for n, _, v, _, _ in _bundle(inside):
+            seen.setdefault(n, [])
+            seen[n] += [x for x in v if x not in seen[n]]
+        what = "; ".join(f"{_lc(n)} ({', '.join(_code(x) for x in v[:2])})" for n, v in list(seen.items())[:4])
         lines.append(f"**{', '.join(c.members)}** to jedna kampania (ten sam przekaz): {what or 'podobna treść'}.")
     cross = [t for t in ts if t.members <= mem and len({camp_of.get(m, m) for m in t.members}) > 1]
     for n, _, vals, ms, _ in _bundle(cross)[:5]:
@@ -145,44 +149,54 @@ def _html(s: str) -> str:
     return str(s).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
 
 
-def boxes(ts: list[Trace]) -> list[tuple[set[str], list[Trace]]]:
-    """Jedna ramka na zestaw materiałów: wszystkie ślady, które łączą dokładnie te materiały."""
+def boxes(ts: list[Trace], camp_of: dict[str, str] | None = None) -> list[tuple[frozenset, set[str], list[Trace]]]:
+    """Ramki „co łączy”: jedna na kampanię (wszystko, co ją skleja) i jedna na każdy zestaw kampanii, które coś łączy.
+
+    Kluczem jest zbiór kampanii, nie dokładny zbiór materiałów: 20 par „podobny tekst” w jednej kampanii to jedna ramka,
+    a nie 20. Dokładne zestawy materiałów są w opisie pod rysunkiem i w tabeli przesłanek.
+    """
+    camp_of = camp_of or {}
     b: dict[frozenset, list[Trace]] = {}
     for t in ts:
-        b.setdefault(frozenset(t.members), []).append(t)
-    return sorted(((set(ms), sorted(g, key=lambda t: -t.weight)) for ms, g in b.items()), key=lambda r: (-len(r[0]), -r[1][0].weight))
+        b.setdefault(frozenset(camp_of.get(m, m) for m in t.members), []).append(t)
+    out = [(key, set().union(*(t.members for t in g)), sorted(g, key=lambda t: -t.weight)) for key, g in b.items()]
+    return sorted(out, key=lambda r: (len(r[0]) > 1, -len(r[1]), -r[2][0].weight))
 
 
 def _box_label(g: list[Trace], max_lines: int = 5) -> str:
+    kinds: dict[str, tuple[str, list[str]]] = {}  # rodzaj śladu -> (kolor, różne wartości), od najsilniejszego
+    for t in g:
+        kinds.setdefault(t.name, (t.kind, []))
+        if t.value not in kinds[t.name][1]:
+            kinds[t.name][1].append(t.value)
     rows = []
-    for name, kind, vals, _, _ in _bundle(g)[:max_lines]:
+    for name, (kind, vals) in list(kinds.items())[:max_lines]:
         ink = STYLE[kind][1]
         head = f"{len(vals)} × {_lc(name)}" if len(vals) > 1 else _lc(name)
         rows.append(f'<tr><td align="left"><font color="{ink}">● </font>{_html(head)}: '
                     f'<font color="#475569">{_html(_short(vals[0], 40))}</font></td></tr>')
-    more = len(_bundle(g)) - max_lines
-    if more > 0:
-        rows.append(f'<tr><td align="left"><font color="#64748b">(+{more} w tabeli)</font></td></tr>')
+    if len(kinds) > max_lines:
+        rows.append(f'<tr><td align="left"><font color="#64748b">(+{len(kinds) - max_lines} w tabeli)</font></td></tr>')
     return '<<table border="0" cellspacing="0" cellpadding="2">' + "".join(rows) + "</table>>"
 
 
 def dot(materials: list[str], nets: list[Campaign], camps: list[Campaign], pairs: list[Pair], label: dict[str, str],
         highlight: str | None = None) -> str:
-    """DOT: sieci (ramki) z kampaniami (przerywane ramki wewnątrz), materiały jako karteczki, a obok nich ramki
-    „co łączy te materiały” (jedna na zestaw materiałów). Ramka przekazu (czerwona) siedzi w kampanii, ramki zaplecza
-    (niebieskie, łączące kampanie) w sieci. Materiały bez powiązań nie są rysowane (lista obok), bo tylko zaśmiecałyby obraz.
+    """DOT: sieci (ramki) z kampaniami (przerywane ramki wewnątrz), materiały jako karteczki, a obok ramki „co łączy”:
+    czerwonawa w kampanii (ten sam przekaz), niebieskawa między kampaniami (wspólne zaplecze). Materiały bez powiązań nie są
+    rysowane (tabela „Czego nie połączyliśmy”), bo tylko zaśmiecałyby obraz.
     """
     shown = set(materials)
     ts = [t for t in traces(pairs) if t.members <= shown]
     linked = set().union(*(t.members for t in ts)) if ts else set()
+    camp_of = {m: c.id for c in camps for m in c.members}
     lines = ['graph G {', 'rankdir=LR; bgcolor="transparent"; nodesep=0.25; ranksep=0.7; newrank=true;',
              'node [fontname="Helvetica", fontsize=11]; edge [color="#64748b"];']
     for k, net in enumerate(n for n in nets if set(n.members) & linked):
         mem = set(net.members) & shown
         lines.append(f'subgraph cluster_{k} {{ label="sieć {_esc(net.id)} · {len(mem)} materiałów"; labeljust=l; fontsize=12; '
                      f'style="rounded,filled"; fillcolor="{NET_FILL[k % len(NET_FILL)]}"; color="#cbd5e1";')
-        bx = boxes([t for t in ts if t.members <= mem])
-        placed: set[int] = set()
+        bx = boxes([t for t in ts if t.members <= mem], camp_of)
         for j, c in enumerate(c for c in camps if set(c.members) <= mem):
             many = len(c.members) > 1
             if many:
@@ -193,18 +207,18 @@ def dot(materials: list[str], nets: list[Campaign], camps: list[Campaign], pairs
                 lines.append(f'"m:{_esc(m)}" [label="{_esc(m)}\\n{_esc(label.get(m, ""))}", shape=note, style=filled, '
                              f'fillcolor="white"{hl}];')
             if many:
-                for i, (ms, g) in enumerate(bx):
-                    if ms <= set(c.members):
+                for i, (key, _, g) in enumerate(bx):
+                    if key == {c.id}:
                         lines.append(f'"b{k}_{i}" [label={_box_label(g)}, shape=box, style="rounded,filled", fillcolor="#fff1f2", '
                                      'color="#fca5a5", fontsize=10];')
-                        placed.add(i)
                 lines.append("}")
-        for i, (ms, g) in enumerate(bx):
-            if i not in placed:
+        for i, (key, ms, g) in enumerate(bx):
+            if len(key) > 1 or not any(key == {c.id} and len(c.members) > 1 for c in camps):
                 lines.append(f'"b{k}_{i}" [label={_box_label(g)}, shape=box, style="rounded,filled", fillcolor="#eff6ff", '
                              'color="#93c5fd", fontsize=10];')
             for m in sorted(ms):
-                lines.append(f'"m:{_esc(m)}" -- "b{k}_{i}" [penwidth={1 + 2 * g[0].weight:.1f}];')
+                w = max(t.weight for t in g if m in t.members)
+                lines.append(f'"m:{_esc(m)}" -- "b{k}_{i}" [penwidth={1 + 2 * w:.1f}];')
         lines.append("}")
     lines.append("}")
     return "\n".join(lines)
@@ -214,3 +228,34 @@ def lonely(materials: list[str], pairs: list[Pair]) -> list[str]:
     ts = traces(pairs)
     linked = set().union(*(t.members for t in ts)) if ts else set()
     return [m for m in materials if m not in linked]
+
+
+def nearest(alone: list[str], pairs: list[Pair], thr: float, maybe: float) -> list[dict]:
+    """Dla materiałów bez sieci: najbliższy inny materiał i dlaczego go NIE połączyliśmy (zdolność do niełączenia)."""
+    best: dict[str, Pair] = {}
+    for p in pairs:
+        for m in (p.a, p.b):
+            if m in alone and (m not in best or p.score > best[m].score):
+                best[m] = p
+    rows = []
+    for m in alone:
+        p = best.get(m)
+        if p is None or p.score <= 0 or not p.evidence:
+            rows.append({"materiał": m, "najbliższy": "—", "wynik": 0.0,
+                         "decyzja": "osobno: brak jakiejkolwiek wspólnej cechy z resztą zbioru", "co wspólne": "nic", "co przeciw": ""})
+            continue
+        pro = [e for e in p.evidence if e.code != "conflict" and e.weight > 0]
+        con = [e for e in p.evidence if e.code == "conflict"]
+        weak = all(e.code == "topic" or e.weight < MIN_WEIGHT for e in pro)
+        if p.score >= thr:
+            why = "silna para, ale reszta tamtej grupy nie ma z tym materiałem nic wspólnego (bez łańcuchowania)"
+        elif p.score >= maybe:
+            why = f"do weryfikacji: wynik między progami {maybe:.2f} a {thr:.2f}"
+        elif weak:
+            why = "osobno: wspólne są tylko pospolite cechy (np. tematyka), które niczego nie dowodzą"
+        else:
+            why = f"osobno: za mało niezależnych śladów (wynik {p.score:.2f} < {maybe:.2f})"
+        rows.append({"materiał": m, "najbliższy": p.b if p.a == m else p.a, "wynik": round(p.score, 2), "decyzja": why,
+                     "co wspólne": "; ".join(e.reason for e in pro[:2]) or "nic",
+                     "co przeciw": "; ".join(e.reason for e in con[:1])})
+    return rows

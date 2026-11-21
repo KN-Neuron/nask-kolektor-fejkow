@@ -52,3 +52,16 @@ def test_summary_says_what_links_campaigns():
     lines = lg.summary(NETS[0], CAMPS, lg.traces(PAIRS), {})
     assert any(line.startswith("**1, 2** to jedna kampania") and "piksel Meta" in line for line in lines)
     assert any("**1, 2, 3** łączy" in line and "/aio-static/sdk/main.js" in line for line in lines)
+
+
+def test_nearest_explains_why_not_linked():
+    pairs = [*PAIRS, Pair(a="5", b="1", score=0.06, relation="podobieństwo treści", evidence=[
+        ev("topic", 0.06, "ta sama główna tematyka: news"),
+        Evidence(code="conflict", channel="konflikt", weight=0.0, reason="różne schematy parametrów adresu"),
+    ])]
+    rows = lg.nearest(["5", "6"], pairs, thr=0.7, maybe=0.4)
+    assert rows[0]["najbliższy"] == "1" and "pospolite" in rows[0]["decyzja"] and "różne schematy" in rows[0]["co przeciw"]
+    assert rows[1]["najbliższy"] == "—" and "brak jakiejkolwiek" in rows[1]["decyzja"]
+    mid = lg.nearest(["5"], [Pair(a="5", b="2", score=0.5, relation="x", evidence=[ev("same_landing", 0.5, "ta sama domena docelowa: a.pl")])],
+                     thr=0.7, maybe=0.4)
+    assert mid[0]["decyzja"].startswith("do weryfikacji")
