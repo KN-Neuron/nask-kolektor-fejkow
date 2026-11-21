@@ -1,0 +1,505 @@
+{
+ "próg": 0.725,
+ "data": "2026-11-22",
+ "podsumowanie": [
+  {
+   "kryterium": "Skuteczność: podobne materiały i warianty tych samych kampanii",
+   "miara": "trafione na poziomie kampanii",
+   "wynik": "8/15 (53%)",
+   "jak liczone": "nowy wariant znanej kampanii rozpoznany jako ta sama kampania, wskazany właściwy materiał"
+  },
+  {
+   "kryterium": "",
+   "miara": "wskazana właściwa grupa (kampania lub sieć)",
+   "wynik": "14/15 (93%)",
+   "jak liczone": "najbliższy materiał jest z tej samej kampanii"
+  },
+  {
+   "kryterium": "Poprawność przypisywania do istniejących grup",
+   "miara": "precyzja decyzji „znana kampania”",
+   "wynik": "8/8 (100%)",
+   "jak liczone": "z decyzji „znana kampania” ile wskazało właściwą grupę"
+  },
+  {
+   "kryterium": "",
+   "miara": "czułość decyzji „znana kampania”",
+   "wynik": "8/15 (53%)",
+   "jak liczone": "z nowych wariantów ile dostało decyzję „znana kampania” z właściwą grupą"
+  },
+  {
+   "kryterium": "Niełączenie tego, co nie powinno być połączone",
+   "miara": "obce materiały zostawione jako „nowy wzorzec”",
+   "wynik": "11/11 (100%)",
+   "jak liczone": "negatywy z syntetyki i przypadki NASK spoza kampanii {1,2} i {48,61}"
+  },
+  {
+   "kryterium": "Nowa kampania znanego operatora",
+   "miara": "rozpoznany operator, nie doklejony do kampanii",
+   "wynik": "4/4 (100%)",
+   "jak liczone": "nowa kampania tej samej infrastruktury: werdykt „znany operator” z właściwym operatorem"
+  },
+  {
+   "kryterium": "Interpretowalność",
+   "miara": "decyzje połączeniowe z podanymi przesłankami",
+   "wynik": "18/18 (100%)",
+   "jak liczone": "każda decyzja „kampania”/„sieć” ma co najmniej jeden wskazany powód (wspólne ślady, kanały)"
+  },
+  {
+   "kryterium": "Odporność: duplikaty, niekompletne dane, format",
+   "miara": "dobra decyzja (dokładnie)",
+   "wynik": "8/13 (62%)",
+   "jak liczone": "sam HTML, sam HAR, sam zrzut, ten sam materiał drugi raz"
+  },
+  {
+   "kryterium": "",
+   "miara": "dobra grupa (także inny poziom)",
+   "wynik": "11/13 (85%)",
+   "jak liczone": "najbliższy materiał z tej samej kampanii"
+  }
+ ],
+ "A": [
+  {
+   "przypadek": "1",
+   "oczekiwane": "kampania",
+   "wynik": "kampania",
+   "najbliższy": "2",
+   "wynik kampanii": 0.959,
+   "wynik operatora": 0.9,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "2",
+   "oczekiwane": "kampania",
+   "wynik": "kampania",
+   "najbliższy": "1",
+   "wynik kampanii": 0.959,
+   "wynik operatora": 0.848,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "3",
+   "oczekiwane": "sieć",
+   "wynik": "sieć",
+   "najbliższy": "2",
+   "wynik kampanii": 0.529,
+   "wynik operatora": 0.85,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "5",
+   "oczekiwane": "nowy",
+   "wynik": "nowy",
+   "najbliższy": "1",
+   "wynik kampanii": 0.0,
+   "wynik operatora": 0.0,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "10",
+   "oczekiwane": "nowy",
+   "wynik": "nowy",
+   "najbliższy": "48",
+   "wynik kampanii": 0.222,
+   "wynik operatora": 0.0,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "14",
+   "oczekiwane": "nowy",
+   "wynik": "nowy",
+   "najbliższy": "47",
+   "wynik kampanii": 0.415,
+   "wynik operatora": 0.138,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "36",
+   "oczekiwane": "nowy",
+   "wynik": "nowy",
+   "najbliższy": "61",
+   "wynik kampanii": 0.259,
+   "wynik operatora": 0.0,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "47",
+   "oczekiwane": "nowy",
+   "wynik": "nowy",
+   "najbliższy": "14",
+   "wynik kampanii": 0.388,
+   "wynik operatora": 0.0,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "48",
+   "oczekiwane": "kampania",
+   "wynik": "kampania",
+   "najbliższy": "61",
+   "wynik kampanii": 0.836,
+   "wynik operatora": 0.669,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "61",
+   "oczekiwane": "kampania",
+   "wynik": "kampania",
+   "najbliższy": "48",
+   "wynik kampanii": 0.818,
+   "wynik operatora": 0.9,
+   "ocena": "OK"
+  }
+ ],
+ "B": [
+  {
+   "przypadek": "1",
+   "wejście": "sam HTML",
+   "wynik": "kampania",
+   "najbliższy": "2",
+   "wynik kampanii": 0.883,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "1",
+   "wejście": "sam HAR",
+   "wynik": "kampania",
+   "najbliższy": "2",
+   "wynik kampanii": 0.933,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "1",
+   "wejście": "sam zrzut (OCR)",
+   "wynik": "nowy",
+   "najbliższy": "2",
+   "wynik kampanii": 0.0,
+   "ocena": "BŁĄD: nie rozpoznano"
+  },
+  {
+   "przypadek": "48",
+   "wejście": "sam HTML",
+   "wynik": "sieć",
+   "najbliższy": "61",
+   "wynik kampanii": 0.64,
+   "ocena": "częściowo (dobra grupa, inny poziom)"
+  },
+  {
+   "przypadek": "48",
+   "wejście": "sam HAR",
+   "wynik": "kampania",
+   "najbliższy": "61",
+   "wynik kampanii": 0.97,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "48",
+   "wejście": "sam zrzut (OCR)",
+   "wynik": "nowy",
+   "najbliższy": "1",
+   "wynik kampanii": 0.0,
+   "ocena": "BŁĄD: nie rozpoznano"
+  },
+  {
+   "przypadek": "61",
+   "wejście": "sam HTML",
+   "wynik": "sieć",
+   "najbliższy": "48",
+   "wynik kampanii": 0.653,
+   "ocena": "częściowo (dobra grupa, inny poziom)"
+  },
+  {
+   "przypadek": "61",
+   "wejście": "sam HAR",
+   "wynik": "kampania",
+   "najbliższy": "48",
+   "wynik kampanii": 0.928,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "61",
+   "wejście": "sam zrzut (OCR)",
+   "wynik": "nowy",
+   "najbliższy": "1",
+   "wynik kampanii": 0.0,
+   "ocena": "BŁĄD: nie rozpoznano"
+  },
+  {
+   "przypadek": "1",
+   "wejście": "ten sam materiał drugi raz",
+   "wynik": "kampania",
+   "najbliższy": "1",
+   "wynik kampanii": 0.932,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "1",
+   "wejście": "zrzut znanej reklamy (OCR)",
+   "wynik": "kampania",
+   "najbliższy": "1",
+   "wynik kampanii": 0.111,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "48",
+   "wejście": "ten sam materiał drugi raz",
+   "wynik": "kampania",
+   "najbliższy": "48",
+   "wynik kampanii": 0.978,
+   "ocena": "OK"
+  },
+  {
+   "przypadek": "48",
+   "wejście": "zrzut znanej reklamy (OCR)",
+   "wynik": "kampania",
+   "najbliższy": "48",
+   "wynik kampanii": 0.052,
+   "ocena": "OK"
+  }
+ ],
+ "C": [
+  {
+   "materiał": "s003",
+   "typ": "nowy wariant znanej kampanii",
+   "prawda": "O1-K1",
+   "oczekiwane": "kampania",
+   "wynik": "sieć",
+   "najbliższy": "s001",
+   "prawda najbliższego": "O1-K1",
+   "wynik kampanii": 0.709,
+   "wynik operatora": 0.514,
+   "ocena": "częściowo (dobra grupa, inny poziom)"
+  },
+  {
+   "materiał": "s006",
+   "typ": "nowy wariant znanej kampanii",
+   "prawda": "O1-K2",
+   "oczekiwane": "kampania",
+   "wynik": "sieć",
+   "najbliższy": "s004",
+   "prawda najbliższego": "O1-K2",
+   "wynik kampanii": 0.709,
+   "wynik operatora": 0.514,
+   "ocena": "częściowo (dobra grupa, inny poziom)"
+  },
+  {
+   "materiał": "s009",
+   "typ": "nowy wariant znanej kampanii",
+   "prawda": "O2-K1",
+   "oczekiwane": "kampania",
+   "wynik": "sieć",
+   "najbliższy": "s007",
+   "prawda najbliższego": "O2-K1",
+   "wynik kampanii": 0.708,
+   "wynik operatora": 0.514,
+   "ocena": "częściowo (dobra grupa, inny poziom)"
+  },
+  {
+   "materiał": "s012",
+   "typ": "nowy wariant znanej kampanii",
+   "prawda": "O2-K2",
+   "oczekiwane": "kampania",
+   "wynik": "nowy",
+   "najbliższy": "s010",
+   "prawda najbliższego": "O2-K2",
+   "wynik kampanii": 0.674,
+   "wynik operatora": 0.022,
+   "ocena": "BŁĄD: nie rozpoznano"
+  },
+  {
+   "materiał": "s015",
+   "typ": "nowy wariant znanej kampanii",
+   "prawda": "O3-K1",
+   "oczekiwane": "kampania",
+   "wynik": "sieć",
+   "najbliższy": "s013",
+   "prawda najbliższego": "O3-K1",
+   "wynik kampanii": 0.717,
+   "wynik operatora": 0.435,
+   "ocena": "częściowo (dobra grupa, inny poziom)"
+  },
+  {
+   "materiał": "s018",
+   "typ": "nowy wariant znanej kampanii",
+   "prawda": "O3-K2",
+   "oczekiwane": "kampania",
+   "wynik": "kampania",
+   "najbliższy": "s017",
+   "prawda najbliższego": "O3-K2",
+   "wynik kampanii": 0.743,
+   "wynik operatora": 0.572,
+   "ocena": "OK"
+  },
+  {
+   "materiał": "s021",
+   "typ": "nowy wariant znanej kampanii",
+   "prawda": "O4-K1",
+   "oczekiwane": "kampania",
+   "wynik": "kampania",
+   "najbliższy": "s020",
+   "prawda najbliższego": "O4-K1",
+   "wynik kampanii": 0.733,
+   "wynik operatora": 0.587,
+   "ocena": "OK"
+  },
+  {
+   "materiał": "s024",
+   "typ": "nowy wariant znanej kampanii",
+   "prawda": "O4-K2",
+   "oczekiwane": "kampania",
+   "wynik": "kampania",
+   "najbliższy": "s023",
+   "prawda najbliższego": "O4-K2",
+   "wynik kampanii": 0.748,
+   "wynik operatora": 0.587,
+   "ocena": "OK"
+  },
+  {
+   "materiał": "s027",
+   "typ": "nowy wariant znanej kampanii",
+   "prawda": "O5-K1",
+   "oczekiwane": "kampania",
+   "wynik": "sieć",
+   "najbliższy": "s025",
+   "prawda najbliższego": "O5-K1",
+   "wynik kampanii": 0.707,
+   "wynik operatora": 0.413,
+   "ocena": "częściowo (dobra grupa, inny poziom)"
+  },
+  {
+   "materiał": "s030",
+   "typ": "nowy wariant znanej kampanii",
+   "prawda": "O5-K2",
+   "oczekiwane": "kampania",
+   "wynik": "sieć",
+   "najbliższy": "s025",
+   "prawda najbliższego": "O5-K1",
+   "wynik kampanii": 0.703,
+   "wynik operatora": 0.572,
+   "ocena": "BŁĄD: zła grupa"
+  },
+  {
+   "materiał": "s033",
+   "typ": "nowy wariant znanej kampanii",
+   "prawda": "O6-K1",
+   "oczekiwane": "kampania",
+   "wynik": "kampania",
+   "najbliższy": "s031",
+   "prawda najbliższego": "O6-K1",
+   "wynik kampanii": 0.739,
+   "wynik operatora": 0.478,
+   "ocena": "OK"
+  },
+  {
+   "materiał": "s034",
+   "typ": "nowa kampania znanego operatora",
+   "prawda": "O6-K2",
+   "oczekiwane": "sieć",
+   "wynik": "sieć",
+   "najbliższy": "s031",
+   "prawda najbliższego": "O6-K1",
+   "wynik kampanii": 0.459,
+   "wynik operatora": 0.63,
+   "ocena": "OK"
+  },
+  {
+   "materiał": "s035",
+   "typ": "nowa kampania znanego operatora",
+   "prawda": "O6-K2",
+   "oczekiwane": "sieć",
+   "wynik": "sieć",
+   "najbliższy": "s031",
+   "prawda najbliższego": "O6-K1",
+   "wynik kampanii": 0.457,
+   "wynik operatora": 0.478,
+   "ocena": "OK"
+  },
+  {
+   "materiał": "s036",
+   "typ": "nowa kampania znanego operatora",
+   "prawda": "O6-K2",
+   "oczekiwane": "sieć",
+   "wynik": "sieć",
+   "najbliższy": "s031",
+   "prawda najbliższego": "O6-K1",
+   "wynik kampanii": 0.459,
+   "wynik operatora": 0.63,
+   "ocena": "OK"
+  },
+  {
+   "materiał": "s037",
+   "typ": "inna kampania (negatyw)",
+   "prawda": "neg:s037",
+   "oczekiwane": "nowy",
+   "wynik": "nowy",
+   "najbliższy": "s001",
+   "prawda najbliższego": "O1-K1",
+   "wynik kampanii": 0.502,
+   "wynik operatora": 0.0,
+   "ocena": "OK"
+  },
+  {
+   "materiał": "s038",
+   "typ": "inna kampania (negatyw)",
+   "prawda": "neg:s038",
+   "oczekiwane": "nowy",
+   "wynik": "nowy",
+   "najbliższy": "s004",
+   "prawda najbliższego": "O1-K2",
+   "wynik kampanii": 0.238,
+   "wynik operatora": 0.0,
+   "ocena": "OK"
+  },
+  {
+   "materiał": "s039",
+   "typ": "inna kampania (negatyw)",
+   "prawda": "neg:s039",
+   "oczekiwane": "nowy",
+   "wynik": "nowy",
+   "najbliższy": "s025",
+   "prawda najbliższego": "O5-K1",
+   "wynik kampanii": 0.53,
+   "wynik operatora": 0.0,
+   "ocena": "OK"
+  },
+  {
+   "materiał": "s040",
+   "typ": "inna kampania (negatyw)",
+   "prawda": "neg:s040",
+   "oczekiwane": "nowy",
+   "wynik": "nowy",
+   "najbliższy": "s010",
+   "prawda najbliższego": "O2-K2",
+   "wynik kampanii": 0.528,
+   "wynik operatora": 0.0,
+   "ocena": "OK"
+  },
+  {
+   "materiał": "s041",
+   "typ": "inna kampania (negatyw)",
+   "prawda": "neg:s041",
+   "oczekiwane": "nowy",
+   "wynik": "nowy",
+   "najbliższy": "s013",
+   "prawda najbliższego": "O3-K1",
+   "wynik kampanii": 0.574,
+   "wynik operatora": 0.0,
+   "ocena": "OK"
+  },
+  {
+   "materiał": "s042",
+   "typ": "inna kampania (negatyw)",
+   "prawda": "neg:s042",
+   "oczekiwane": "nowy",
+   "wynik": "nowy",
+   "najbliższy": "s017",
+   "prawda najbliższego": "O3-K2",
+   "wynik kampanii": 0.603,
+   "wynik operatora": 0.0,
+   "ocena": "OK"
+  }
+ ],
+ "wyniki": {
+  "A": "10/10 OK, 0 częściowo, 0 błędów",
+  "B": "8/13 OK, 2 częściowo, 3 błędów",
+  "C": "13/20 OK, 5 częściowo, 2 błędów"
+ }
+}

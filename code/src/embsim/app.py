@@ -14,6 +14,7 @@ import streamlit as st
 
 from embsim import analyze as A
 from embsim import graph_view
+from embsim import jury as J
 from embsim.api import DEFAULT_CONFIG, Gallery, demo_thresholds
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -90,7 +91,7 @@ with st.sidebar:
 st.title("Kolekcjoner Fejków")
 st.caption("Jedna metoda: podobieństwo to jedno wyrażenie z wagami ustalonymi z góry, bez uczenia (docs/14_WZOR_PODOBIENSTWA.md). "
            "Strony oszustów nie są odwiedzane.")
-tab_a, tab_k = st.tabs(["🔎 Analiza nowego materiału", "🧩 Klastry"])
+tab_a, tab_k, tab_w = st.tabs(["🔎 Analiza nowego materiału", "🧩 Klastry", "📐 Wzór i wyniki"])
 
 with tab_a:
     st.subheader("1. Wejście")
@@ -238,3 +239,72 @@ with tab_k:
             with st.expander(f"Materiały ({len(mats)})"):
                 st.dataframe(pd.DataFrame(mats), use_container_width=True, hide_index=True)
             st.download_button("Pobierz kartę klastra (Markdown)", A.cluster_markdown(f"operator {op}", mats, traces), file_name=f"klaster_{op}.md")
+
+
+# --- zakładka: wzór i wyniki ----------------------------------------------------------------------------------------------
+
+CHANNELS = [
+    ("text", "embedding tekstu (MiniLM, wielojęzyczny)", "kosinus, odjęta typowa wartość w galerii"),
+    ("text_lex", "TF-IDF n-gramów znaków (3–5), bez modelu", "kosinus, odjęta typowa wartość w galerii"),
+    ("kit", "katalogi zasobów strony (z HAR)", "wspólne ślady ważone rzadkością"),
+    ("scheme", "zestaw nazw parametrów adresu (z HAR)", "wspólne ślady ważone rzadkością"),
+    ("host", "domeny rejestrowalne z ruchu, bez Google/Meta/CDN", "wspólne ślady ważone rzadkością"),
+    ("pixel", "identyfikatory pikseli i tagów (z HTML)", "wspólne ślady ważone rzadkością"),
+    ("img", "identyczne obrazy strony (SHA-256 z HAR i `*_files`), bez modelu", "wspólne ślady ważone rzadkością"),
+]
+
+with tab_w:
+    st.subheader("Jak liczymy podobieństwo")
+    st.markdown(
+        "Podobieństwo dwóch materiałów to **jedno wyrażenie z wagami ustalonymi z góry**. Nie ma tu wytrenowanego modelu: każdy kanał daje liczbę "
+        "od 0 do 1, wszystkie ważą tyle samo, a jedyne liczby dobrane na danych z etykietami to **dwa progi decyzyjne**.")
+    st.code(
+        "S̄(a,b) = Σ w_c · s_c(a,b) / Σ w_c          średnia po kanałach, w których coś da się porównać (w_c = 1)\n"
+        "S(a,b)  = max(0, 1 − (1 − S̄) / λ)         λ = min(1, e / e_ref): im mniej danych, tym wyższy S̄ jest potrzebny\n"
+        "s_ślad  = 1 − exp(− Σ idf(x)),  idf(x) = ln((N+1) / (df(x)+0,5))   x = wspólny ślad: rzadki waży dużo, pospolity prawie nic\n"
+        "decyzja: S ≥ t_kampanii → znana kampania;  inaczej S_operatora ≥ t_operatora → ten sam operator;  inaczej → nowy wzorzec",
+        language="text")
+    st.dataframe(pd.DataFrame(CHANNELS, columns=["kanał", "co porównuje", "jak"]), use_container_width=True, hide_index=True)
+    thr = g.cfg.thresholds
+    st.caption(f"Progi: kampania {thr.get('campaign')} (skalibrowany na stronach z NASK i syntetyki, `config/embsim/demo_calibration.json`), "
+               f"operator {thr.get('operator')}. Pełny opis: `docs/14_WZOR_PODOBIENSTWA.md`.")
+
+    res_w = st.session_state.get("result")
+    if res_w and res_w[2].matches:
+        _, _, dw = res_w
+        mw = dw.key_match()
+        st.markdown(f"**Na żywo: ostatnia analiza, najbliższy materiał {mw.id}**")
+        if mw.channels:
+            vals = list(mw.channels.values())
+            st.dataframe(pd.DataFrame([{"kanał": k, "wynik kanału s_c": v} for k, v in mw.channels.items()]),
+                         use_container_width=True, hide_index=True)
+            st.write(f"S̄ = średnia z {len(vals)} kanałów = **{sum(vals) / len(vals):.3f}**; po korekcie o dostępność dowodu "
+                     f"**S = {mw.campaign_score:.3f}** (próg {thr.get('campaign')}); wynik operatora **{mw.operator_score:.3f}** "
+                     f"(próg {thr.get('operator')}). Pominięte kanały nie miały wspólnego śladu albo danych w obu materiałach.")
+    else:
+        st.caption("Przeanalizuj materiał w pierwszej zakładce, a tu pojawi się rozbicie jego wyniku na kanały.")
+
+    st.subheader("Jak to ocenia jury: test na ukrytych przypadkach")
+    st.markdown(
+        "Organizator sprawdzi: skuteczność wskazywania podobnych materiałów i wariantów, poprawność przypisania do istniejących grup, "
+        "**niełączenie obcych**, odporność na duplikaty i braki danych, interpretowalność i pełny przebieg od wczytania do wyniku. "
+        "Odtwarzamy to na zbiorze, którego system nie widział: każdy przypadek NASK ukryty po kolei (A), ten sam materiał w innych "
+        "formatach (B), syntetyka z ukrytymi wariantami, nową kampanią operatora i negatywami (C).")
+    stored = J.load_stored()
+    can_run = Path(DEFAULT_FOLDERS).is_dir()
+    if can_run and st.button("Uruchom test na danych z tego komputera", key="jury_run"):
+        with st.spinner("Buduję galerie i pytam o każdy ukryty materiał (około pół minuty)…"):
+            rr = J.run_all(g.cfg.thresholds.get("campaign"), Path(DEFAULT_FOLDERS))
+        stored = J.to_record(rr)
+        st.session_state.jury_live = stored
+    stored = st.session_state.get("jury_live") or stored
+    if not stored:
+        st.info("Brak zapisanych wyników testu. Uruchom `PYTHONPATH=src python scripts/test_jak_jury_embsim.py` w katalogu code/.")
+    else:
+        st.caption(f"Wyniki z {stored['data']}, próg kampanii {stored['próg']}. A: {stored['wyniki']['A']}; B: {stored['wyniki']['B']}; "
+                   f"C: {stored['wyniki']['C']}.")
+        st.dataframe(pd.DataFrame(stored["podsumowanie"]), use_container_width=True, hide_index=True)
+        for k, title in (("A", "A. NASK, ukryty przypadek"), ("B", "B. Format, braki, duplikat"), ("C", "C. Syntetyka jako ukryty zbiór")):
+            if stored.get(k):
+                with st.expander(f"{title}: {stored['wyniki'][k]}"):
+                    st.dataframe(pd.DataFrame(stored[k]), use_container_width=True, hide_index=True)

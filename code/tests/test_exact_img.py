@@ -112,3 +112,21 @@ def test_zip_slip_rejected(tmp_path):
     except ValueError:
         return
     raise AssertionError("ścieżka poza katalogiem nie została odrzucona")
+
+
+def test_jury_summary_by_criteria():
+    import pandas as pd
+
+    from embsim import jury as J
+
+    ra = pd.DataFrame([
+        {"oczekiwane": "kampania", "wynik": "kampania", "ocena": "OK", "_grupa": True, "_powody": 2},
+        {"oczekiwane": "kampania", "wynik": "sieć", "ocena": "częściowo (dobra grupa, inny poziom)", "_grupa": True, "_powody": 1},
+        {"oczekiwane": "nowy", "wynik": "nowy", "ocena": "OK", "_grupa": False, "_powody": 0},
+        {"oczekiwane": "nowy", "wynik": "kampania", "ocena": "BŁĄD: połączono obce", "_grupa": False, "_powody": 1}])
+    rows = {(r["miara"]): r["wynik"] for r in J.summary(ra, None, None)}
+    assert rows["trafione na poziomie kampanii"].startswith("1/2")
+    assert rows["precyzja decyzji „znana kampania”"].startswith("1/2")        # 2 decyzje „kampania”, jedna właściwa
+    assert rows["obce materiały zostawione jako „nowy wzorzec”"].startswith("1/2")
+    assert rows["decyzje połączeniowe z podanymi przesłankami"].startswith("3/3")
+    assert J.summary(None, None, None) == []

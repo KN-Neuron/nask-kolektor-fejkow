@@ -100,6 +100,10 @@ ukryty zbiór (nowe warianty, nowa kampania znanego operatora, 6 negatywów). Ra
   (0,875 przypiętych dobrze, 0,833 bez pary osobno; przy 0,95: 2/40 przypiętych). Na NASK każdy próg z (0,53; 0,82) daje 10/10. To kalibracja
   na naszych zbiorach dev, nie na ukrytym zbiorze jury. Kanał `img` jest dokładany w `Gallery` (wagi jak inne ślady, rotujący); `e_ref`
   przeskalowane tak, że materiały bez obrazów dostają dokładnie ten sam wynik co przed zmianą.
+- **Wg kryteriów walidacji organizatora** (test jak jury, 15 nowych wariantów i przypadków kampanii, 11 negatywów, 13 wejść niepełnych):
+  precyzja decyzji „znana kampania” 8/8, czułość 8/15 (pozostałe 7 trafia w dobrą grupę, ale na poziomie sieci, bo wynik jest tuż pod
+  progiem 0,725), obce materiały zostawione osobno 11/11, nowa kampania znanego operatora rozpoznana 4/4, decyzje z podaną przesłanką 18/18,
+  wejścia niepełne trafione dokładnie 8/13 i w dobrą grupę 11/13. Wyniki zapisane w `code/config/embsim/wyniki_jury.json`.
 - **Słabe nadal**: zrzut samej reklamy nie trafia w stronę docelową innego materiału (B, 3 błędy: tekst kreacji ≠ tekst strony);
   ocena wsadowa od pustej galerii (syntetyka v1, 42 materiały po kolei): kampanie precyzja 0,80, czułość 0,33, negatywy osobno 3/6.
   Pierwsze decyzje zapadają na galerii z 1–2 materiałów, gdzie rzadkość śladu nic nie znaczy.
