@@ -57,8 +57,8 @@ def test_reasons_confidence_card_and_network_on_real_gallery(tmp_path):
     assert d.matches and 1 <= len(A.top_reasons(d.matches[0])) <= 3
     assert A.confidence_label(0.9) == "wysoka" and A.confidence_label(0.6) == "średnia" and "niska" in A.confidence_label(0.2)
     assert A.verdict_style(d)[1] and "Karta materiału" in A.card_markdown(new, d)
-    fig = A.network_figure(new, d)
-    assert any(t.name == "nowy" for t in fig.data) and any(t.name == "materiał" for t in fig.data)
+    dot = A.network_dot(new, d)
+    assert dot.startswith("digraph G {") and '"NOWY"' in dot and dot.count('"NOWY" ->') == len(d.matches[:5])
 
 
 def test_gallery_clusters_traces_without_hubs_and_dot(tmp_path):
@@ -76,5 +76,10 @@ def test_gallery_clusters_traces_without_hubs_and_dot(tmp_path):
     assert traces == sorted(traces, key=lambda t: (t["w galerii"], -len(t["materiały"])))   # rzadkie najpierw
     dot = A.cluster_dot(g, camps, f"operator {op}", traces)
     assert dot.startswith("graph G {") and dot.rstrip().endswith("}") and "cluster_op" in dot and 'label="kampania' in dot
+    boxes = A.trace_boxes(g, camps, traces)
+    edges = dot.count(" -- ")
+    assert 0 < edges <= sum(len(b["materiały"]) for b in boxes) <= sum(len(t["materiały"]) for t in traces)   # ramka zamiast śladu
+    assert all(b["kampania"] is None or len(b["kampanie"]) == 1 for b in boxes)
+    assert isinstance(A.cluster_summary(g, camps, traces), list)
     md = A.cluster_markdown(f"operator {op}", [{"materiał": "a", "kampania": "K1", "operator": op, "tekst": "x"}], traces)
     assert md.startswith("# Klaster: operator") and "## Materiały" in md

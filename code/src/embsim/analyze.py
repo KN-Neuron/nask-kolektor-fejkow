@@ -157,39 +157,6 @@ def card_markdown(case: Case, d: Decision) -> str:
     return "\n".join(lines)
 
 
-def network_figure(case: Case, d: Decision):
-    """Sieć: nowy materiał, jego najbliższe dopasowania, ich kampanie i operatorzy (plotly)."""
-    import networkx as nx
-    import plotly.graph_objects as go
-
-    G = nx.Graph()
-    G.add_node("NOWY", kind="nowy", label=case.id)
-    for m in d.matches:
-        G.add_node(m.id, kind="materiał", label=m.id)
-        G.add_edge("NOWY", m.id, w=max(m.campaign_score, 0.05))
-        if m.group:
-            G.add_node("K:" + m.group, kind="kampania", label=m.group)
-            G.add_edge(m.id, "K:" + m.group, w=1.0)
-            if m.operator:
-                G.add_node("O:" + m.operator, kind="operator", label=m.operator)
-                G.add_edge("K:" + m.group, "O:" + m.operator, w=1.0)
-    pos = nx.spring_layout(G, seed=3, weight="w", k=0.9)
-    color = {"nowy": "#d62728", "materiał": "#1f77b4", "kampania": "#2ca02c", "operator": "#ff7f0e"}
-    ex, ey = [], []
-    for a, b in G.edges:
-        ex += [pos[a][0], pos[b][0], None]
-        ey += [pos[a][1], pos[b][1], None]
-    fig = go.Figure([go.Scatter(x=ex, y=ey, mode="lines", line=dict(width=1, color="#999"), hoverinfo="none")])
-    for kind, c in color.items():
-        ns = [n for n, a in G.nodes(data=True) if a["kind"] == kind]
-        if ns:
-            fig.add_trace(go.Scatter(x=[pos[n][0] for n in ns], y=[pos[n][1] for n in ns], mode="markers+text", name=kind,
-                                     text=[G.nodes[n]["label"] for n in ns], textposition="top center",
-                                     marker=dict(size=18 if kind != "materiał" else 12, color=c)))
-    fig.update_layout(showlegend=True, xaxis=dict(visible=False), yaxis=dict(visible=False), height=420, margin=dict(l=10, r=10, t=10, b=10))
-    return fig
-
-
 def gallery_summary(g: Gallery) -> dict:
     return {"materiałów": len(g), "kampanii": len({it["group"] for it in g.items}), "operatorów": len({it["operator"] for it in g.items})}
 
@@ -239,7 +206,8 @@ def hash_embed(texts, dim: int = 96):
 # --------------------------------------------------------------------------------------------------------------------
 # klastry w galerii (bez bazy): operator -> kampanie -> materiały, plus ślady, które je sklejają
 
-TRACE_LABEL = {"host": "domena", "kit": "zestaw zasobów", "scheme": "schemat adresu", "pixel": "piksel", "payer": "płatnik",
+TRACE_LABEL = {"img": "ten sam obraz", "host": "domena", "kit": "zestaw zasobów", "scheme": "schemat adresu", "pixel": "piksel",
+               "payer": "płatnik",
                "page": "strona reklamodawcy", "text_hash": "identyczny tekst"}
 HUB_FRACTION = 0.2          # ślad obecny w więcej niż 20% galerii (min. 10 materiałów) niczego nie dowodzi (tracker, CDN)
 
@@ -264,8 +232,15 @@ def shared_traces(g: Gallery, idx: list[int]) -> list[dict]:
             if ch in TRACE_LABEL:
                 for x in s:
                     inside[(ch, x)].append(g.items[i]["case"].id)
-    rows = [{"ślad": TRACE_LABEL[ch], "wartość": x, "materiały": ms, "w galerii": df[(ch, x)]}
+    names = {k: v for i in idx for k, v in g.items[i]["case"].meta.get("img_names", {}).items()}   # obraz: nazwa pliku zamiast skrótu
+    rows = [{"ślad": TRACE_LABEL[ch], "wartość": names.get(x, x) if ch == "img" else x, "materiały": ms, "w galerii": df[(ch, x)]}
             for (ch, x), ms in inside.items() if len(ms) >= 2 and df[(ch, x)] <= cap]
+    imgs: dict[tuple, list[dict]] = {}                # obrazy wspólne dla tych samych materiałów: jeden wiersz (para 1–2 ma ich 11)
+    for r in [r for r in rows if r["ślad"] == TRACE_LABEL["img"]]:
+        imgs.setdefault((tuple(r["materiały"]), r["w galerii"]), []).append(r)
+    rows = [r for r in rows if r["ślad"] != TRACE_LABEL["img"]] + [
+        {**rs[0], "ślad": TRACE_LABEL["img"] if len(rs) == 1 else f"te same obrazy ({len(rs)})",
+         "wartość": ", ".join(r["wartość"] for r in rs[:3]) + (" …" if len(rs) > 3 else "")} for rs in imgs.values()]
     rows.sort(key=lambda r: (r["w galerii"], -len(r["materiały"])))
     return rows
 
@@ -274,9 +249,53 @@ def _esc(s: object, n: int = 38) -> str:
     return str(s).replace('"', "'").replace("\\", "/").replace("\n", " ")[:n]
 
 
-def cluster_dot(g: Gallery, campaigns: dict[str, list[int]], title: str, traces: list[dict], max_materials: int = 24, max_traces: int = 12) -> str:
-    """Rysunek: operator (ramka) -> kampanie (ramki) -> materiały, a obok owalne ślady łączące materiały. Układ bez fizyki."""
-    lines = ["graph G {", 'rankdir=LR; bgcolor="transparent"; node [fontname="Helvetica", fontsize=10];',
+def _html(s: object, n: int = 60) -> str:
+    t = str(s)
+    t = t if len(t) <= n else t[: n - 1] + "…"
+    return t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
+
+
+def trace_boxes(g: Gallery, campaigns: dict[str, list[int]], traces: list[dict], max_boxes: int = 8) -> list[dict]:
+    """Ślady zgrupowane po zbiorze materiałów, które łączą: jedna ramka = jeden zbiór i wszystko, co go skleja.
+
+    Zwraca {"materiały", "ślady", "kampania" (gdy wszystkie w jednej kampanii, inaczej None), "kampanie"}; najpierw ramki łączące różne
+    kampanie (to one tłumaczą, czemu kampanie są jednym operatorem), potem dowody kampanii; w obu grupach rzadsze ślady wyżej."""
+    camp_of = {g.items[i]["case"].id: camp for camp, idx in campaigns.items() for i in idx}
+    by: dict[tuple, list[dict]] = {}
+    for t in traces:
+        ms = tuple(sorted((m for m in t["materiały"] if m in camp_of), key=lambda m: (len(m), m)))
+        if len(ms) >= 2:
+            by.setdefault(ms, []).append(t)
+    boxes = []
+    for ms, ts in by.items():
+        cs = sorted({camp_of[m] for m in ms})
+        boxes.append({"materiały": list(ms), "ślady": ts, "kampania": cs[0] if len(cs) == 1 else None, "kampanie": cs,
+                      "siła": min(t["w galerii"] for t in ts)})
+    boxes.sort(key=lambda b: (b["kampania"] is not None, b["siła"], -len(b["ślady"])))
+    return boxes[:max_boxes]
+
+
+def _box_label(b: dict, max_lines: int = 3) -> str:
+    head = ("dowód kampanii " + b["kampania"]) if b["kampania"] else "łączy kampanie " + ", ".join(b["kampanie"])
+    rows = [f'<tr><td align="left"><b>{_html(head)}</b></td></tr>']
+    for t in b["ślady"][:max_lines]:
+        rows.append(f'<tr><td align="left">{_html(t["ślad"], 22)}: {_html(t["wartość"], 30)}</td></tr>')
+    if len(b["ślady"]) > max_lines:
+        rows.append(f'<tr><td align="left"><i>+{len(b["ślady"]) - max_lines} innych śladów</i></td></tr>')
+    return '<<table border="0" cellborder="0" cellspacing="1">' + "".join(rows) + "</table>>"
+
+
+def cluster_dot(g: Gallery, campaigns: dict[str, list[int]], title: str, traces: list[dict], max_materials: int = 24, max_traces: int = 8) -> str:
+    """Rysunek klastra: operator (ramka) -> kampanie (zielone ramki) -> materiały. Ślady zgrupowane po zbiorze materiałów, które łączą
+    (`trace_boxes`): dowód jednej kampanii (czerwona ramka) siedzi w środku jej ramki, ślad łączący kampanie (niebieska) na zewnątrz,
+    więc krawędzi jest tyle, ile materiałów w ramkach, a nie po jednej na każdy ślad."""
+    boxes = trace_boxes(g, campaigns, traces, max_traces)
+    inner = {}
+    for n, b in enumerate(boxes):
+        if b["kampania"]:
+            inner.setdefault(b["kampania"], []).append(n)
+    lines = ["graph G {", 'rankdir=LR; bgcolor="transparent"; nodesep=0.25; ranksep=0.5; splines=true;',
+             'node [fontname="Helvetica", fontsize=10]; edge [penwidth=1.3];',
              f'subgraph cluster_op {{ label="{_esc(title, 60)}"; style="rounded"; color="#ff7f0e"; fontname="Helvetica";']
     shown: set[str] = set()
     for k, (camp, idx) in enumerate(sorted(campaigns.items())):
@@ -284,17 +303,70 @@ def cluster_dot(g: Gallery, campaigns: dict[str, list[int]], title: str, traces:
         for i in idx[: max(1, max_materials // max(len(campaigns), 1))]:
             c = g.items[i]["case"]
             shown.add(c.id)
-            snippet = _esc(c.text.strip().splitlines()[0] if c.text.strip() else "(bez tekstu)", 30)
+            snippet = _esc(c.text.strip().splitlines()[0] if c.text.strip() else "(bez tekstu)", 24)
             lines.append(f'"m:{_esc(c.id)}" [label="{_esc(c.id)}\\n{snippet}", shape=box, style="rounded,filled", fillcolor="#eef3fb"];')
+        for n in inner.get(camp, []):
+            lines.append(f'"b{n}" [label={_box_label(boxes[n])}, shape=box, style="rounded,filled", fillcolor="#fdecea", color="#c0392b"];')
         lines.append("}")
     lines.append("}")
-    for j, t in enumerate(traces[:max_traces]):
-        ms = [m for m in t["materiały"] if m in shown]
-        if len(ms) < 2:
-            continue
-        lines.append(f'"t{j}" [label="{t["ślad"]}:\\n{_esc(t["wartość"])}\\n({len(t["materiały"])} mat.)", shape=ellipse, style=filled, '
-                     f'fillcolor="#fff7d6", color="#b8860b"];')
-        lines += [f'"t{j}" -- "m:{_esc(m)}" [color="#b8860b"];' for m in ms]
+    for n, b in enumerate(boxes):
+        if not b["kampania"]:
+            lines.append(f'"b{n}" [label={_box_label(b)}, shape=box, style="rounded,filled", fillcolor="#e8f1fb", color="#2b6cb0"];')
+        col = "#c0392b" if b["kampania"] else "#2b6cb0"
+        lines += [f'"b{n}" -- "m:{_esc(m)}" [color="{col}"];' for m in b["materiały"] if m in shown]
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def cluster_summary(g: Gallery, campaigns: dict[str, list[int]], traces: list[dict]) -> list[str]:
+    """„Co z tego wynika” w zdaniach: która grupa to jedna kampania i dlaczego, co łączy kampanie w jednego operatora."""
+    out = []
+    for b in trace_boxes(g, campaigns, traces, max_boxes=12):
+        ms = ", ".join(b["materiały"])
+        why = "; ".join(f"{t['ślad']}: {t['wartość']}" for t in b["ślady"][:3]) + ("; …" if len(b["ślady"]) > 3 else "")
+        if b["kampania"]:
+            out.append(f"**{ms}** to jedna kampania ({b['kampania']}): {why}")
+        else:
+            out.append(f"**{ms}** (kampanie {', '.join(b['kampanie'])}) łączy {why}, dlatego to jeden operator")
+    singles = [c for c, idx in campaigns.items() if len(idx) == 1]
+    if len(campaigns) > 1 and not any(not b["kampania"] for b in trace_boxes(g, campaigns, traces, 12)):
+        out.append("Kampanie tego operatora nie mają wspólnych rzadkich śladów: połączenie wynika z podobieństwa (wynik operatora).")
+    if singles and len(campaigns) == 1:
+        out.append("Jeden materiał: nic nie trzeba sklejać.")
+    return out
+
+
+def network_dot(case: Case, d: Decision, k: int = 5) -> str:
+    """Rysunek dopasowania: nowy materiał po lewej, najbliższe materiały w ramkach kampanii i operatorów, na krawędzi wynik i powód.
+    Krawędź czerwona = znana kampania (wynik ≥ próg), pomarańczowa = ten sam operator, szara przerywana = za słabe, żeby łączyć."""
+    tc, to = d.thresholds.get("campaign") or 1.0, d.thresholds.get("operator") or 1.0
+    ms = list(d.matches[:k])
+    key = d.key_match()
+    if key is not None and key not in ms:
+        ms.append(key)
+    lines = ["digraph G {", 'rankdir=LR; bgcolor="transparent"; nodesep=0.3; ranksep=1.2;',
+             'node [fontname="Helvetica", fontsize=10]; edge [fontname="Helvetica", fontsize=9];',
+             f'"NOWY" [label="nowy materiał\\n{_esc(case.id, 24)}", shape=box, style="rounded,filled", fillcolor="#fdecea", color="#c0392b", penwidth=2];']
+    ops: dict[str, dict[str, list]] = {}
+    for m in ms:
+        ops.setdefault(m.operator or "?", {}).setdefault(m.group or "?", []).append(m)
+    for a, (op, camps) in enumerate(sorted(ops.items())):
+        lines.append(f'subgraph cluster_o{a} {{ label="operator {_esc(op)}"; style="rounded"; color="#ff7f0e"; fontname="Helvetica";')
+        for b, (camp, mm) in enumerate(sorted(camps.items())):
+            lines.append(f'subgraph cluster_o{a}k{b} {{ label="kampania {_esc(camp)}"; style="rounded"; color="#2ca02c"; fontname="Helvetica";')
+            lines += [f'"m:{_esc(m.id)}" [label="{_esc(m.id)}", shape=box, style="rounded,filled", fillcolor="#eef3fb"];' for m in mm]
+            lines.append("}")
+        lines.append("}")
+    for m in ms:
+        reason = top_reasons(m, 1)
+        lab = f"kampania {m.campaign_score:.2f} · operator {m.operator_score:.2f}" + (f"\\n{_esc(reason[0], 48)}" if reason else "")
+        if m.campaign_score >= tc and m is d.matches[0] or (d.exact_of == m.id):
+            style = 'color="#c0392b", penwidth=2.5'
+        elif m.operator_score >= to:
+            style = 'color="#e67e22", penwidth=2'
+        else:
+            style = 'color="#aaaaaa", style=dashed'
+        lines.append(f'"NOWY" -> "m:{_esc(m.id)}" [label="{lab}", {style}];')
     lines.append("}")
     return "\n".join(lines)
 

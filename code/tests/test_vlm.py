@@ -45,3 +45,13 @@ def test_describe_uses_cache(tmp_path, monkeypatch):
     (tmp_path / "cache" / f"{vlm._key(b'x')}.json").write_text('{"motyw": "z cache"}', encoding="utf-8")
     monkeypatch.setattr(vlm, "available", lambda timeout=1.5: False)
     assert vlm.describe(f) == {"motyw": "z cache"}
+
+
+def test_copied_trick_list_is_dropped_but_real_tricks_kept():
+    assert vlm.clean({"chwyty": sorted(vlm.ALLOWED_TRICKS)})["chwyty"] == []
+    assert vlm.clean({"chwyty": ["na żywo", "strzałka"]})["chwyty"] == ["na żywo", "strzałka"]
+
+
+def test_button_text_not_repeated_in_captions():
+    d = vlm.clean({"przycisk": "Dowiedz się więcej", "tekst_na_obrazie": ["NA ŻYWO", "Dowiedz się więcej"]})
+    assert d["tekst_na_obrazie"] == ["NA ŻYWO"] and d["przycisk"] == "Dowiedz się więcej"
