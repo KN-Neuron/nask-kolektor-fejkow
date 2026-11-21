@@ -28,15 +28,30 @@ st.set_page_config(page_title="Kolekcjoner Fejków", page_icon="🕵️", layout
 
 # --- stan ----------------------------------------------------------------------------------------------------------
 
+SYNTH_DIR = ROOT.parent / "data" / "synth"
+DATASETS = {"NASK (zbiór organizatora)": (store.INDEX, DEFAULT_DATA),
+            "syntetyka (znana prawda)": (ROOT / "artifacts" / "demo" / "index_synth.json", SYNTH_DIR)}
+
+
 @st.cache_resource
-def _load_index():
-    return store.load()
+def _load_index(path: str):
+    return store.load(Path(path))
+
+
+def index_path() -> Path:
+    return DATASETS[st.session_state.get("dataset", next(iter(DATASETS)))][0]
 
 
 def index() -> store.Index | None:
-    if "index" not in st.session_state:
-        st.session_state.index = _load_index()
-    return st.session_state.index
+    key = f"index:{index_path()}"
+    if key not in st.session_state:
+        st.session_state[key] = _load_index(str(index_path()))
+    return st.session_state[key]
+
+
+def set_index(new: store.Index) -> None:
+    store.save(new, index_path())
+    st.session_state[f"index:{index_path()}"] = new
 
 
 def infra_or_none(idx):
@@ -81,6 +96,9 @@ def get_pairs(idx):
 
 st.sidebar.title("🕵️ Kolekcjoner Fejków")
 st.sidebar.caption("Łączenie podejrzanych reklam w kampanie, z uzasadnieniem każdego powiązania.")
+st.sidebar.radio("Zbiór", list(DATASETS), key="dataset",
+                 help="Syntetyka: 42 materiały z zapisaną prawdą (6 operatorów po 2 kampanie + 6 negatywów), "
+                      "żeby sprawdzić trafność grupowania liczbami. Zbiór organizatora nie ma etykiet.")
 idx = index()
 if idx:
     st.sidebar.success(f"Zbiór: {len(idx.materials)} materiałów (zbudowany {idx.built_at[:16].replace('T', ' ')} UTC)")
@@ -109,7 +127,7 @@ st.session_state.use_model = st.sidebar.toggle(
     help="Wynik pary z regresji logistycznej uczonej na zbiorze urlscan (zamiast ręcznych wag). Przesłanki bez zmian.")
 
 with st.sidebar.expander("Zbiór danych i indeks"):
-    data_dir = st.text_input("Folder z przypadkami", str(DEFAULT_DATA))
+    data_dir = st.text_input("Folder z przypadkami", str(DATASETS[st.session_state.dataset][1]))
     _us = ROOT.parent / "data" / "urlscan"
     extra_dir = st.text_input("Dodatkowy zbiór referencyjny (np. skany urlscan)", str(_us) if _us.exists() else "",
                               help="Skany dołożone do wiedzy referencyjnej: narzędzie rozpozna więcej znanych zestawów stron.")
@@ -120,20 +138,21 @@ with st.sidebar.expander("Zbiór danych i indeks"):
                           extra=[Path(extra_dir)] if extra_dir.strip() else None)
         if idx and idx.infra:
             new.infra = idx.infra
-        store.save(new)
-        st.session_state.index = new
+        set_index(new)
         st.cache_data.clear()
         st.rerun()
     if idx and st.button("Zbierz dane infrastruktury (bierne)", use_container_width=True):
         with st.spinner("DNS, RDAP, crt.sh…"):
             errs = store.collect_infra(idx)
-        store.save(idx)
+        store.save(idx, index_path())
         st.cache_data.clear()
         st.info(f"Domen z danymi: {len(idx.infra)}" + (f"; problemy: {'; '.join(errs[:5])}" if errs else ""))
 
 if not idx or not idx.materials:
     st.title("Kolekcjoner Fejków")
     st.info("Zbuduj indeks w panelu bocznym („Zbiór danych i indeks”), wskazując folder z przypadkami.")
+    if st.session_state.dataset.startswith("syntetyka"):
+        st.caption("Syntetykę generuje i indeksuje `python graph/load.py synth` (albo przycisk w panelu po wygenerowaniu data/synth).")
     st.stop()
 
 pairs = get_pairs(idx)
@@ -142,6 +161,25 @@ nets = campaigns(idx.materials, pairs, thr, "sieć")
 camp_of = {m: c.id for c in camps for m in c.members}
 net_of = {m: n.id for n in nets for m in n.members}
 by_id = idx.by_id()
+from fejki.demo import truth as _truth
+
+TRUTH = _truth.load(idx.data_dir)
+
+
+def truth_strip() -> None:
+    """Liczby zgodności z prawdą (tylko dla zbioru z prawda.json, czyli syntetyki)."""
+    if not TRUTH:
+        return
+    k, n = _truth.score(camps, TRUTH, "kampania"), _truth.score(nets, TRUTH, "operator")
+    st.markdown("**Zgodność z prawdą** (zbiór ze znanymi etykietami)")
+    c = st.columns(5)
+    c[0].metric("Kampanie odtworzone dokładnie", f"{k['trafione']} / {k['grup']}")
+    c[1].metric("Kampanie: precyzja · czułość par", f"{k['precyzja']:.0%} · {k['czułość']:.0%}")
+    c[2].metric("Operatorzy odtworzeni dokładnie", f"{n['trafione']} / {n['grup']}")
+    c[3].metric("Sieci: precyzja · czułość par", f"{n['precyzja']:.0%} · {n['czułość']:.0%}")
+    c[4].metric("Negatywy osobno (sieć)", f"{n['negatywy_osobno']} / {n['negatywów']}")
+    st.caption("Precyzja = z połączonych par ile naprawdę jest razem (mało fałszywych połączeń); czułość = z par, które są razem, "
+               "ile połączyliśmy. Negatywy = materiały spoza kampanii; powinny zostać same.")
 
 
 def show_material(m: Material, compact: bool = False):
@@ -183,7 +221,8 @@ def short_label(nid: str) -> str:
     m = by_id.get(nid)
     if m is None:
         return ""
-    return (m.products or m.titles or m.landing_domains or [f"reklama Meta {x}" for x in m.ad_ids] or m.files or [""])[0][:40]
+    lab = (m.products or m.titles or m.landing_domains or [f"reklama Meta {x}" for x in m.ad_ids] or m.files or [""])[0][:40]
+    return lab + (f"\nprawda: {TRUTH[nid]['kampania']}" if TRUTH and nid in TRUTH else "")
 
 
 def link_chart(node_ids: list[str], edges: list, net_list, camp_list, highlight: str | None = None) -> None:
@@ -258,7 +297,7 @@ with tab_new:
         if st.session_state.use_infra and new.landing_domains:
             with st.spinner("Bierne dane infrastruktury dla nowych domen…"):
                 store.collect_infra(idx, [new])
-                store.save(idx)
+                store.save(idx, index_path())
             infra = store.infra_records(idx)
         r = match(new, base, bc, bn, thr=thr, maybe=maybe, infra=infra, semantic=bool(st.session_state.get("use_sem")),
                   model=_pair_model())
@@ -316,7 +355,7 @@ with tab_new:
                 link_chart(nodes, near, one, [Campaign(id=n, name="", members=[n], strength=0.0) for n in nodes], highlight=new.id)
         if not new.id.endswith("*") and st.button("Dodaj ten materiał do zbioru"):
             idx.materials.append(new.model_copy(update={"id": f"n{len(idx.materials) + 1}", "label": "dodany ręcznie"}))
-            store.save(idx)
+            store.save(idx, index_path())
             st.cache_data.clear()
             del st.session_state["new"]
             st.rerun()
@@ -363,6 +402,7 @@ with tab_camp:
     st.header("Kampanie i sieci operatorów")
     st.caption("**Kampania** = ten sam przekaz (duplikaty i warianty: tekst, tytuł, produkt, obrazy). **Sieć** = kampanie połączone "
                "wspólną infrastrukturą lub śledzeniem (piksel, schemat adresów, zestaw strony, domena), czyli prawdopodobnie ten sam operator.")
+    truth_strip()
     rows = []
     for n in nets:
         for c in [c for c in camps if set(c.members) <= set(n.members)]:
@@ -420,6 +460,7 @@ with tab_graph:
                "Przerywana czerwona ramka = kampania, szare tło = sieć jednego operatora. Pospolite przesłanki (tematyka) są pominięte.")
     shown = [p for p in pairs if p.score >= min(thr, maybe)]
     ts = linkgraph.traces(shown)
+    truth_strip()
     multi = [n for n in nets if len(n.members) > 1]
     if not multi:
         st.info("Przy obecnych progach nie ma żadnej sieci. Obniż „Próg powiązania” w panelu bocznym.")
@@ -436,9 +477,14 @@ with tab_graph:
             with cols[k % len(cols)]:
                 st.markdown(f"**Sieć {n.id}** ({len(n.members)} materiałów)")
                 st.markdown("\n".join(f"- {line}" for line in linkgraph.summary(n, camps, ts, {})))
-        alone = linkgraph.lonely([m.id for m in idx.materials], shown)
-        if alone:
-            st.caption("Bez powiązań przy tych progach (nie rysowane): " + "; ".join(f"{m} ({short_label(m)})" for m in alone))
+    alone = [m for n in nets if len(n.members) == 1 for m in n.members]
+    if alone:
+        st.subheader(f"Czego NIE połączyliśmy ({len(alone)})")
+        st.caption("Materiały bez sieci (nie są rysowane). Przy każdym najbliższy inny materiał i powód, dla którego to za mało: "
+                   "narzędzie ma też umieć nie łączyć.")
+        st.dataframe(pd.DataFrame(linkgraph.nearest(alone, pairs, thr, maybe)).assign(
+            materiał=lambda d: d["materiał"].map(lambda m: f"{m}: {short_label(m).split(chr(10))[0]}")),
+            use_container_width=True, hide_index=True)
     g_exp = exp_graph(idx.materials, pairs, camps, nets, min(thr, maybe))
     e1, e2, e3 = st.columns(3)
     e1.download_button("Graf (GraphML)", exp_graphml(g_exp).encode("utf-8"), "graf.graphml")
@@ -520,17 +566,26 @@ with tab_method:
 - *struktura*: zestaw klas HTML (szablon strony), wykrywanie cloakingu (ta sama domena, różne strony);
 - *infrastruktura (opcjonalnie)*: DNS, ASN, RDAP, dziennik certyfikatów (crt.sh).
 
-**2. Podobieństwo**: każdy kanał zwraca dowody z wagą i opisem. Wagi łączymy metodą noisy-OR w kanale, a potem między kanałami.
-Pospolite cechy (osoba obecna w wielu materiałach, popularna usługa) dostają niższą wagę. Każda krawędź ma listę przesłanek.
+**2. Podobieństwo**: każdy kanał zwraca dowody z wagą i opisem. Wynik pary liczy wyuczony model par (regresja logistyczna na
+przesłankach, uczona na urlscan i syntetyce), a gdy go nie ma, ręczne wagi łączone metodą noisy-OR (najpierw w kanale, potem między
+kanałami). Pospolite cechy (osoba obecna w wielu materiałach, popularna usługa) dostają niższą wagę. Każda krawędź ma listę przesłanek,
+niezależnie od tego, czym liczono wynik.
 
-**3. Grupowanie**: *kampania* = składowe spójne krawędzi „duplikat / wariant tego samego przekazu”; *sieć* = składowe spójne
-wszystkich krawędzi powyżej progu (wspólny operator).
+**3. Grupowanie**: krawędź powstaje przy wyniku ≥ progu. Grupy łączymy średnim wiązaniem z wymogiem wsparcia: dwie grupy scalamy
+tylko wtedy, gdy łączy je krawędź ≥ progu **i** średni wynik wszystkich par między nimi ≥ 0,15. Dzięki temu A~B i B~C nie skleja A z C,
+jeśli A i C nie mają nic wspólnego (brak łańcuchowania). *Kampania* = grupy z krawędzi „duplikat / wariant tego samego przekazu”;
+*sieć* = grupy ze wszystkich krawędzi (także sama wspólna infrastruktura), czyli prawdopodobnie ten sam operator.
 
 **4. Nowy materiał**: porównanie ze zbiorem; przypisanie do kampanii (ten sam przekaz), wskazanie znanej sieci (nowy przekaz, ta sama
 infrastruktura), „do weryfikacji” albo nowy wzorzec.
 """)
-    st.markdown("**Wagi dowodów**")
+    st.info("Wynik par w tej sesji: " + ("**wyuczony model par**" if st.session_state.get("use_model") else
+            "**ręczne wagi noisy-OR**" + ("" if _pm_path.exists() else " (brak pliku modelu: `fejki demo train` tworzy "
+                                           "artifacts/demo/pair_model.json)")))
+    st.markdown("**Wagi dowodów** (ręczne; przy wyuczonym modelu służą tylko do kolejności przesłanek)")
     st.dataframe(pd.DataFrame([{"dowód": k, "kanał": CHANNELS.get(k, k), "waga": v} for k, v in W.items()]), hide_index=True)
+    st.markdown("**Trafność**: przełącz zbiór w panelu bocznym na „syntetyka (znana prawda)”; zakładki „Kampanie i sieci” oraz "
+                "„Graf powiązań” pokażą wtedy zgodność grup z prawdą (precyzja i czułość par, grupy odtworzone dokładnie, negatywy).")
     st.markdown("**Testy zachowania** (bez etykiet organizatora: „oczekiwane” = wynik na pełnym zbiorze)")
     if st.button("Uruchom test pomiń-jeden"):
         from fejki.demo.evaluate import leave_one_out
@@ -540,7 +595,9 @@ infrastruktura), „do weryfikacji” albo nowy wzorzec.
         st.dataframe(df, use_container_width=True, hide_index=True)
         st.write(f"Spójność kampanii: {df['kampania OK'].mean():.0%} · spójność sieci: {df['sieć OK'].mean():.0%}")
     st.markdown("""
-**Ograniczenia**: brak etykiet kampanii od organizatora (testy mierzą stabilność, nie trafność względem ich podziału); OCR bez
+**Ograniczenia**: brak etykiet kampanii od organizatora (na jego zbiorze testy mierzą stabilność; trafność mierzymy na syntetyce,
+której prawdę sami zapisaliśmy, więc to sprawdzian metody, nie wynik na danych NASK); pospolite ścieżki zasobów (np. `/static/site.css`)
+liczą się dziś jak ślad zestawu strony i potrafią skleić niepowiązane strony w jedną sieć (widać to na negatywach syntetyki); OCR bez
 polskiego pakietu językowego gubi znaki diakrytyczne (w Dockerze instalujemy `tesseract-ocr-pol`); kanał infrastruktury wymaga sieci;
-nie rozpoznajemy twarzy (osoby rozpoznajemy po nazwiskach w tekście); wagi ustawione ręcznie na podstawie znaczenia sygnału.
+nie rozpoznajemy twarzy (osoby rozpoznajemy po nazwiskach w tekście); ręczne wagi ustawione na podstawie znaczenia sygnału.
 """)
