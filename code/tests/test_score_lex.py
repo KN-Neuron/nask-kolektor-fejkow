@@ -40,3 +40,12 @@ def test_embed_fix_removes_common_direction_and_applies_to_new_items():
     fix.prepare(q)
     assert float(q.vec_t @ cs[0].vec_t) > 0.999             # ten sam wektor -> ta sama korekta (średnia i składowa zapamiętane)
     assert raw.cases[0].vec_t is None                        # bez korekty nic się nie zmienia
+
+
+def test_identical_texts_do_not_divide_by_zero():
+    """Regresja: gdy większość materiałów ma identyczny tekst, mediana kosinusów = 1 i normalizacja (cos − μ)/(1 − μ) dzieliła przez zero."""
+    v = np.ones(16, dtype=np.float32) / 4.0
+    cs = [Case(f"c{i}", "ten sam tekst reklamy powtórzony wiele razy", vec=v.copy()) for i in range(8)]
+    c = Corpus(cs, None, {"text": 1.0, "text_lex": 1.0})
+    s = c.score(cs[0], cs[1])
+    assert 0.0 <= s.value <= 1.0 and np.isfinite(s.value) and c.mu < 1.0 and c.mu_lex < 1.0

@@ -13,6 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from embsim import analyze as A
+from embsim import graph_view
 from embsim.api import DEFAULT_CONFIG, Gallery
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -86,75 +87,114 @@ with st.sidebar:
 st.title("Kolekcjoner Fejków")
 st.caption("Jedna metoda: podobieństwo to jedno wyrażenie z wagami ustalonymi z góry, bez uczenia (docs/14_WZOR_PODOBIENSTWA.md). "
            "Strony oszustów nie są odwiedzane.")
-st.subheader("1. Wejście")
-with st.form("wejscie"):
-    files = st.file_uploader("Pliki: zrzut ekranu, HTML, HAR, reklama Meta (JSON/JSONL), info.json", accept_multiple_files=True,
-                             type=["png", "jpg", "jpeg", "webp", "html", "htm", "har", "json", "jsonl"])
-    text = st.text_area("Tekst reklamy albo nazwa produktu", height=90)
-    url = st.text_input("Adres URL (użyjemy tylko domeny)")
-    ocr = st.checkbox("Odczytaj tekst ze zrzutu (OCR)", value=True)
-    go = st.form_submit_button("Analizuj", type="primary")
+tab_a, tab_k = st.tabs(["🔎 Analiza nowego materiału", "🧩 Klastry"])
 
-if go:
-    if not (files or text.strip() or url.strip()):
-        st.warning("Podaj plik, tekst albo adres.")
+with tab_a:
+    st.subheader("1. Wejście")
+    with st.form("wejscie"):
+        files = st.file_uploader("Pliki: zrzut ekranu, HTML, HAR, reklama Meta (JSON/JSONL), info.json", accept_multiple_files=True,
+                                 type=["png", "jpg", "jpeg", "webp", "html", "htm", "har", "json", "jsonl"])
+        text = st.text_area("Tekst reklamy albo nazwa produktu", height=90)
+        url = st.text_input("Adres URL (użyjemy tylko domeny)")
+        ocr = st.checkbox("Odczytaj tekst ze zrzutu (OCR)", value=True)
+        go = st.form_submit_button("Analizuj", type="primary")
+
+    if go:
+        if not (files or text.strip() or url.strip()):
+            st.warning("Podaj plik, tekst albo adres.")
+        else:
+            with st.spinner("Wyciągam cechy i porównuję z galerią…"):
+                case, info = A.case_from_inputs([(f.name, f.getvalue()) for f in (files or [])], text, url, ocr)
+                st.session_state.result = (case, info, g.query(case, 5))
+
+    res = st.session_state.get("result")
+    if res:
+        case, info, d = res
+        # --- krok 2: cechy ------------------------------------------------------------------------------------------------
+        st.subheader("2. Cechy materiału")
+        for w in info.get("ostrzeżenia", []):
+            st.warning(w)
+        for k in ("źródło", "url"):
+            if k in info:
+                st.caption(info[k])
+        cols = st.columns(5)
+        cols[0].metric("znaków tekstu", len(case.text))
+        for col, ch in zip(cols[1:], ("host", "kit", "scheme", "pixel")):
+            col.metric({"host": "domeny", "kit": "zestawy zasobów", "scheme": "schematy adresu", "pixel": "piksele"}[ch], len(case.sets.get(ch, ())))
+        if info.get("ocr_język"):
+            st.caption(f"OCR: język {info['ocr_język']}, odczytano {info['ocr_znaków']} znaków.")
+        with st.expander("Tekst i ślady"):
+            st.write(case.text[:1200] or "(brak tekstu)")
+            st.json({k: sorted(v)[:8] for k, v in case.sets.items()})
+
+        # --- krok 3: dopasowanie z przesłankami ----------------------------------------------------------------------------
+        st.subheader("3. Dopasowanie z przesłankami")
+        if len(g) == 0:
+            st.info("Galeria jest pusta: zbuduj ją w pasku bocznym albo dodaj ten materiał jako pierwszy.")
+        kind, label = A.verdict_style(d)
+        getattr(st, kind)(f"**{label}**")
+        st.write(d.explain())
+        if d.matches:
+            best = d.matches[0]
+            c1, c2, c3 = st.columns(3)
+            c1.metric("wynik kampanii", f"{d.campaign_score:.2f}", help=f"próg {d.thresholds.get('campaign')}")
+            c2.metric("wynik operatora", f"{d.operator_score:.2f}", help=f"próg {d.thresholds.get('operator')}")
+            c3.metric("pewność dowodu", A.confidence_label(best.evidence))
+            st.markdown("**Trzy najsilniejsze powody (najbliższy materiał):**")
+            for r in A.top_reasons(best):
+                st.markdown(f"- {r}")
+            st.dataframe(pd.DataFrame([{"materiał": m.id, "kampania": m.group, "operator": m.operator, "wynik kampanii": m.campaign_score,
+                                        "wynik operatora": m.operator_score, "powody": "; ".join(A.top_reasons(m))} for m in d.matches]),
+                         use_container_width=True, hide_index=True)
+            for m in d.matches[:3]:
+                with st.expander(f"Szczegóły: {m.id}"):
+                    if m.channels:
+                        st.bar_chart(pd.Series(m.channels, name="wynik kanału"))
+                    st.json({"wspólne ślady": m.shared, "dokładne zgodności poza wynikiem": m.extra_shared})
+
+        # --- krok 4: sieć i karta ------------------------------------------------------------------------------------------
+        st.subheader("4. Sieć kampanii i operatorów")
+        if d.matches:
+            st.plotly_chart(A.network_figure(case, d), use_container_width=True)
+        c1, c2 = st.columns(2)
+        c1.download_button("Pobierz kartę dla analityka (Markdown)", A.card_markdown(case, d), file_name=f"karta_{case.id}.md")
+        if c2.button("Dodaj materiał do galerii"):
+            g.add(case)
+            st.session_state.flash = f"Dodano {case.id}. Galeria ma teraz {len(g)} materiałów."
+            st.rerun()
+
+
+# --- zakładka: klastry ---------------------------------------------------------------------------------------------------
+
+with tab_k:
+    mode = st.radio("Źródło klastrów", ["Galeria (offline)", "Graf Neo4j (twórcy z Mety, sieci NASK)"], horizontal=True, key="cluster_mode")
+    if mode.startswith("Graf"):
+        graph_view.render()
     else:
-        with st.spinner("Wyciągam cechy i porównuję z galerią…"):
-            case, info = A.case_from_inputs([(f.name, f.getvalue()) for f in (files or [])], text, url, ocr)
-            st.session_state.result = (case, info, g.query(case, 5))
-
-res = st.session_state.get("result")
-if res:
-    case, info, d = res
-    # --- krok 2: cechy ------------------------------------------------------------------------------------------------
-    st.subheader("2. Cechy materiału")
-    for w in info.get("ostrzeżenia", []):
-        st.warning(w)
-    for k in ("źródło", "url"):
-        if k in info:
-            st.caption(info[k])
-    cols = st.columns(5)
-    cols[0].metric("znaków tekstu", len(case.text))
-    for col, ch in zip(cols[1:], ("host", "kit", "scheme", "pixel")):
-        col.metric({"host": "domeny", "kit": "zestawy zasobów", "scheme": "schematy adresu", "pixel": "piksele"}[ch], len(case.sets.get(ch, ())))
-    if info.get("ocr_język"):
-        st.caption(f"OCR: język {info['ocr_język']}, odczytano {info['ocr_znaków']} znaków.")
-    with st.expander("Tekst i ślady"):
-        st.write(case.text[:1200] or "(brak tekstu)")
-        st.json({k: sorted(v)[:8] for k, v in case.sets.items()})
-
-    # --- krok 3: dopasowanie z przesłankami ----------------------------------------------------------------------------
-    st.subheader("3. Dopasowanie z przesłankami")
-    if len(g) == 0:
-        st.info("Galeria jest pusta: zbuduj ją w pasku bocznym albo dodaj ten materiał jako pierwszy.")
-    kind, label = A.verdict_style(d)
-    getattr(st, kind)(f"**{label}**")
-    st.write(d.explain())
-    if d.matches:
-        best = d.matches[0]
-        c1, c2, c3 = st.columns(3)
-        c1.metric("wynik kampanii", f"{d.campaign_score:.2f}", help=f"próg {d.thresholds.get('campaign')}")
-        c2.metric("wynik operatora", f"{d.operator_score:.2f}", help=f"próg {d.thresholds.get('operator')}")
-        c3.metric("pewność dowodu", A.confidence_label(best.evidence))
-        st.markdown("**Trzy najsilniejsze powody (najbliższy materiał):**")
-        for r in A.top_reasons(best):
-            st.markdown(f"- {r}")
-        st.dataframe(pd.DataFrame([{"materiał": m.id, "kampania": m.group, "operator": m.operator, "wynik kampanii": m.campaign_score,
-                                    "wynik operatora": m.operator_score, "powody": "; ".join(A.top_reasons(m))} for m in d.matches]),
-                     use_container_width=True, hide_index=True)
-        for m in d.matches[:3]:
-            with st.expander(f"Szczegóły: {m.id}"):
-                if m.channels:
-                    st.bar_chart(pd.Series(m.channels, name="wynik kanału"))
-                st.json({"wspólne ślady": m.shared, "dokładne zgodności poza wynikiem": m.extra_shared})
-
-    # --- krok 4: sieć i karta ------------------------------------------------------------------------------------------
-    st.subheader("4. Sieć kampanii i operatorów")
-    if d.matches:
-        st.plotly_chart(A.network_figure(case, d), use_container_width=True)
-    c1, c2 = st.columns(2)
-    c1.download_button("Pobierz kartę dla analityka (Markdown)", A.card_markdown(case, d), file_name=f"karta_{case.id}.md")
-    if c2.button("Dodaj materiał do galerii"):
-        g.add(case)
-        st.session_state.flash = f"Dodano {case.id}. Galeria ma teraz {len(g)} materiałów."
-        st.rerun()
+        st.subheader("Klastry w galerii")
+        idx = A.cluster_index(g)
+        if not idx:
+            st.info("Galeria jest pusta: zbuduj ją w pasku bocznym albo dodaj materiały w zakładce Analiza.")
+        else:
+            st.caption("Operator → kampanie → materiały. Rysunek pokazuje tylko ślady, które klaster skleja (wspólne dla co najmniej dwóch "
+                       "materiałów); trackery i inne pospolite ślady są pominięte, bo niczego nie dowodzą. Działa bez bazy.")
+            size = lambda o: sum(len(v) for v in idx[o].values())
+            ops = sorted(idx, key=lambda o: -size(o))
+            st.dataframe(pd.DataFrame([{"operator": o, "kampanie": len(idx[o]), "materiały": size(o)} for o in ops]),
+                         use_container_width=True, hide_index=True, height=200)
+            op = st.selectbox("Karta operatora", ops, format_func=lambda o: f"{o} · {len(idx[o])} kampanii · {size(o)} materiałów")
+            camps = idx[op]
+            all_idx = [i for v in camps.values() for i in v]
+            traces = A.shared_traces(g, all_idx)
+            st.graphviz_chart(A.cluster_dot(g, camps, f"operator {op}", traces), use_container_width=True)
+            st.markdown("**Co skleja ten klaster**")
+            if traces:
+                st.dataframe(pd.DataFrame([{**t, "materiały": ", ".join(t["materiały"][:8]) + (f" (+{len(t['materiały']) - 8})" if len(t["materiały"]) > 8 else "")}
+                                           for t in traces[:30]]), use_container_width=True, hide_index=True)
+            else:
+                st.write("Brak wspólnych śladów poza pospolitymi; grupowanie wynika z podobieństwa treści.")
+            mats = [{"materiał": g.items[i]["case"].id, "kampania": g.items[i]["group"], "operator": g.items[i]["operator"],
+                     "tekst": (g.items[i]["case"].text.strip().splitlines() or [""])[0][:80]} for i in all_idx]
+            with st.expander(f"Materiały ({len(mats)})"):
+                st.dataframe(pd.DataFrame(mats), use_container_width=True, hide_index=True)
+            st.download_button("Pobierz kartę klastra (Markdown)", A.cluster_markdown(f"operator {op}", mats, traces), file_name=f"klaster_{op}.md")

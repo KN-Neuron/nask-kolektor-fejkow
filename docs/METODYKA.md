@@ -20,6 +20,7 @@ decyzja (embsim/api.py: Gallery.add / query)
    │   inaczej → nowy wzorzec (nie doklejamy)
    ▼
 przesłanki (trzy najsilniejsze powody, wspólne ślady, pewność dowodu) + sieć + karta dla analityka (embsim/app.py)
+   │   zakładka „Klastry”: operator -> kampanie -> materiały z galerii (offline) albo twórcy i sieci z grafu Neo4j (embsim/graph_view.py)
    ▼
 (opcjonalnie) graf Neo4j: twórca jako węzeł główny, etykieta scam propagowana z twórcy (graph/creators.py), scraper (graph/scrape.py)
 ```

@@ -232,3 +232,75 @@ def hash_embed(texts, dim: int = 96):
         for w in t.lower().split():
             V[i, int(hashlib.md5(w.encode()).hexdigest(), 16) % dim] += 1
     return V / np.maximum(np.linalg.norm(V, axis=1, keepdims=True), 1e-9)
+
+
+# --------------------------------------------------------------------------------------------------------------------
+# klastry w galerii (bez bazy): operator -> kampanie -> materiały, plus ślady, które je sklejają
+
+TRACE_LABEL = {"host": "domena", "kit": "zestaw zasobów", "scheme": "schemat adresu", "pixel": "piksel", "payer": "płatnik",
+               "page": "strona reklamodawcy", "text_hash": "identyczny tekst"}
+HUB_FRACTION = 0.2          # ślad obecny w więcej niż 20% galerii (min. 10 materiałów) niczego nie dowodzi (tracker, CDN)
+
+
+def cluster_index(g: Gallery) -> dict[str, dict[str, list[int]]]:
+    """operator -> kampania -> indeksy materiałów w galerii."""
+    out: dict[str, dict[str, list[int]]] = {}
+    for i, it in enumerate(g.items):
+        out.setdefault(it["operator"] or "?", {}).setdefault(it["group"] or "?", []).append(i)
+    return out
+
+
+def shared_traces(g: Gallery, idx: list[int]) -> list[dict]:
+    """Ślady wspólne dla ≥2 materiałów wskazanego klastra, bez hubów; rzadkie (najmocniejsze) najpierw."""
+    from collections import Counter, defaultdict
+
+    cap = max(10, int(HUB_FRACTION * len(g.items)))
+    df = Counter((ch, x) for it in g.items for ch, s in it["case"].sets.items() if ch in TRACE_LABEL for x in s)
+    inside: dict[tuple, list[str]] = defaultdict(list)
+    for i in idx:
+        for ch, s in g.items[i]["case"].sets.items():
+            if ch in TRACE_LABEL:
+                for x in s:
+                    inside[(ch, x)].append(g.items[i]["case"].id)
+    rows = [{"ślad": TRACE_LABEL[ch], "wartość": x, "materiały": ms, "w galerii": df[(ch, x)]}
+            for (ch, x), ms in inside.items() if len(ms) >= 2 and df[(ch, x)] <= cap]
+    rows.sort(key=lambda r: (r["w galerii"], -len(r["materiały"])))
+    return rows
+
+
+def _esc(s: object, n: int = 38) -> str:
+    return str(s).replace('"', "'").replace("\\", "/").replace("\n", " ")[:n]
+
+
+def cluster_dot(g: Gallery, campaigns: dict[str, list[int]], title: str, traces: list[dict], max_materials: int = 24, max_traces: int = 12) -> str:
+    """Rysunek: operator (ramka) -> kampanie (ramki) -> materiały, a obok owalne ślady łączące materiały. Układ bez fizyki."""
+    lines = ["graph G {", 'rankdir=LR; bgcolor="transparent"; node [fontname="Helvetica", fontsize=10];',
+             f'subgraph cluster_op {{ label="{_esc(title, 60)}"; style="rounded"; color="#ff7f0e"; fontname="Helvetica";']
+    shown: set[str] = set()
+    for k, (camp, idx) in enumerate(sorted(campaigns.items())):
+        lines.append(f'subgraph cluster_k{k} {{ label="kampania {_esc(camp)}"; style="rounded"; color="#2ca02c"; fontname="Helvetica";')
+        for i in idx[: max(1, max_materials // max(len(campaigns), 1))]:
+            c = g.items[i]["case"]
+            shown.add(c.id)
+            snippet = _esc(c.text.strip().splitlines()[0] if c.text.strip() else "(bez tekstu)", 30)
+            lines.append(f'"m:{_esc(c.id)}" [label="{_esc(c.id)}\\n{snippet}", shape=box, style="rounded,filled", fillcolor="#eef3fb"];')
+        lines.append("}")
+    lines.append("}")
+    for j, t in enumerate(traces[:max_traces]):
+        ms = [m for m in t["materiały"] if m in shown]
+        if len(ms) < 2:
+            continue
+        lines.append(f'"t{j}" [label="{t["ślad"]}:\\n{_esc(t["wartość"])}\\n({len(t["materiały"])} mat.)", shape=ellipse, style=filled, '
+                     f'fillcolor="#fff7d6", color="#b8860b"];')
+        lines += [f'"t{j}" -- "m:{_esc(m)}" [color="#b8860b"];' for m in ms]
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def cluster_markdown(title: str, materials: list[dict], traces: list[dict]) -> str:
+    out = [f"# Klaster: {title}", "", f"Materiałów: {len(materials)}", "", "## Co skleja ten klaster", ""]
+    out += [f"- {t['ślad']}: `{t['wartość']}` ({len(t['materiały'])} materiałów, w galerii {t['w galerii']})" for t in traces] or [
+        "- brak wspólnych śladów poza hubami; grupowanie wynika z podobieństwa treści"]
+    out += ["", "## Materiały", "", "| materiał | kampania | operator | początek tekstu |", "|---|---|---|---|"]
+    out += [f"| {m['materiał']} | {m['kampania']} | {m['operator']} | {m['tekst']} |" for m in materials]
+    return "\n".join(out)

@@ -30,6 +30,7 @@ from .features import Case
 
 DEFAULT_WEIGHTS = {"text": 1.0, "pixel": 1.0, "kit": 1.0, "scheme": 1.0, "host": 1.0}
 LEX_WEIGHTS = {**DEFAULT_WEIGHTS, "text_lex": 1.0}   # + kanał leksykalny: TF-IDF znaków (bez modelu), obok semantycznego `text`
+MU_MAX = 0.999
 SEMANTIC = {"text", "image"}
 ROTATING = {"host", "pixel"}   # ślady, które kampanie wymieniają (krótko żyjące domeny, piksele): brak zgodności to nie dowód
 
@@ -80,6 +81,8 @@ class Corpus:
                 have = [have[i] for i in np.random.default_rng(0).choice(len(have), size=1500, replace=False)]
             S = np.asarray(have) @ np.asarray(have).T
             self.mu = float(np.median(S[np.triu_indices(len(have), 1)]))
+        self.mu = min(self.mu, MU_MAX)                      # mediana = 1 (np. same duplikaty) dawałaby dzielenie przez zero
+        self.mu_lex = min(self.mu_lex, MU_MAX)
 
     def _fit_lexical(self) -> None:
         """TF-IDF n-gramów znaków (3–5) na tekstach korpusu, bez etykiet i bez modelu. Wynik: kosinus znormalizowany jak kanał tekstowy."""

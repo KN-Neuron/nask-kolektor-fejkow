@@ -92,6 +92,24 @@ Dezinformacja i teksty scam się nie mieszają (połączone międzyklasowo 0,000
 8. **Skala:** wyszukiwanie z blokowaniem kandydatów kosztuje 0,3–47 ms na zapytanie przy galerii ok. 10 tys.; 97 tys. nie mierzyliśmy.
 9. Próbka S1 ma 50% twórców scam (populacja ok. 16%), więc precyzje liczone na S1 nie przenoszą się na całą Metę.
 
+## 7a. Przyrostowe dodawanie do galerii (tak działa demo i scraper)  [syntetyka v2, dev, 6 światów]
+
+Dotychczasowe wyniki grupowania były wsadowe (CV). Przy dodawaniu materiałów po jednym (`Gallery.add`, kolejność losowa, konfiguracja domyślna)
+jest gorzej: ARI kampanii 0,609 (wsadowo 0,749), ARI operatora 0,07–0,74 zależnie od świata, a **legalne strony (negatywy) wpadają do operatorów
+oszustw** przez wspólne pospolite ślady (np. `/static`, `/artykul`): w 4 z 6 światów wszystkie, razem 27 z 42 przy progu operatora 0,25.
+
+| próg operatora (przyrostowo) | ARI operatora | legalne strony wpięte w operator | grup operatora / prawdziwych |
+|---|---|---|---|
+| 0,25 (domyślny) | 0,562 | 27 z 42 | 46 / 84 |
+| 0,45 | 0,652 | 10 z 42 | 79 / 84 |
+| 0,60 | 0,476 | 8 z 42 | 140 / 84 |
+| 0,75 i 0,90 | 0,488 | 0 z 42 | 164 / 84 (każdy osobno) |
+
+Żaden próg nie rozwiązuje obu problemów: zlewania operatorów i wpinania legalnych stron. Wniosek: reguła „najbliższy sąsiad ≥ próg” na poziomie
+operatora jest słaba, a potrzebne jest odfiltrowanie pospolitych śladów (limit częstości, jak `hub_cap` w grafie), czego jeszcze nie zrobiono.
+**Scenariusz demo „obcy materiał dostaje nowy wzorzec” na poziomie operatora jest więc zawodny dla stron, które dzielą tylko pospolite zasoby.**
+Naprawiony przy okazji błąd: dzielenie przez zero w normalizacji, gdy w galerii dominują identyczne teksty.
+
 ## 8. Pochodzenie danych
 
 | zbiór | źródło | licencja / uwagi |

@@ -59,3 +59,22 @@ def test_reasons_confidence_card_and_network_on_real_gallery(tmp_path):
     assert A.verdict_style(d)[1] and "Karta materiału" in A.card_markdown(new, d)
     fig = A.network_figure(new, d)
     assert any(t.name == "nowy" for t in fig.data) and any(t.name == "materiał" for t in fig.data)
+
+
+def test_gallery_clusters_traces_without_hubs_and_dot(tmp_path):
+    generate(tmp_path / "w", seed=6, n_operators=3, campaigns_per_op=2, variants=3, missing_rate=0.0)
+    g = Gallery(cfg(), embed_fn=A.hash_embed)
+    A.build_from_folders(g, tmp_path / "w")
+    idx = A.cluster_index(g)
+    assert sum(len(v) for o in idx.values() for v in o.values()) == len(g)
+    op = max(idx, key=lambda o: sum(len(v) for v in idx[o].values()))
+    camps = idx[op]
+    all_idx = [i for v in camps.values() for i in v]
+    traces = A.shared_traces(g, all_idx)
+    cap = max(10, int(A.HUB_FRACTION * len(g.items)))
+    assert all(t["w galerii"] <= cap and len(t["materiały"]) >= 2 for t in traces)          # bez hubów, tylko ślady wspólne
+    assert traces == sorted(traces, key=lambda t: (t["w galerii"], -len(t["materiały"])))   # rzadkie najpierw
+    dot = A.cluster_dot(g, camps, f"operator {op}", traces)
+    assert dot.startswith("graph G {") and dot.rstrip().endswith("}") and "cluster_op" in dot and 'label="kampania' in dot
+    md = A.cluster_markdown(f"operator {op}", [{"materiał": "a", "kampania": "K1", "operator": op, "tekst": "x"}], traces)
+    assert md.startswith("# Klaster: operator") and "## Materiały" in md
