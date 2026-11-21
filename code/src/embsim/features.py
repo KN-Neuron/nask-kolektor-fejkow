@@ -1,9 +1,19 @@
-"""Cechy przypadku wyciągane bez uczenia: tekst + zbiory śladów (piksele, zestaw strony, schemat adresu, hosty).
+"""Cechy przypadku wyciągane bez uczenia: tekst + zbiory śladów (piksele, zestaw strony, schemat adresu, hosty, obrazy).
 
 Zbiory śladów są ogólne (nie dopasowane do żadnego zbioru danych); wagę śladu nadaje rzadkość w korpusie (zob. score.py).
+
+Obrazy (`img`): dokładny odcisk SHA-256 bajtów każdego obrazu strony, z treści odpowiedzi w HAR i z plików przypadku (także zasobów
+zapisanej strony `*_files`). Bez modelu i bez uczenia: ten sam plik u dwóch materiałów to wspólny ślad jak piksel czy host. Obrazy
+mniejsze niż MIN_IMG_BYTES (ikonki, piksele 1×1, reakcje z widżetów komentarzy) pomijamy, bo krążą między niezależnymi zestawami.
+Metadanych EXIF/PNG zrzutów nie używamy: opisują urządzenie osoby zgłaszającej (telefon, narzędzie do zrzutów), nie operatora.
+
+`drop_common=True`: adresy pospolitych usług (Google, Meta, CDN, czcionki) nie dają śladów hosta, zestawu ani schematu. W dużym
+korpusie idf sam je wycisza, ale w małej galerii (kilka przypadków) google.com u dwóch z dziesięciu wygląda na rzadki wspólny ślad.
 """
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import re
 from dataclasses import dataclass, field
@@ -15,6 +25,15 @@ from .material import _walk, html_text, info_text
 PIXEL = [re.compile(p) for p in (r"fbq\(\s*['\"]init['\"]\s*,\s*['\"](\d{6,})['\"]", r"\b(GTM-[A-Z0-9]{4,})\b",
                                  r"\b(AW-\d{6,})\b", r"\b(UA-\d{4,}-\d+)\b", r"\b(G-[A-Z0-9]{6,})\b")]
 SAVED_FROM = re.compile(r"saved from url=\(\d+\)(\S+)")
+IMG_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+MIN_IMG_BYTES = 2048
+COMMON_HOSTS = frozenset((
+    "google.com", "google.pl", "googleapis.com", "gstatic.com", "googletagmanager.com", "doubleclick.net", "google-analytics.com",
+    "googleusercontent.com", "googlesyndication.com", "facebook.com", "facebook.net", "fbcdn.net", "instagram.com", "jsdelivr.net",
+    "cloudflare.com", "cloudflareinsights.com", "unpkg.com", "jquery.com", "bootstrapcdn.com", "unsplash.com", "youtube.com",
+    "ytimg.com", "vimeo.com", "tiktok.com", "akamaihd.net", "cloudfront.net", "amazonaws.com", "microsoft.com", "clarity.ms",
+    "fontawesome.com", "typekit.net", "hotjar.com", "yandex.ru", "x.com", "twitter.com", "w3.org", "schema.org",
+))
 
 
 @dataclass
@@ -49,10 +68,43 @@ def prefixes(url: str) -> str | None:
     return "/" + "/".join(seg[:-1][:2]) if len(seg) >= 2 else None  # katalog zasobów (bez nazwy pliku)
 
 
-def load_case(root: Path) -> Case:
+def is_common(host: str) -> bool:
+    return registered(host) in COMMON_HOSTS
+
+
+def img_key(data: bytes) -> str | None:
+    return hashlib.sha256(data).hexdigest()[:16] if len(data) >= MIN_IMG_BYTES else None
+
+
+def har_images(entries: list[dict]) -> list[tuple[str, bytes]]:
+    """(adres, bajty) obrazów zapisanych w HAR (treść odpowiedzi base64 albo tekst, np. SVG)."""
+    out = []
+    for e in entries:
+        ct = (e.get("response") or {}).get("content") or {}
+        if not str(ct.get("mimeType", "")).startswith("image/") or not ct.get("text"):
+            continue
+        try:
+            data = base64.b64decode(ct["text"]) if ct.get("encoding") == "base64" else ct["text"].encode()
+        except (ValueError, TypeError):
+            continue
+        out.append((e.get("request", {}).get("url", ""), data))
+    return out
+
+
+def load_case(root: Path, drop_common: bool = False) -> Case:
     c = Case(root.name)
     texts, urls = [], []
-    sets: dict[str, set[str]] = {k: set() for k in ("pixel", "kit", "scheme", "host")}
+    sets: dict[str, set[str]] = {k: set() for k in ("pixel", "kit", "scheme", "host", "img")}
+    names: dict[str, str] = {}
+
+    def add_img(name: str, data: bytes) -> None:
+        if k := img_key(data):
+            sets["img"].add(k)
+            names.setdefault(k, name.rsplit("/", 1)[-1].split("?")[0][:60] or k)
+
+    for p in root.rglob("*"):                    # obrazy także z zasobów strony (`*_files`), które _walk pomija
+        if p.is_file() and p.suffix.lower() in IMG_EXT:
+            add_img(p.name, p.read_bytes())
     for p in _walk(root):
         ext = p.suffix.lower()
         if ext in {".html", ".htm"}:
@@ -75,8 +127,13 @@ def load_case(root: Path) -> Case:
             except (ValueError, KeyError):
                 continue
             urls += [e["request"]["url"] for e in entries]
+            for u, data in har_images(entries):
+                add_img(u, data)
     for u in urls:
-        if h := host_of(u):
+        h = host_of(u)
+        if drop_common and h and is_common(h):
+            continue
+        if h:
             sets["host"].add(registered(h))
         if k := prefixes(u):
             sets["kit"].add(k)
@@ -84,4 +141,6 @@ def load_case(root: Path) -> Case:
             sets["scheme"].add(s)
     c.text = "\n".join(texts)
     c.sets = {k: v for k, v in sets.items() if v}  # pusty kanał = brak danych, nie „brak podobieństwa”
+    if names:
+        c.meta["img_names"] = names
     return c

@@ -5,9 +5,11 @@ który idzie do `Gallery.query/add` (wzór podobieństwa: docs/14). Adresów URL
 """
 from __future__ import annotations
 
+import copy
 import hashlib
 import json
 import tempfile
+import zipfile
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -19,7 +21,7 @@ from .features import Case, registered
 IMG_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 _CHANNEL_PL = {"text": "podobna treść", "text_lex": "podobne brzmienie tekstu", "kit": "ten sam zestaw zasobów strony",
                "scheme": "ten sam schemat parametrów adresu", "host": "wspólna domena", "pixel": "ten sam piksel śledzący",
-               "image": "podobny wygląd"}
+               "image": "podobny wygląd", "img": "te same obrazy na stronie"}
 _EXTRA_PL = {"payer": "ten sam płatnik", "page": "ta sama strona reklamodawcy", "text_hash": "identyczny tekst"}
 
 
@@ -232,3 +234,66 @@ def hash_embed(texts, dim: int = 96):
         for w in t.lower().split():
             V[i, int(hashlib.md5(w.encode()).hexdigest(), 16) % dim] += 1
     return V / np.maximum(np.linalg.norm(V, axis=1, keepdims=True), 1e-9)
+
+
+# --------------------------------------------------------------------------------------------------------------------
+# wiele materiałów naraz (zbiór testowy: ZIP albo folder, podfolder = materiał)
+
+
+def extract_zip(data: bytes, dest: Path) -> Path:
+    """Rozpakowuje ZIP do `dest` (bez ścieżek wychodzących poza `dest`). Zwraca katalog z materiałami: jeśli całe archiwum siedzi
+    w jednym folderze (typowe „Kompresuj folder”), schodzi do niego."""
+    import io
+
+    dest = dest.resolve()
+    with zipfile.ZipFile(io.BytesIO(data)) as z:
+        for info in z.infolist():
+            name = info.filename
+            if name.startswith("__MACOSX/") or Path(name).name.startswith("._"):
+                continue
+            target = (dest / name).resolve()
+            if not target.is_relative_to(dest):
+                raise ValueError(f"niebezpieczna ścieżka w archiwum: {name}")
+            if info.is_dir():
+                target.mkdir(parents=True, exist_ok=True)
+            else:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(z.read(info))
+    root = dest
+    while True:
+        kids = [k for k in root.iterdir() if not k.name.startswith(".")]
+        if len(kids) == 1 and kids[0].is_dir() and any(c.is_dir() for c in kids[0].iterdir()):
+            root = kids[0]
+        else:
+            return root
+
+
+def case_dirs(root: Path) -> list[Path]:
+    """Podfoldery = materiały; folder bez podfolderów (albo z samymi zasobami `*_files`) to jeden materiał."""
+    dirs = [d for d in root.iterdir() if d.is_dir() and not d.name.startswith((".", "__")) and not d.name.endswith("_files")]
+    return sorted(dirs, key=lambda d: (len(d.name), d.name)) if dirs else [root]
+
+
+def assess_folder(g: Gallery, root: Path, keep: bool = False, ocr: bool = False, progress=None) -> tuple[list[dict], Gallery]:
+    """Ocena zbioru materiałów: każdy po kolei dostaje decyzję względem galerii i trafia do niej, więc kilka nowych materiałów jednej
+    kampanii łączy się także między sobą. `keep=False`: praca na kopii, galeria w interfejsie zostaje bez zmian."""
+    from .material import load_case as material
+
+    gg = g if keep else copy.deepcopy(g)
+    rows, dirs = [], case_dirs(root)
+    for i, d in enumerate(dirs):
+        c = case_from_folder(d)
+        c.id = d.name if d.name not in gg._ids else f"{d.name} (nowy)"
+        if ocr and not c.text.strip():
+            c.text = "\n".join(t for t in (ocr_image(p)[0] for p in material(d).images[:3]) if t)
+        if not (c.text.strip() or c.sets):
+            rows.append({"materiał": d.name, "werdykt": "brak danych (pusty folder albo nieobsługiwane pliki)"})
+            continue
+        dec = gg.add(c)
+        m = dec.key_match()
+        rows.append({"materiał": c.id, "werdykt": verdict_style(dec)[1], "kampania": dec.group, "operator": dec.operator,
+                     "najbliższy": m.id if m else "", "wynik kampanii": round(dec.campaign_score, 3),
+                     "wynik operatora": round(dec.operator_score, 3), "powody": "; ".join(top_reasons(m)) if m else ""})
+        if progress:
+            progress((i + 1) / len(dirs), d.name)
+    return rows, gg

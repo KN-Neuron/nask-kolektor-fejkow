@@ -13,7 +13,7 @@ import pandas as pd
 import streamlit as st
 
 from embsim import analyze as A
-from embsim.api import DEFAULT_CONFIG, Gallery
+from embsim.api import DEFAULT_CONFIG, Gallery, demo_thresholds
 
 ROOT = Path(__file__).resolve().parents[3]
 GALLERY_FILE = Path(os.environ.get("EMBSIM_GALLERY", ROOT / "code" / "artifacts" / "gallery_demo.jsonl"))
@@ -30,7 +30,9 @@ def embed_fn():
 def gallery() -> Gallery:
     if "gallery" not in st.session_state:
         fn = embed_fn()
-        st.session_state.gallery = Gallery.load(GALLERY_FILE, embed_fn=fn) if GALLERY_FILE.exists() else Gallery(embed_fn=fn)
+        thr = demo_thresholds()
+        st.session_state.gallery = (Gallery.load(GALLERY_FILE, embed_fn=fn, thresholds=thr) if GALLERY_FILE.exists()
+                                    else Gallery(embed_fn=fn, thresholds=thr))
     return st.session_state.gallery
 
 
@@ -45,9 +47,10 @@ with st.sidebar:
     c1, c2, c3 = st.columns(3)
     c1.metric("materiały", s["materiałów"]); c2.metric("kampanie", s["kampanii"]); c3.metric("operatorzy", s["operatorów"])
     st.caption(f"Konfiguracja: `{DEFAULT_CONFIG}`.")
-    t_camp = st.slider("Próg: znana kampania", 0.30, 0.99, float(g.cfg.thresholds.get("campaign") or 0.95), 0.01,
-                       help="Domyślny próg 0,95 pochodzi z kalibracji na syntetyce. Na reklamach Meta w teście po czasie optimum wyszło "
-                            "ok. 0,5. Niższy próg łączy chętniej (więcej trafień, więcej błędnych połączeń).")
+    t_camp = st.slider("Próg: znana kampania", 0.30, 0.99, float(g.cfg.thresholds.get("campaign") or 0.95), 0.005,
+                       help="Domyślny próg 0,725 jest skalibrowany na stronach (HTML, HAR, zrzuty) z NASK i syntetyki, zostaw-jeden "
+                            "(config/embsim/demo_calibration.json). Na reklamach Meta optimum wyszło ok. 0,5. Niższy próg łączy "
+                            "chętniej (więcej trafień, więcej błędnych połączeń).")
     g.cfg.thresholds["campaign"] = t_camp
     with st.expander("Zbuduj galerię", expanded=(len(g) == 0)):
         folders = st.text_input("Folder z przypadkami (podfoldery = materiały)", DEFAULT_FOLDERS)
@@ -95,6 +98,38 @@ with st.form("wejscie"):
     ocr = st.checkbox("Odczytaj tekst ze zrzutu (OCR)", value=True)
     go = st.form_submit_button("Analizuj", type="primary")
 
+with st.expander("Wiele materiałów naraz (zbiór testowy: ZIP albo folder, podfolder = jeden materiał)"):
+    st.caption("Każdy materiał dostaje decyzję względem galerii i dopiero potem do niej trafia, więc kilka nowych materiałów jednej "
+               "kampanii łączy się też między sobą (dostają wspólną nową kampanię K…). Pliki jak w folderach NASK: HTML, HAR, zrzuty, "
+               "zasoby strony `*_files`.")
+    bz = st.file_uploader("Archiwum ZIP", type=["zip"], key="batch_zip")
+    bdir = st.text_input("albo folder na dysku", "", key="batch_dir")
+    c1, c2 = st.columns(2)
+    bocr = c1.checkbox("OCR dla materiałów bez tekstu (sam zrzut)", value=True, key="batch_ocr")
+    bkeep = c2.checkbox("Zostaw ocenione materiały w galerii", value=False, key="batch_keep")
+    if st.button("Oceń wszystkie", key="batch_go"):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as td:
+            try:
+                root = A.extract_zip(bz.getvalue(), Path(td)) if bz else Path(bdir) if bdir.strip() else None
+            except (ValueError, OSError) as e:
+                root = None
+                st.error(f"Nie da się rozpakować archiwum: {e}")
+            if root is None or not root.is_dir():
+                st.warning("Wgraj ZIP albo podaj istniejący folder.")
+            else:
+                bar = st.progress(0.0)
+                rows, gg = A.assess_folder(g, root, keep=bkeep, ocr=bocr, progress=lambda f, t: bar.progress(f, text=t))
+                st.session_state.batch = rows
+                if bkeep:
+                    st.session_state.flash = f"Oceniono i dodano {len(rows)} materiałów."
+    if st.session_state.get("batch"):
+        bdf = pd.DataFrame(st.session_state.batch)
+        st.dataframe(bdf, use_container_width=True, hide_index=True)
+        st.caption(" · ".join(f"{k}: {v}" for k, v in bdf["werdykt"].value_counts().items()))
+        st.download_button("Pobierz wyniki (CSV)", bdf.to_csv(index=False).encode("utf-8"), "wyniki.csv", key="batch_csv")
+
 if go:
     if not (files or text.strip() or url.strip()):
         st.warning("Podaj plik, tekst albo adres.")
@@ -131,12 +166,12 @@ if res:
     getattr(st, kind)(f"**{label}**")
     st.write(d.explain())
     if d.matches:
-        best = d.matches[0]
+        best = d.key_match()
         c1, c2, c3 = st.columns(3)
         c1.metric("wynik kampanii", f"{d.campaign_score:.2f}", help=f"próg {d.thresholds.get('campaign')}")
         c2.metric("wynik operatora", f"{d.operator_score:.2f}", help=f"próg {d.thresholds.get('operator')}")
         c3.metric("pewność dowodu", A.confidence_label(best.evidence))
-        st.markdown("**Trzy najsilniejsze powody (najbliższy materiał):**")
+        st.markdown(f"**Trzy najsilniejsze powody (materiał {best.id}):**")
         for r in A.top_reasons(best):
             st.markdown(f"- {r}")
         st.dataframe(pd.DataFrame([{"materiał": m.id, "kampania": m.group, "operator": m.operator, "wynik kampanii": m.campaign_score,
