@@ -66,6 +66,10 @@ przy progu 0,7; **nie są to etykiety organizatora**.
    „zamach na Brzoskę”, „Olejnik po ataku”, „aresztowanie po programie” → produkt inwestycyjny („Świtowin Zyskarnia”,
    „Trwały Działunek”). Rotacja domen (civicdaybook.live, acrosscommunities.live, novumfy.com, glowpixel.org, healthlinkq.pro)
    i reklamodawców („Formal Favorable”, „EasyJoy”, „Sharon Coleman”).
+   **Infrastruktura (bierna, RDAP/crt.sh, 2026-11-21):** civicdaybook.live i acrosscommunities.live zarejestrowane
+   **w odstępie 1 minuty** (Dynadot, 2026-10-08), healthlinkq.pro 95–97 min później (NICENIC), certyfikaty tego samego
+   wystawcy tego samego dnia; novumfy.com i glowpixel.org u tego samego rejestratora (NameSilo). Domeny docelowe były
+   **świeże**: 0,5–1,2 dnia od rejestracji do zebrania materiału (glowpixel.org: 39 dni, to domena-przykrywka z cloakingiem).
 2. **Duplikaty na różnych domenach** (1 i 2): identyczna strona, ten sam piksel. Klasyczna rotacja domen jednej kampanii.
 3. **Cloaking** (61): przykrywka „portal analiz” dla moderatorów i wabik dla ofiar pod tym samym adresem.
 4. **Kampanie produktowe** (14, 47, 36, 10): typowy „lander” z licznikiem, komentarzami i formularzem, różne zestawy
@@ -83,7 +87,7 @@ przy progu 0,7; **nie są to etykiety organizatora**.
 | `___BACKUP.zip` ze strony (zaszyfrowany, 15 zarchiwizowanych stron) | nazwy plików w `research/nask-hacknation/domains_from_zip.*` | hasła nie mamy; mentor: „jest wszystko”, więc to część zagadki, nie zbiór |
 | Dane syntetyczne (część badawcza) | `code/data/fixtures/` | generator `fejki synth`; fikcyjne osoby i domeny `.example` |
 | Ręczny zbiór reklam | `data/reklamy_reczne.jsonl` (pusty) + wzór | format w [data/README.md](../data/README.md) |
-| Zebrane dane infrastruktury (DNS/RDAP/crt.sh) | `code/data/raw/infra/` (ignorowane) | 14 domen ze strony-zagadki; dla domen z `DANE.zip` jeszcze nie zbierane (zadanie C3) |
+| Zebrane dane infrastruktury (DNS/RDAP/crt.sh) | `code/data/raw/infra/` (ignorowane) | 14 domen ze strony-zagadki + 9 domen docelowych z `DANE.zip` (`fejki demo build --infra`; crt.sh bywa przeciążony: timeouty dla 3 domen) |
 | Meta Ad Library API | adapter `code/src/fejki/ingest/meta_api.py` | tożsamość potwierdzona, token do wpięcia |
 
 ## Czego w danych brakuje (i jak sobie radzimy)

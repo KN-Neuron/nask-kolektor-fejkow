@@ -19,7 +19,11 @@ log = logging.getLogger(__name__)
 _TLD = tldextract.TLDExtract(suffix_list_urls=(), cache_dir=None)
 
 CLICK_IDS = {"gclid", "fbclid", "ttclid", "msclkid", "gbraid", "wbraid", "gad_source", "gad_campaignid"}
-GENERIC_PARAMS = CLICK_IDS | {"utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"}
+GENERIC_PARAMS = CLICK_IDS | {"utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "utm_id",
+                              # makra adresów docelowych Meta Ads: ma je prawie każda reklama z Facebooka, więc nie łączą kampanii
+                              "ad_id", "adset_id", "adset_name", "ad_name", "campaign_id", "campaign_name", "placement",
+                              "site_source_name", "media_type"}
+TRIVIAL_PATHS = {"/", "", "/favicon.ico", "/robots.txt", "/index.html", "/index.php", "/sw.js", "/manifest.json"}
 
 
 class UrlShape(BaseModel):

@@ -88,6 +88,8 @@ class Material(BaseModel):
     cloaking: list[str] = Field(default_factory=list)
     missing: list[str] = Field(default_factory=list)
     notes: list[str] = Field(default_factory=list)
+    # kiedy materiał zaobserwowano: [{"date": ISO, "source": opis}]; czas zebrania, nie czas emisji reklamy
+    observed: list[dict] = Field(default_factory=list)
 
 
 # --- osoby ----------------------------------------------------------------------------------------------------------
@@ -280,7 +282,34 @@ def parse_har(path: Path) -> dict:
             src_h, dst_h = urlsplit(e["request"]["url"]).hostname, urlsplit(loc).hostname or urlsplit(e["request"]["url"]).hostname
             if not (is_common_host(src_h) and is_common_host(dst_h)):
                 redirects.append(f"{src_h} → {dst_h} ({st})")
-    return {"urls": urls, "docs": docs, "redirects": redirects}
+    times = sorted(e["startedDateTime"] for e in ents if isinstance(e.get("startedDateTime"), str) and e["startedDateTime"][:2] == "20")
+    return {"urls": urls, "docs": docs, "redirects": redirects, "first": times[0] if times else None,
+            "last": times[-1] if times else None}
+
+
+FILE_DATE = re.compile(r"(20\d\d)-(\d\d)-(\d\d)(?:[ _T](\d\d)[.:]?(\d\d)[.:]?(\d\d))?")
+
+
+def date_from_name(name: str) -> str | None:
+    """Data z nazwy pliku tylko w jednoznacznym formacie RRRR-MM-DD (np. „Zrzut ekranu 2026-10-09 082411.png”).
+    Formaty typu 08-12-2026 (iOS) pomijamy, bo nie wiadomo, czy to dzień, czy miesiąc."""
+    m = FILE_DATE.search(name)
+    if not m:
+        return None
+    y, mo, d, hh, mi, ss = m.groups()
+    if not (1 <= int(mo) <= 12 and 1 <= int(d) <= 31):
+        return None
+    if not hh:
+        return f"{y}-{mo}-{d}"
+    # zrzuty i nagrania mają czas lokalny urządzenia; zakładamy czas polski i przeliczamy na UTC (jak znaczniki HAR)
+    from datetime import UTC, datetime
+    from zoneinfo import ZoneInfo
+
+    try:
+        local = datetime(int(y), int(mo), int(d), int(hh), int(mi), int(ss), tzinfo=ZoneInfo("Europe/Warsaw"))
+    except ValueError:
+        return f"{y}-{mo}-{d}"
+    return local.astimezone(UTC).isoformat()[:19]
 
 
 # --- obrazy ---------------------------------------------------------------------------------------------------------
@@ -389,6 +418,12 @@ def build_material(mid: str, label: str, source: str, files: list[Path] | None =
             continue
         all_urls += d["urls"]
         m.redirects += d["redirects"]
+        if d["first"]:
+            m.observed.append({"date": d["first"][:19], "source": f"log HAR {h.name}"})
+    for f in shots + vids:  # daty z nazw zrzutów i nagrań (tylko format RRRR-MM-DD)
+        dt = date_from_name(f.name)
+        if dt:
+            m.observed.append({"date": dt, "source": f"nazwa pliku {f.name}, czas PL → UTC"})
     for f in infos:
         try:
             j = json.loads(f.read_text(encoding="utf-8"))
@@ -397,6 +432,10 @@ def build_material(mid: str, label: str, source: str, files: list[Path] | None =
             for k in ("title", "description"):
                 if j.get(k):
                     texts.append(str(j[k]))
+            if j.get("timestamp"):
+                from datetime import UTC, datetime
+
+                m.observed.append({"date": datetime.fromtimestamp(int(j["timestamp"]), UTC).isoformat()[:19], "source": f.name})
             mm = re.search(r"ads/library/\?id=(\d+)", j.get("webpage_url") or "")
             if mm:
                 m.ad_ids.append(mm.group(1))

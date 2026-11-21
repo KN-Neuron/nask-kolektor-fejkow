@@ -13,7 +13,8 @@ Termin oddania: **do potwierdzenia na Discordzie** (zadanie D0). Etapy poniżej 
   adres (schemat TDS, wzorce ścieżek, katalogi zestawów, usługi zewnętrzne, przekierowania), domena, obraz (pHash),
   szablon (klasy HTML), cloaking, tematyka, infrastruktura (opcjonalnie);
 - grupowanie na dwóch poziomach (kampania / sieć), dopasowanie nowego materiału z przesłankami;
-- 29 testów jednostkowych, test pomiń-jeden 100% spójności.
+- karty kampanii (okno obserwacji, domeny do weryfikacji, wiek domen), infrastruktura dla domen zbioru;
+- 31 testów jednostkowych, test pomiń-jeden 100% spójności.
 
 **Najważniejsze luki** (w kolejności wpływu na ocenę):
 1. brak etykiet referencyjnych i testu „czy obce nie są doklejane” na trudnych przypadkach → nie wiemy, jak wypadniemy na ukrytym zbiorze;
@@ -92,10 +93,11 @@ Termin oddania: **do potwierdzenia na Discordzie** (zadanie D0). Etapy poniżej 
 - Przypisać osoby do ról w tej tabeli i w README.
 - **Gotowe gdy:** termin i forma oddania wpisane w `docs/01_ZADANIE.md`.
 
-### D1. Wejście „cały folder” w UI i eksport (P0, ~1,5 h) — D
-- W zakładce analizy: wskazanie folderu z wieloma przypadkami (ścieżka albo upload zip) → dopasowanie każdego, tabela wyników.
-- Eksport: CSV kampanii (jest), CSV dopasowań, **raport HTML/Markdown kampanii** (karta: członkowie, wspólne cechy,
-  przesłanki krawędzi, braki danych).
+### D1. Wejście „cały folder” w UI i eksport (P0, ~1 h) — D
+- ✅ **Zrobione:** karta kampanii (okno obserwacji, domeny do weryfikacji z priorytetem, przesłanki, braki) w UI
+  i `fejki demo cards`; eksport Markdown i CSV domen do weryfikacji.
+- Zostaje: w zakładce analizy wskazanie folderu z wieloma przypadkami (ścieżka albo upload zip) → dopasowanie każdego,
+  tabela wyników i CSV dopasowań (wspólnie z A3).
 - **Gotowe gdy:** z UI da się w 3 kliknięciach przejść „nowy zbiór → wyniki → raport do pobrania”.
 
 ---
@@ -130,9 +132,11 @@ Termin oddania: **do potwierdzenia na Discordzie** (zadanie D0). Etapy poniżej 
 - Opcjonalnie LEACE tematu z części badawczej (wyjaśnić w pitchu jako atut metodyczny, ale nie główną oś).
 - **Gotowe gdy:** 3 (Olejnik) i 1 (Brzoska) mają dowód narracji, a negatywy z A2 nie przekraczają progu.
 
-### C3. Infrastruktura dla domen z DANE.zip (P1, ~1 h) — C
-- `fejki demo build --infra` (DNS/RDAP/crt.sh, bierne) dla 10 domen; sprawdzić, czy daty rejestracji/rejestratorzy/NS
-  wzmacniają S1 albo łączą kampanie produktowe.
+### C3. Infrastruktura dla domen z DANE.zip (P1, ~0,5 h) — C
+- ✅ **Zrobione:** `fejki demo build --infra` dla 9 domen; potwierdza S1 (rejestracje w odstępie 1 min i ~95 min,
+  certyfikaty tego samego dnia), wyniki w `docs/02_DANE.md`; wykluczone słabe dowody (`/favicon.ico`, makra adresów Meta).
+- Zostaje: ponowić crt.sh dla 3 domen z timeoutem (meroporepufulo.life, shryxla-mynx.icu, novumfy.com); sprawdzić, czy
+  wspólne `clickid`/`key` (2↔14, wynik 0,41) to tylko popularny system TDS, czy coś więcej.
 - Połączyć z wynikami ze strony-zagadki (piksel 2012165449475163 z p15 `lundevra.live` = przypadki 1 i 2).
 - **Gotowe gdy:** opis w `docs/02_DANE.md` (sekcja wzorców) zaktualizowany o wyniki infrastruktury.
 

@@ -241,6 +241,30 @@ def demo_eval(thr: float = 0.7, data: str = DEFAULT_DATA, partial: bool = True):
         pi.to_csv(out / "eval_partial_inputs.csv", index=False)
 
 
+@demo_app.command("cards")
+def demo_cards(thr: float = 0.7):
+    """Karty kampanii (Markdown) i lista domen do weryfikacji (CSV) w artifacts/demo/cards/."""
+    from .demo import store
+    from .demo.cards import build_cards, card_markdown, domains_csv
+    from .demo.similar import all_pairs, campaigns
+
+    idx = store.load()
+    if not idx:
+        raise typer.Exit("brak indeksu: uruchom `fejki demo build`")
+    infra = store.infra_records(idx) if idx.infra else None
+    pairs = all_pairs(idx.materials, infra)
+    cards = build_cards(idx.materials, pairs, campaigns(idx.materials, pairs, thr, "kampania"),
+                        campaigns(idx.materials, pairs, thr, "sieć"), thr, infra)
+    out = path("artifacts/demo/cards"); out.mkdir(parents=True, exist_ok=True)
+    for c in cards:
+        (out / f"{c.id}.md").write_text(card_markdown(c), encoding="utf-8")
+    (out / "domeny_do_weryfikacji.csv").write_text(domains_csv(cards), encoding="utf-8")
+    for c in cards:
+        typer.echo(f"{c.id} [{', '.join(c.members)}] okno {c.window_start or '—'} → {c.window_end or '—'}; "
+                   f"domen do weryfikacji: {len(c.domains_to_verify)}")
+    typer.echo(f"zapisano {out}")
+
+
 @demo_app.command("app")
 def demo_run(port: int = 8501):
     """Uruchamia demonstrator w przeglądarce."""

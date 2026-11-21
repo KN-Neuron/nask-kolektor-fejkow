@@ -66,6 +66,22 @@ Porównanie z każdym materiałem zbioru, wynik kampanii = najsilniejsze powiąz
 przypisanie do kampanii (ten sam przekaz ≥ próg) · nowy przekaz w znanej sieci (tylko infrastruktura ≥ próg) ·
 możliwe powiązanie do weryfikacji (≥ 0,4) · nowy wzorzec.
 
+## 5a. Karta kampanii (`fejki demo cards`, zakładka „Kampanie i sieci”)
+
+Dla każdej kampanii: materiały i sieć operatora, **okno obserwacji** (najwcześniejszy i najpóźniejszy znacznik czasu:
+`startedDateTime` z logów HAR, daty RRRR-MM-DD z nazw zrzutów i nagrań przeliczone z czasu polskiego na UTC, `timestamp`
+z `info.json`; niejednoznaczne formaty jak `08-12-2026` pomijamy), tematyka, osoby, produkty, reklamodawcy, identyfikatory
+reklam i pikseli, **domeny do weryfikacji** z priorytetem i uzasadnieniem:
+
+| Priorytet | Rola domeny |
+|---|---|
+| wysoki | domena docelowa reklamy w tej kampanii |
+| średni | nietypowa usługa zewnętrzna ładowana przez stronę kampanii; cel przekierowania; domena innej kampanii tej samej sieci |
+
+Z kanałem infrastruktury karta podaje datę rejestracji, rejestratora i **wiek domeny przy pierwszej obserwacji**
+(≤ 7 dni = „świeża domena”). Okno to czas zebrania materiałów, nie czas emisji reklam; daty emisji da Meta Ad Library.
+Eksport: Markdown (karta lub wszystkie) i CSV domen do weryfikacji.
+
 ## 6. Testy (`fejki demo eval`)
 
 Nie mamy etykiet kampanii od organizatora, więc „oczekiwane” = wynik na pełnym zbiorze. Test mierzy stabilność i odporność,

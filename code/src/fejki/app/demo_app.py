@@ -17,6 +17,7 @@ import streamlit as st
 
 from fejki.config import ROOT
 from fejki.demo import store
+from fejki.demo.cards import all_markdown, build_cards, card_markdown, domains_csv
 from fejki.demo.material import Material, material_from_inputs
 from fejki.demo.similar import CHANNELS, CONTENT_RELATIONS, W, all_pairs, campaigns, confidence_label, match
 
@@ -307,6 +308,34 @@ with tab_camp:
                                         "przesłanki": " | ".join(e.reason for e in p.evidence[:4])} for p in inner]),
                          use_container_width=True, hide_index=True)
     st.download_button("Eksport kampanii (CSV)", pd.DataFrame(rows).to_csv(index=False).encode("utf-8"), "kampanie.csv")
+
+    st.divider()
+    st.subheader("Karta kampanii dla analityka")
+    st.caption("Okno obserwacji, domeny kampanii, lista domen do weryfikacji z uzasadnieniem i priorytetem, przesłanki powiązań. "
+               "Okno to czas zebrania materiałów (logi HAR, daty w nazwach zrzutów), nie czas emisji reklam.")
+    cards = build_cards(idx.materials, pairs, camps, nets, thr, store.infra_records(idx) if idx.infra else None)
+    card_by_id = {c.id: c for c in cards}
+    sel_card = st.selectbox("Kampania", [c.id for c in cards],
+                            format_func=lambda k: f"{k}: {card_by_id[k].name} [{', '.join(card_by_id[k].members)}]")
+    card = card_by_id[sel_card]
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Materiały", len(card.members))
+    c2.metric("Okno obserwacji", (f"{card.window_days} dni" if (card.window_days or 0) >= 1
+                                  else f"{round((card.window_days or 0) * 24, 1)} h") if card.window_start else "brak dat")
+    c3.metric("Domeny do weryfikacji", len(card.domains_to_verify))
+    c4.metric("Sieć operatora", card.network or "—")
+    if card.domains_to_verify:
+        st.dataframe(pd.DataFrame([{"domena": d.domain, "priorytet": d.priority, "dlaczego": "; ".join(d.roles + d.notes),
+                                    "materiały": ", ".join(d.materials), "rejestracja": d.registered or "—"}
+                                   for d in card.domains_to_verify]), use_container_width=True, hide_index=True)
+    with st.expander("Pełna karta", expanded=False):
+        st.markdown(card_markdown(card))
+    d1, d2, d3 = st.columns(3)
+    d1.download_button("Ta karta (Markdown)", card_markdown(card).encode("utf-8"), f"karta_{card.id}.md")
+    d2.download_button("Wszystkie karty (Markdown)", all_markdown(cards).encode("utf-8"), "karty_kampanii.md")
+    d3.download_button("Domeny do weryfikacji (CSV)", domains_csv(cards).encode("utf-8"), "domeny_do_weryfikacji.csv")
+    if not idx.infra:
+        st.caption("Daty rejestracji domen pojawią się po „Zbierz dane infrastruktury (bierne)” w panelu bocznym.")
 
 with tab_graph:
     st.header("Graf powiązań")

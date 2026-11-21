@@ -5,9 +5,11 @@ import json
 
 from PIL import Image, ImageDraw
 
+from fejki.demo.cards import build_cards, card_markdown, domains_csv
 from fejki.demo.material import (
     advertisers,
     build_material,
+    date_from_name,
     find_persons,
     hamming,
     load_persons,
@@ -27,9 +29,9 @@ def _page(title: str, body: str, saved_from: str, pixel: str | None = None) -> s
             f"<body><div class='hero art'><h1>{title}</h1><p>{body}</p></div></body></html>")
 
 
-def _har(urls: list[str]) -> str:
-    return json.dumps({"log": {"entries": [{"request": {"url": u}, "response": {"status": 200, "content": {"mimeType": "text/html"}}}
-                                           for u in urls]}})
+def _har(urls: list[str], when: str = "2026-10-09T06:25:24.976Z") -> str:
+    return json.dumps({"log": {"entries": [{"startedDateTime": when, "request": {"url": u},
+                                            "response": {"status": 200, "content": {"mimeType": "text/html"}}} for u in urls]}})
 
 
 def _case(tmp, name, title, body, domain, pixel=None, query=TDS, kit="/_kit/production/landing"):
@@ -118,3 +120,35 @@ def test_incomplete_input_does_not_crash(tmp_path):
     m = material_from_inputs("x", files=[p])
     assert any("HAR nieczytelny" in n for n in m.notes)
     assert "brak zapisanej strony (HTML)" in m.missing
+
+
+def test_date_from_name_converts_local_time_and_skips_ambiguous():
+    assert date_from_name("Zrzut ekranu 2026-10-09 082411.png") == "2026-10-09T06:24:11"  # CEST (UTC+2) → UTC
+    assert date_from_name("Zrzut ekranu 2026-11-21 120000.png") == "2026-11-21T11:00:00"  # CET (UTC+1) → UTC
+    assert date_from_name("Nagranie 2026-10-27.mp4") == "2026-10-27"
+    assert date_from_name("ScreenRecording_08-12-2026 08-38-33_1.MP4") is None  # dzień czy miesiąc? nie zgadujemy
+
+
+def test_campaign_card_window_and_domains_to_verify(tmp_path):
+    a = _case(tmp_path, "1", "Wiem, kto strzelał: zamach", STORY, "alpha-news.live", pixel=PIXEL)
+    b = _case(tmp_path, "2", "Wiem, kto strzelał: zamach", STORY, "beta-news.live", pixel=PIXEL)
+    c = _case(tmp_path, "3", "Kardiolog ostrzega", "Nowy suplement obniża ciśnienie w 7 dni. Zamów kapsułki dziś.",
+              "gamma-health.top")
+    (tmp_path / "2" / "beta-news.live.har").write_text(
+        _har(["https://beta-news.live/?" + TDS, "https://beta-news.live/_kit/production/landing/app.js"], "2026-10-11T10:00:00Z"),
+        encoding="utf-8")
+    from fejki.demo.material import material_from_folder
+
+    b = material_from_folder(tmp_path / "2", ocr=False)
+    mats = [a, b, c]
+    pairs = all_pairs(mats)
+    cards = build_cards(mats, pairs, campaigns(mats, pairs, 0.7, "kampania"), campaigns(mats, pairs, 0.7, "sieć"))
+    k = next(x for x in cards if "1" in x.members)
+    assert k.members == ["1", "2"] and k.network
+    assert k.window_start.startswith("2026-10-09") and k.window_end.startswith("2026-10-11") and k.window_days == 2.1
+    prio = {d.domain: d.priority for d in k.domains_to_verify}
+    assert prio["alpha-news.live"] == "wysoki" and prio["beta-news.live"] == "wysoki"
+    assert prio["gamma-health.top"] == "średni"  # domena innej kampanii tej samej sieci
+    md = card_markdown(k)
+    assert "Domeny do weryfikacji" in md and "alpha-news.live" in md and "nie czas emisji" in md
+    assert domains_csv(cards).splitlines()[0].startswith("kampania,siec,domena,priorytet")

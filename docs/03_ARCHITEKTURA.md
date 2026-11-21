@@ -41,6 +41,7 @@ demo/evaluate.py: leave_one_out(), partial_inputs()  (CLI: fejki demo eval)
 | `demo/similar.py` | dowody, wynik, relacje, grupowanie, dopasowanie | `W` (wagi), `TextSpace` (TF-IDF), `evidence`, `combine`, `relation`, `all_pairs`, `campaigns`, `match` |
 | `demo/store.py` | indeks na dysku, zbieranie infrastruktury | `build`, `save`, `load`, `case_dirs`, `collect_infra`, `infra_records` |
 | `demo/evaluate.py` | testy zachowania bez etykiet | `leave_one_out`, `partial_inputs` |
+| `demo/cards.py` | karty kampanii: okno obserwacji, domeny do weryfikacji, przesłanki; eksport MD/CSV | `build_cards`, `card_markdown`, `domains_csv` |
 | `app/demo_app.py` | interfejs | zakładki, `graph_html` (pyvis), `show_material` |
 | `infra/collect.py` | bierne dane domeny: DNS, ASN (Team Cymru), RDAP, crt.sh; cache w `data/raw/infra/` | `collect`, `collect_cached`, `url_shape` |
 | `infra/link.py` | reguły łączenia domen z uzasadnieniem | `evidence`, `score`, `link` |
@@ -53,6 +54,7 @@ demo/evaluate.py: leave_one_out(), partial_inputs()  (CLI: fejki demo eval)
 |---|---|
 | `fejki demo build [FOLDER] [--no-ocr] [--infra]` | buduje indeks z folderu przypadków (domyślnie `FEJKI_DATA` / `../data/dane/do_udostępnienia`) |
 | `fejki demo eval [--thr 0.7] [--no-partial]` | test pomiń-jeden i test niepełnego wejścia; CSV w `artifacts/demo/` |
+| `fejki demo cards [--thr 0.7]` | karty kampanii (`artifacts/demo/cards/K*.md`) i `domeny_do_weryfikacji.csv` |
 | `fejki demo app [--port 8501]` | interfejs Streamlit |
 | `fejki infra collect PLIK` / `fejki infra link PLIK` | infrastruktura dla adresów z pliku tekstowego |
 | `pytest` | wszystkie testy (bez sieci, bez danych organizatora) |

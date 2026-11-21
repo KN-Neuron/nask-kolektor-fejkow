@@ -29,7 +29,9 @@ Bezpieczeństwem Sztucznej Inteligencji NASK PIB.
 - **Na oficjalnym zbiorze (10 przypadków)** znajduje dwie kampanie: {1, 2} (duplikat) i {48, 61} (wariant). Łączy je
   z przypadkiem 3 w jedną **sieć operatora** po wspólnym zestawie strony i schemacie adresów. Pozostałe 5 przypadków nie
   ma wspólnych śladów.
-- **Testy:** 29 testów jednostkowych; test pomiń-jeden 100% spójności. Sam HTML albo sam HAR wystarcza do trafienia we
+- **Karty kampanii** dla analityka CERT: okno obserwacji, domeny kampanii, domeny do weryfikacji z priorytetem
+  i uzasadnieniem, daty rejestracji i wiek domen (bierny RDAP), eksport Markdown/CSV (`fejki demo cards`).
+- **Testy:** 31 testów jednostkowych; test pomiń-jeden 100% spójności. Sam HTML albo sam HAR wystarcza do trafienia we
   właściwą sieć, **same zrzuty ekranu nie wystarczają** (najważniejsza luka).
 - **Docker** zbudowany i sprawdzony (z polskim OCR).
 - Meta Ad Library API: tożsamość potwierdzona, **token jeszcze nie wpięty**. Kod adaptera gotowy, niesprawdzony z działającym tokenem.

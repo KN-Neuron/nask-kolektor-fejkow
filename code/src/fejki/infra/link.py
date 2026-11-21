@@ -11,7 +11,7 @@ from itertools import combinations
 
 from pydantic import BaseModel
 
-from .collect import GENERIC_PARAMS, InfraRecord, registered_domain
+from .collect import GENERIC_PARAMS, TRIVIAL_PATHS, InfraRecord, registered_domain
 
 DEFAULTS = {
     "min_score": 0.5,
@@ -107,8 +107,8 @@ def evidence(a: InfraRecord, b: InfraRecord, cfg: dict | None = None) -> list[Ev
         if common:
             iss, day = sorted(common)[0]
             ev.append(Evidence(code="same_issuer_day", weight=c["same_issuer_day"], reason=f"certyfikaty tego samego wystawcy tego samego dnia ({day})"))
-    ta = {u.path_template for u in a.urls if u.path_template not in ("/", "")}
-    tb = {u.path_template for u in b.urls if u.path_template not in ("/", "")}
+    ta = {u.path_template for u in a.urls if u.path_template not in TRIVIAL_PATHS}
+    tb = {u.path_template for u in b.urls if u.path_template not in TRIVIAL_PATHS}
     if ta & tb:
         ev.append(Evidence(code="same_path_template", weight=c["same_path_template"],
                            reason=f"ten sam wzorzec adresu w reklamie: {sorted(ta & tb)[0]} (typowy dla sklepów-szablonów, nie dowód sam w sobie)"))
