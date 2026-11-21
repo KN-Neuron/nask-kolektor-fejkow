@@ -1,7 +1,8 @@
 PY ?= code/.venv/bin/python
 DATA ?= $(PWD)/data/dane/do_udostępnienia
 UNIT = tests/test_api.py tests/test_analyze.py tests/test_app.py tests/test_score_lex.py tests/test_embsim.py tests/test_embsim_metrics.py \
-       tests/test_ext.py tests/test_subjects.py tests/test_synth2.py tests/test_cv.py tests/test_stream_eval.py
+       tests/test_ext.py tests/test_subjects.py tests/test_synth2.py tests/test_cv.py tests/test_stream_eval.py \
+       tests/test_exact_img.py
 
 .PHONY: install test test-legacy demo smoke eval docker-build docker-run
 

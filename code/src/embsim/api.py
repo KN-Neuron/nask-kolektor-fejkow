@@ -38,7 +38,7 @@ import numpy as np
 
 from .bench import Config, load_frozen
 from .embed import text_vectors
-from .features import Case, load_case as case_from_folder, registered
+from .features import Case, load_case, registered
 from .score import Corpus, Score
 
 __all__ = ["Case", "Decision", "Gallery", "Match", "case_from_folder", "case_from_meta_ad", "case_from_text", "case_to_dict",
@@ -47,12 +47,40 @@ __all__ = ["Case", "Decision", "Gallery", "Match", "case_from_folder", "case_fro
 FLAGS = ("removed because it didn", "later disabled for not following")
 _CHANNEL_PL = {"text": "podobieństwo treści", "text_lex": "podobne brzmienie tekstu", "kit": "ten sam zestaw zasobów strony",
                "scheme": "ten sam schemat parametrów adresu", "host": "wspólna domena", "pixel": "ten sam piksel śledzący",
-               "image": "podobny wygląd"}
+               "image": "podobny wygląd", "img": "te same obrazy na stronie"}
 _EXTRA_PL = {"payer": "ten sam płatnik", "page": "ta sama strona reklamodawcy", "text_hash": "identyczny tekst"}
 # Konfiguracja domyślna (progi z kalibracji na syntetyce v2 z szumem jak w HAR): kampania = nakładanie śladów, operator = zawieranie,
 # kanał leksykalny, korekta PCA embeddingów, korekta o dostępność dowodu. Starsze: "adj", "lex" (syntetyka v1, gorzej przenoszą się).
 DEFAULT_CONFIG = "v3_mixed_pca"
 HOST = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}$")
+# Kanały dokładnych zgodności dokładane do zamrożonej konfiguracji (nie było ich w kalibracji na syntetyce, która nie ma obrazów):
+# waga jak pozostałych śladów, „rotujący” (brak wspólnego obrazu nie jest dowodem różnicy, bo często po prostu brak danych).
+EXACT_CHANNELS = {"img": 1.0}
+DEMO_CALIBRATION = Path(__file__).resolve().parents[2] / "config" / "embsim" / "demo_calibration.json"
+
+
+def demo_thresholds() -> dict:
+    """Progi demonstratora skalibrowane na stronach (zob. plik `demo_calibration.json`, pole „skąd”); {} gdy pliku brak."""
+    return json.loads(DEMO_CALIBRATION.read_text(encoding="utf-8")).get("thresholds", {}) if DEMO_CALIBRATION.exists() else {}
+
+
+def case_from_folder(root: str | Path) -> Case:
+    """Materiał z folderu w ścieżce demonstratora: bez śladów z pospolitych usług (Google, Meta, CDN), zob. features.load_case."""
+    return load_case(Path(root), drop_common=True)
+
+
+def with_exact_channels(cfg: Config) -> Config:
+    """Kopia konfiguracji z kanałami EXACT_CHANNELS. e_ref (typowa dostępność dowodu) przeskalowane tak, żeby dla materiałów bez tych
+    kanałów korekta o dostępność dawała dokładnie to samo co przed dodaniem kanału (k/n kanałów → k/(n+1), e_ref·n/(n+1))."""
+    cfg = copy.deepcopy(cfg)
+    for lv, w in (("campaign", cfg.weights_campaign), ("operator", cfg.weights_operator)):
+        old = sum(w.values())
+        for ch, wt in EXACT_CHANNELS.items():
+            w.setdefault(ch, wt)
+        if lv in (cfg.e_ref or {}) and old:
+            cfg.e_ref[lv] *= old / sum(w.values())
+    cfg.rotating = sorted(set(cfg.rotating) | set(EXACT_CHANNELS))
+    return cfg
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -137,17 +165,30 @@ class Decision:
     thresholds: dict
     matches: list[Match]
     duplicate_of: str | None = None                   # id już obecne w galerii (nic nie dodano)
+    exact_of: str | None = None                       # wszystkie obrazy materiału są w tym materiale galerii (reguła dokładna)
 
     def to_dict(self) -> dict:
         from dataclasses import asdict
 
         return asdict(self)
 
+    def key_match(self) -> Match | None:
+        """Materiał, który uzasadnia werdykt: przy „ten sam operator” ten z najwyższym wynikiem operatora, inaczej najbliższy kampanii."""
+        if not self.matches:
+            return None
+        if self.verdict == "znany_operator_nowa_kampania":
+            return max(self.matches, key=lambda m: m.operator_score)
+        return self.matches[0]
+
     def explain(self, top_channels: int = 3) -> str:
         """Wyjaśnienie po polsku dla analityka (dezinformacja/CERT): wniosek, najbliższy materiał, powody, dowody spoza wyniku."""
         t = self.thresholds
         if self.verdict == "duplikat_id" or self.duplicate_of:
             head = f"Ten materiał ({self.duplicate_of}) jest już w galerii; nic nie dodano."
+        elif self.verdict == "znana_kampania" and self.exact_of:
+            head = (f"Znana kampania {self.group} (operator {self.operator}): każdy obraz tego materiału jest identyczny (ten sam plik, "
+                    f"SHA-256) z obrazem materiału {self.exact_of}, a co najmniej jeden występuje w galerii tylko tam. "
+                    f"Wynik podobieństwa {self.campaign_score:.2f} nie był potrzebny.")
         elif self.verdict == "znana_kampania":
             head = (f"Znana kampania {self.group} (operator {self.operator}): wynik {self.campaign_score:.2f}"
                     f" przy progu {t.get('campaign'):.2f}.")
@@ -159,7 +200,7 @@ class Decision:
                     f" operatora {self.operator_score:.2f}. Nie łączę z żadną znaną grupą.")
         if not self.matches:
             return head
-        m = self.matches[0]
+        m = self.key_match()
         lines = [head, f"Najbliższy materiał: {m.id}" + (f" (kampania {m.group}, operator {m.operator})" if m.group else "") + "."]
         ch = sorted(m.channels.items(), key=lambda kv: -kv[1])[:top_channels]
         if ch:
@@ -182,8 +223,9 @@ def _default_embed(model: str):
 
 class Gallery:
     def __init__(self, config: str | Config = DEFAULT_CONFIG, embed_fn=None, refit_below: int = 200, refit_fraction: float = 0.10,
-                 min_refit: int = 25):
-        self.cfg = config if isinstance(config, Config) else load_frozen(config)[0]
+                 min_refit: int = 25, thresholds: dict | None = None):
+        self.cfg = with_exact_channels(config if isinstance(config, Config) else load_frozen(config)[0])
+        self.cfg.thresholds.update(thresholds or {})
         self.embed_fn = embed_fn if embed_fn is not None else _default_embed(self.cfg.model)
         # pełne dopasowanie przy KAŻDYM dodaniu, dopóki galeria ma ≤ refit_below materiałów (mały korpus: słownik i idf z kilku
         # dokumentów byłyby bezwartościowe); potem późne dodawanie i dopasowanie po urośnięciu o refit_fraction (min. min_refit)
@@ -242,16 +284,41 @@ class Gallery:
             sc, so, it = t
             extra = {ch: sorted(q.sets[ch] & it["case"].sets.get(ch, set()))[:5] for ch in q.sets
                      if ch not in scored and q.sets[ch] & it["case"].sets.get(ch, set())}
+            names = {**it["case"].meta.get("img_names", {}), **q.meta.get("img_names", {})}
+            shared = {ch: [names.get(x, x) for x in v] if ch == "img" else v for ch, v in sc.shared.items()}
             return Match(it["case"].id, it["group"], it["operator"], round(sc.value, 4), round(so.value, 4),
-                         round(sc.evidence, 3), sc.channels, sc.shared, extra)
+                         round(sc.evidence, 3), sc.channels, shared, extra)
 
+        exact = self._exact(q, rows)
+        if exact is not None:                         # reguła dokładna: identyczne obrazy wygrywają z podobieństwem
+            rows.insert(0, rows.pop(exact))
         top = [mk(t) for t in rows[:k]]
+        if all(best_o is not t for t in rows[:k]):    # materiał, który uzasadnia poziom operatora, zawsze na liście przesłanek
+            top.append(mk(best_o))
         bc, bo = rows[0], best_o
+        if exact is not None:
+            return Decision("znana_kampania", bc[2]["group"], bc[2]["operator"], bc[0].value, bo[1].value, thr, top,
+                            exact_of=bc[2]["case"].id)
         if thr["campaign"] is not None and bc[0].value >= thr["campaign"]:
             return Decision("znana_kampania", bc[2]["group"], bc[2]["operator"], bc[0].value, bo[1].value, thr, top)
         if thr["operator"] is not None and bo[1].value >= thr["operator"]:
             return Decision("znany_operator_nowa_kampania", None, bo[2]["operator"], bc[0].value, bo[1].value, thr, top)
         return Decision("nowy_wzorzec", None, None, bc[0].value, bo[1].value, thr, top)
+
+    def _exact(self, q: Case, rows: list) -> int | None:
+        """Indeks wiersza, którego materiał zawiera WSZYSTKIE obrazy zapytania (dokładny SHA-256), z co najmniej jednym obrazem
+        obecnym w galerii tylko w jednej kampanii. Wspólny obraz sieci (np. ikona z CDN operatora u kilku kampanii) reguły nie uruchomi."""
+        qi = q.sets.get("img")
+        if not qi:
+            return None
+        groups: dict[str, set] = {}
+        for it in self.items:
+            for x in it["case"].sets.get("img", set()) & qi:
+                groups.setdefault(x, set()).add(it["group"])
+        for i, (_, _, it) in enumerate(rows):
+            if qi <= it["case"].sets.get("img", set()) and any(groups.get(x) == {it["group"]} for x in qi):
+                return i
+        return None
 
     # ---- dodawanie
     def add(self, case: Case, group: str | None = None, operator: str | None = None, k: int = 5) -> Decision:

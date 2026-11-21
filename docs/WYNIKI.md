@@ -75,6 +75,35 @@ Cztery znane pary oglądaliśmy przy poprawianiu metody, więc nie służą już
 (0,97 przy progu 0,95) i nie łączy wariantu 48≈61 (0,72). Konfiguracja z miarą „zawierania” (próg 0,57) łączyła obie pary. To cztery
 pary, więc to anegdota, nie dowód.
 
+## 5a. Demonstrator na stronach: test „jak jury” i dokładne obrazy  [NASK-10 + syntetyka v1, zostaw-jeden]
+
+`code/scripts/test_jak_jury_embsim.py` odtwarza to, co jury zrobi w interfejsie (pkt 6 opisu wyzwania): galeria z folderów, nowy materiał
+wgrany jako pliki. A: każdy przypadek NASK ukryty raz; B: sam HTML / sam HAR / sam zrzut / ten sam materiał drugi raz; C: syntetyka v1 jako
+ukryty zbiór (nowe warianty, nowa kampania znanego operatora, 6 negatywów). Raport: `code/artifacts/jury/raport_embsim.md`.
+
+| wersja | A (NASK) | B (formaty, braki) | C (syntetyka) |
+|---|---|---|---|
+| przed (próg 0,95, ślady jak w kalibracji) | 7/10 | 3/13 | 6/20 |
+| + obrazy i bez pospolitych usług, próg 0,95 | 8/10, 0 błędów | 6/13 | 9/20 |
+| + próg 0,725 (kalibracja niżej) | **10/10** | **8/13** | **13/20** |
+
+- **Obrazy bez modelu** (`img`): odcisk SHA-256 bajtów obrazów strony z HAR i z zasobów `*_files`; pomijamy obrazy < 2 KB (ikonki,
+  reakcje widżetów komentarzy, które krążą między zestawami). Na NASK łączy 1↔2 (11 obrazów), 48↔61 (6), 2↔3 (3) i jedną ikoną z CDN
+  operatora sieć {1, 2, 48, 61}; żadnego połączenia poza naszym odczytem. Metadanych EXIF/PNG zrzutów nie używamy: opisują urządzenie
+  zgłaszającego (iPhone przy 10 i 14, Wycinanie Windows przy 1, 3, 36, 48), więc łączyłyby po tym, kto zgłosił.
+- **Reguła dokładna**: jeśli każdy obraz nowego materiału jest w jednym materiale galerii, a choć jeden występuje tylko w jednej kampanii,
+  to ta kampania (np. ten sam zrzut drugi raz). Wspólna ikona sieci reguły nie uruchomi.
+- **Pospolite usługi** (Google, Meta, CDN, czcionki) nie dają śladów hosta, zestawu ani schematu w ścieżce demonstratora. Wcześniej w galerii
+  z 9 przypadków google.com u dwóch z nich wyglądał na rzadki wspólny ślad (61 z samym HAR „znaną kampanią” 10, wynik 0,98). Ewaluacja
+  z §1 (`bench`, `cv`) czyta materiały bez tego filtra, więc jej liczby się nie zmieniają.
+- **Próg 0,725** (`config/embsim/demo_calibration.json`): zostaw-jeden na NASK-10 i syntetyce v1, maksimum zrównoważonej trafności
+  (0,875 przypiętych dobrze, 0,833 bez pary osobno; przy 0,95: 2/40 przypiętych). Na NASK każdy próg z (0,53; 0,82) daje 10/10. To kalibracja
+  na naszych zbiorach dev, nie na ukrytym zbiorze jury. Kanał `img` jest dokładany w `Gallery` (wagi jak inne ślady, rotujący); `e_ref`
+  przeskalowane tak, że materiały bez obrazów dostają dokładnie ten sam wynik co przed zmianą.
+- **Słabe nadal**: zrzut samej reklamy nie trafia w stronę docelową innego materiału (B, 3 błędy: tekst kreacji ≠ tekst strony);
+  ocena wsadowa od pustej galerii (syntetyka v1, 42 materiały po kolei): kampanie precyzja 0,80, czułość 0,33, negatywy osobno 3/6.
+  Pierwsze decyzje zapadają na galerii z 1–2 materiałów, gdzie rzadkość śladu nic nie znaczy.
+
 ## 6. Zbiory zewnętrzne  [prawdziwe, tylko tekst]
 
 BuzzFeed-Webis (811 artykułów, 9 wydawców): tekst słabo odtwarza wydawcę (AUC 0,55), bo wszystkie artykuły są z jednego tygodnia o tym samym.
@@ -83,7 +112,7 @@ Dezinformacja i teksty scam się nie mieszają (połączone międzyklasowo 0,000
 ## 7. Znane problemy i ograniczenia
 
 1. **Brak etykiet prawdziwych kampanii.** Etykieta „twórca” to `page_id`, a „scam” to zdjęcie ≥50% reklam przez Metę (sygnał egzekwowania).
-2. **Progi z syntetyki nie przenoszą się.** Na Mecie optimum ok. 0,5 wobec 0,95. Potrzebna kalibracja na prawdziwych danych.
+2. **Progi z syntetyki nie przenoszą się.** Na Mecie optimum ok. 0,5 wobec 0,95; na stronach (NASK + syntetyka v1) 0,725 (§5a).
 3. **Formuła śladów** zawyża dowód dla wartości o średniej częstości (targetowanie). Poprawka (np. `max_df` albo skala rzadkości) do zmierzenia.
 4. **Doklejanie nowych wzorców** do znanych kampanii: ok. 0,15 na syntetyce; na Mecie odrzucenie nowych 0,78–0,83 przy najlepszych profilach.
 5. **Poziom operatora:** miara „zawierania” jest nieznacznie gorsza od Jaccarda (−0,019 ARI).

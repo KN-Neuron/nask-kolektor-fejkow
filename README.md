@@ -40,7 +40,7 @@ Pełna tabela z danymi, podziałem i ograniczeniami: [docs/WYNIKI.md](docs/WYNIK
 
 **Ograniczenia, które znamy:** (1) etykiet prawdziwych kampanii nie ma, a liczby z syntetyki mierzą odzyskiwanie sygnału podłożonego przez
 generator; (2) progi pochodzą z kalibracji na syntetyce, na prawdziwych danych niesprawdzone; (3) targetowanie reklam psuje wynik na Mecie
-(domena pomaga) i jest wyłączone, a formułę śladów trzeba poprawić; progi z syntetyki (0,95) na Mecie wypadają ok. 0,5 (suwak w interfejsie); (4) brak rozpoznawania osób i logotypów na obrazie; (5) OCR bez języka
+(domena pomaga) i jest wyłączone, a formułę śladów trzeba poprawić; próg z syntetyki v2 (0,95) nie przenosi się: na stronach demonstrator używa 0,725 (docs/WYNIKI.md §5a), na Mecie optimum ok. 0,5 (suwak w interfejsie); (4) brak rozpoznawania osób i logotypów na obrazie; (5) OCR bez języka
 polskiego jest słaby; (6) przy dodawaniu po jednym legalne strony z pospolitymi zasobami mogą trafić do operatora oszustw (zob. docs/WYNIKI.md, §7a).
 
 ## Struktura
