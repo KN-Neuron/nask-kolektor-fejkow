@@ -252,11 +252,11 @@ FOREACH (s IN r.schemes | MERGE (us:UrlScheme {fingerprint: s}) SET us.name = s 
 WITH m, r
 UNWIND (CASE WHEN size(r.advertisers) = 0 THEN [null] ELSE r.advertisers END) AS adv
 WITH m, r, adv WHERE adv IS NOT NULL
-OPTIONAL MATCH (known:Advertiser {name_norm: adv.norm}) WHERE r.dataset = 'nask'
+OPTIONAL MATCH (known:Advertiser {name_norm: adv.norm}) WHERE r.dataset <> 'synth'  // syntetyka nie skleja się z prawdziwymi
 WITH m, adv, r, collect(known) AS ks
 FOREACH (k IN ks | MERGE (m)-[:ADVERTISED_BY]->(k))
 FOREACH (_ IN CASE WHEN size(ks) = 0 THEN [1] ELSE [] END |
-  MERGE (n:Advertiser {key: CASE r.dataset WHEN 'nask' THEN '' ELSE r.dataset + ':' END + 'name:' + adv.norm})
+  MERGE (n:Advertiser {key: CASE r.dataset WHEN 'synth' THEN 'synth:' ELSE '' END + 'name:' + adv.norm})
     SET n.name = adv.name, n.name_norm = adv.norm
   MERGE (m)-[:ADVERTISED_BY]->(n))
 """

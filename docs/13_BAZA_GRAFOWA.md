@@ -197,6 +197,50 @@ Porównanie z prawdą: `MATCH (m:Material {dataset:'synth'})-[:IN_CAMPAIGN]->()-
 Dziś: 4 z 6 operatorów odtworzone dokładnie; O1+O2 sklejone (celowo trudny przypadek: wspólny zestaw strony),
 a 6 negatywów wpada w jedną sieć (fałszywe połączenie, do poprawy w silniku).
 
+## Dodawanie nowych materiałów i scraper (`graph/scrape.py`)
+
+```bash
+cd code
+.venv/bin/python graph/scrape.py seed                                    # raz: galeria startowa z próbki S1 (~1 min)
+.venv/bin/python graph/scrape.py add ../data/meta/nowe.jsonl             # reklamy Meta z pliku JSONL
+.venv/bin/python graph/scrape.py add ../data/dane/do_udostępnienia/48    # folder przypadku
+.venv/bin/python graph/scrape.py add --text "treść reklamy" --url "https://adres/..."   # adres NIE jest odwiedzany
+.venv/bin/python graph/scrape.py watch ../data/meta/ads.jsonl --every-min 60          # scraper: co godzinę nowe linie
+```
+
+Co się dzieje z jednym materiałem:
+
+1. **Silnik kolegi (`embsim.api`)** porównuje go z galerią i mówi: *znana kampania*, *znany operator, nowa kampania*
+   albo *nowy wzorzec*, z top-5 podobnych i powodami (treść, brzmienie tekstu, domena, piksel…). Progi są zamrożone
+   w `code/config/embsim/`.
+2. **Graf dokłada dokładne zgodności:** ta sama strona, płatnik, domena albo identyczny tekst co znany twórca.
+   To mocniejszy dowód niż próg, więc wygrywa.
+3. **Twórca:** dokładna zgodność → ten twórca; inaczej, gdy silnik mówi „znana kampania / znany operator” → twórca
+   najbliższego materiału; inaczej nowy twórca.
+4. **Zapis w grafie:** reklama albo materiał z tymi samymi krawędziami co przy zwykłym ładowaniu, `CREATED_BY` do twórcy,
+   `SIMILAR_TO` do top-5 (wynik i powody na krawędzi), decyzja na węźle: `verdict` i `verdict_text` (wyjaśnienie po polsku).
+
+Ponowne dodanie tego samego niczego nie dubluje. `watch` pamięta, ile linii pliku już przerobił
+(`code/artifacts/scrape/watch_state.json`), a raport z każdego przebiegu dopisuje do `watch_report.jsonl`.
+Token do Meta Ad Library jeszcze nie jest wpięty, więc scraper czyta plik JSONL; kiedy token będzie, pobieranie
+(`fejki/sources/meta_library.py`) dopisuje nowe reklamy do `data/meta/ads.jsonl`, a `watch` je podchwyci.
+
+Podgląd w Neo4j Browser:
+
+```
+MATCH p = (n)-[:SIMILAR_TO|CREATED_BY]->() WHERE n.verdict IS NOT NULL RETURN p
+```
+
+Sprawdzone na prawdziwych danych: 10 nowych reklam spoza próbki dostało twórcę (w większości po stronie albo płatniku),
+przypadek NASK 48 trafił do twórcy „Sharon Coleman” po nazwie strony, wklejony tekst bez śladów dostał „nowy wzorzec”.
+Czas: ok. 0,2–6 s na reklamę (porównanie z całą galerią 15 tys.), folder z OCR ok. 25 s.
+
+Ograniczenia:
+- galeria jest w `code/artifacts/` (poza gitem): każdy robi `seed` u siebie; po `creators.py build` zrób `seed` jeszcze raz,
+  bo grupy w galerii to id twórców;
+- silnik liczy pospolite domeny (np. instagram.com) jako mocny wspólny ślad; to do poprawy w `embsim` (lista hubów);
+- progi są dobrane na syntetyce; na prawdziwych danych decyzja silnika jest orientacyjna, dokładne zgodności z grafu nie.
+
 ## Wektory tekstów reklam (kolejność kroków)
 
 ```bash
