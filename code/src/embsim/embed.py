@@ -56,13 +56,18 @@ class Embedder:
         return self._encode("i", [p.read_bytes() for p in paths], [{"image": _load_image(p)} for p in paths])
 
 
+_TEXT_MODELS: dict = {}
+
+
 def text_vectors(name: str, texts: list[str], prompt: str | None = None, max_len: int = 256) -> np.ndarray:
     """Wektory tekstów dowolnym modelem z sentence-transformers (lekkim lub Qwen3-VL). Znormalizowane."""
     import torch
     from sentence_transformers import SentenceTransformer
 
     dev = "mps" if torch.backends.mps.is_available() else "cpu"
-    m = SentenceTransformer(name, device=dev)
+    if name not in _TEXT_MODELS:                          # model ładujemy raz na proces (scraper woła to wielokrotnie)
+        _TEXT_MODELS[name] = SentenceTransformer(name, device=dev)
+    m = _TEXT_MODELS[name]
     m.max_seq_length = max_len
     inp = [{"text": t} for t in texts] if "Qwen3-VL" in name else texts
     return np.asarray(m.encode(inp, prompt=prompt or None, normalize_embeddings=True, batch_size=16, show_progress_bar=False))
