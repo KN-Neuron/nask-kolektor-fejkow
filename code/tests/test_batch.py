@@ -8,7 +8,7 @@ from test_demo import PIXEL, STORY, TDS, _case
 
 from fejki.demo.batch import analyze, discover, extract_zip, materials_from
 from fejki.demo.export import build_graph, csvs, cypher, graphml
-from fejki.demo.material import brand_logos
+from fejki.demo.material import brand_logos, material_from_inputs
 from fejki.demo.similar import TextSpace, all_pairs, campaigns, evidence
 from fejki.demo.store import Index
 from fejki.demo.watch import material_from_ad
@@ -160,3 +160,32 @@ def test_synthetic_generator_and_ablation(tmp_path):
     full = df.set_index("wariant").loc["wszystkie kanały"]
     assert full["kampania F1"] >= 0.7 and full["negatywy doklejone"] == 0
     assert "bez: tekst (TF-IDF)" in set(df["wariant"])
+
+
+def test_scheme_fingerprint_ignores_platform_params():
+    base = TDS  # losowe utm_* + utm_visit (UUID)
+    a = url_features_for(f"https://a.example/?{base}")
+    b = url_features_for(f"https://b.example/?{base}&fbclid=IwVERDUAVtg-JleHRuA2FlbQ&utm_source=fb&utm_term=52623143571114")
+    assert a["scheme"] and a["scheme"] == b["scheme"]  # dopiski reklamowe nie zmieniają odcisku
+
+
+def url_features_for(u):
+    from fejki.demo.material import url_features
+
+    return url_features(u)
+
+
+def test_verdict_distinguishes_no_match_from_not_enough_data(tmp_path):
+    from fejki.demo.explain import verdict
+    from fejki.demo.similar import match
+
+    idx = _index(tmp_path)
+    mats = idx.materials
+    camps = campaigns(mats, all_pairs(mats), 0.7, "kampania")
+    url_only = material_from_inputs("u", url="https://obca-domena.example/?a=1")
+    v1 = verdict(match(url_only, mats, camps), url_only, len(mats), 0)
+    assert v1["level"] == "warning" and "zbyt mało danych" in v1["meaning"] and v1["advice"]
+    assert "domena docelowa" in v1["have"] and "obraz (zrzut, kreacja)" in v1["lack"]
+    rich = _case(tmp_path, "9", "Przepis na sernik", "Przepis na sernik z rodzynkami i wanilią. " * 20, "kuchnia.example", query="a=1", kit="/k")
+    v2 = verdict(match(rich, mats, camps), rich, len(mats), 0)
+    assert v2["level"] == "info" and "Przy dostępnych danych" in v2["meaning"]

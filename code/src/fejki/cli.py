@@ -202,13 +202,15 @@ DEFAULT_DATA = os.environ.get("FEJKI_DATA", "../data/dane/do_udostępnienia")
 
 @demo_app.command("build")
 def demo_build(data: str = typer.Argument(DEFAULT_DATA, help="folder z podfolderami-przypadkami"), no_ocr: bool = False,
+               extra: list[str] = typer.Option([], help="dodatkowy zbiór referencyjny, np. ../data/urlscan (można powtarzać)"),
                infra: bool = typer.Option(False, help="zbierz też bierne dane infrastruktury (DNS, RDAP, crt.sh); wymaga sieci")):
     """Buduje indeks materiałów ze zbioru przypadków (artifacts/demo/index.json)."""
     from pathlib import Path
 
     from .demo import store
 
-    idx = store.build(Path(data), ocr=not no_ocr, progress=lambda k, n, d: typer.echo(f"[{k + 1}/{n}] {d}"))
+    idx = store.build(Path(data), ocr=not no_ocr, progress=lambda k, n, d: typer.echo(f"[{k + 1}/{n}] {d}") if k % 20 == 0 else None,
+                     extra=[Path(e) for e in extra])
     if infra:
         for e in store.collect_infra(idx):
             typer.echo(f"infra: {e}")

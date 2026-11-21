@@ -219,7 +219,10 @@ def url_features(url: str) -> dict:
                      and not re.fullmatch(r"[0-9a-f]{16,}", k)})  # losowe klucze-hashe są inne na każdej stronie
     # Schemat liczymy tylko, gdy niesie informację (losowe wartości o stałej długości albo nietypowe klucze).
     informative = [s for s in shapes if not s.endswith(":txt")] or [s for s in shapes if s.split(":")[0] not in ("utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term")]
-    out["scheme"] = "&".join(shapes) if len(informative) >= 2 else ""
+    # Odcisk = tylko parametry o LOSOWYCH wartościach (rnd*/uuid): to podpis systemu kierowania ruchu. Dopiski platformy reklamowej
+    # (utm_source, utm_term, fbclid…) różnią się między kliknięciami i nie mogą psuć dopasowania.
+    core = [x for x in shapes if x.split(":", 1)[1].startswith(("rnd", "uuid"))]
+    out["scheme"] = "&".join(core) if len(core) >= 3 else ("&".join(shapes) if len(informative) >= 2 else "")
     for k, v in q:
         kl = k.lower()
         if kl in ("ad_id", "adid", "fb_ad_id") and v.isdigit():

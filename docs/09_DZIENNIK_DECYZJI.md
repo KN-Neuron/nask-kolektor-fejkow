@@ -63,3 +63,12 @@ Chronologicznie: co zrobiliśmy, **dlaczego**, co wyszło, co nie wyszło. Nowe 
     (różne piksele / różne schematy) → 0,85; organizator bez zmian. Dowód, że ablacja na danych podłożonych celowo się opłaca.
 23. **Blokowanie kandydatów**: 6× mniej par, ale tracimy czułość przy małych zbiorach (0,614 → 0,49), więc tylko > 300 materiałów.
 24. **Model par** wpięty jako opcja (przełącznik w UI, parametr `model`); kanał obrazu i model par w UI jako przełączniki.
+
+## 2026-11-21 (wynik z użycia: „nowy wzorzec 0,00”)
+
+25. **Zgłoszenie z użycia**: adres z systemem kierowania ruchu sieci S1 dostał „nowy wzorzec 0,00”. Przyczyna: dopiski platformy reklamowej
+    (`utm_source`, `utm_term`, `fbclid`) zmieniały odcisk schematu. Poprawka: odcisk tylko z parametrów o losowych wartościach.
+26. **Zbiór referencyjny był za mały** (10 przypadków), więc prawie każdy adres był „nowy”. Dołożone skany urlscan (132 materiały, `--extra`).
+27. **Dane Meta nie były używane w analizie** (tylko zebrane). Dodany panel „Co wiemy z Meta” (domena, reklamodawca, id reklamy).
+    Uczciwie: nie zmienia to wyniku podobieństwa, a domeny ze zbioru organizatora w Mecie nie występują.
+28. **Interpretacja wyniku** (`demo/explain.py`): rozróżnienie „za mało danych” od „nic wspólnego”, lista danych i braków, porady, 5 najbliższych materiałów.

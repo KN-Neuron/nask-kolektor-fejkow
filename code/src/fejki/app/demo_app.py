@@ -108,10 +108,14 @@ st.session_state.use_model = st.sidebar.toggle(
 
 with st.sidebar.expander("Zbiór danych i indeks"):
     data_dir = st.text_input("Folder z przypadkami", str(DEFAULT_DATA))
+    _us = ROOT.parent / "data" / "urlscan"
+    extra_dir = st.text_input("Dodatkowy zbiór referencyjny (np. skany urlscan)", str(_us) if _us.exists() else "",
+                              help="Skany dołożone do wiedzy referencyjnej: narzędzie rozpozna więcej znanych zestawów stron.")
     do_ocr = st.checkbox("OCR zrzutów i klatek wideo", value=True)
     if st.button("Zbuduj / przebuduj indeks", use_container_width=True):
         bar = st.progress(0.0, "start")
-        new = store.build(Path(data_dir), ocr=do_ocr, progress=lambda k, n, d: bar.progress((k + 1) / n, f"przypadek {d}"))
+        new = store.build(Path(data_dir), ocr=do_ocr, progress=lambda k, n, d: bar.progress((k + 1) / n, f"przypadek {d}"),
+                          extra=[Path(extra_dir)] if extra_dir.strip() else None)
         if idx and idx.infra:
             new.infra = idx.infra
         store.save(new)
@@ -293,8 +297,39 @@ with tab_new:
         r = match(new, base, bc, bn, thr=thr, maybe=maybe, infra=infra, semantic=bool(st.session_state.get("use_sem")),
                   model=_pair_model())
         st.subheader("Wynik")
-        box = st.success if r.best_campaign else st.warning if r.best_score >= maybe else st.info
-        box(f"**{r.decision}** · najlepszy wynik {r.best_score:.2f} ({confidence_label(r.best_score)})")
+        from fejki.demo.explain import verdict
+        from fejki.sources.meta_knowledge import MetaKnowledge
+
+        n_us = sum(1 for m_ in idx.materials if m_.source == "urlscan")
+        v = verdict(r, new, len(base), n_us)
+        {"success": st.success, "warning": st.warning, "info": st.info}[v["level"]](
+            f"**{v['decision']}** · najlepszy wynik {r.best_score:.2f} ({confidence_label(r.best_score)})")
+        st.markdown(f"**Co to znaczy:** {v['meaning']}")
+        c_a, c_b = st.columns(2)
+        c_a.markdown("**Dane, które narzędzie miało:**\n" + "\n".join(f"- ✅ {x}" for x in v["have"]) if v["have"] else "**Dane:** brak")
+        c_b.markdown("**Czego zabrakło:**\n" + "\n".join(f"- ⬜ {x}" for x in v["lack"]) if v["lack"] else "**Niczego nie zabrakło**")
+        for tip in v["advice"]:
+            st.info(tip)
+        st.caption(f"Porównano z: {v['ref']}.")
+
+        @st.cache_resource
+        def _meta():
+            return MetaKnowledge(ROOT.parent / "data" / "meta" / "ads.jsonl")
+
+        mk = _meta()
+        if mk.n:
+            rows_m = mk.lookup(new.landing_domains, new.advertisers, new.ad_ids)
+            with st.expander(f"Co wiemy z Meta Ad Library ({mk.n:,} zebranych reklam)".replace(",", " "), expanded=bool(rows_m)):
+                if rows_m:
+                    st.dataframe(pd.DataFrame(rows_m), use_container_width=True, hide_index=True)
+                else:
+                    st.write("Domena, reklamodawca ani identyfikator tego materiału nie występują w zebranych reklamach "
+                             "(reklamy-oszustwa żyją krótko, a część jest usunięta przez Metę).")
+        if r.pairs:
+            st.markdown("**Najbliższe materiały** (nawet jeśli wynik jest niski: pokazują, czego brakuje do powiązania)")
+            st.dataframe(pd.DataFrame([{"materiał": p.b, "wynik": p.score, "relacja": p.relation,
+                                        "przesłanki": " | ".join(e.reason for e in p.evidence[:3]) or "brak wspólnych śladów"}
+                                       for p in r.pairs[:5]]), use_container_width=True, hide_index=True)
         show_material(new)
         if r.ranking:
             st.markdown("**Najbliższe kampanie** (wynik = najsilniejsze powiązanie z którymkolwiek materiałem kampanii)")

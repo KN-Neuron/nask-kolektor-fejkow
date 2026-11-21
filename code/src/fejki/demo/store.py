@@ -32,14 +32,23 @@ def case_dirs(data_dir: Path) -> list[Path]:
     return sorted(subs, key=lambda p: (int(p.name) if p.name.isdigit() else 10**9, p.name))
 
 
-def build(data_dir: Path, ocr: bool = True, progress=None) -> Index:
+def build(data_dir: Path, ocr: bool = True, progress=None, extra: list[Path] | None = None) -> Index:
+    """Indeks z folderu przypadków; `extra` = dodatkowe zbiory referencyjne (np. skany urlscan), ich materiały dostają prefiks `u:`."""
     persons = load_persons()
-    dirs = case_dirs(data_dir)
+    dirs = [(d, "") for d in case_dirs(data_dir)]
+    for e in extra or []:
+        if Path(e).exists():
+            dirs += [(d, "u:") for d in case_dirs(Path(e))]
     mats = []
-    for k, d in enumerate(dirs):
+    for k, (d, prefix) in enumerate(dirs):
         if progress:
             progress(k, len(dirs), d.name)
-        mats.append(material_from_folder(d, ocr=ocr, persons=persons))
+        m = material_from_folder(d, ocr=ocr, persons=persons)
+        if prefix:
+            m.id = prefix + d.name[:10]
+            m.label = f"skan urlscan {d.name[:8]}"
+            m.source = "urlscan"
+        mats.append(m)
     return Index(built_at=datetime.now(UTC).isoformat(timespec="seconds"), data_dir=str(data_dir), materials=mats)
 
 

@@ -9,10 +9,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
+# Zależności w osobnej warstwie (cache): zmiana kodu nie wymusza ponownej instalacji paczek.
 COPY pyproject.toml README.md ./
+RUN mkdir -p src/fejki && touch src/fejki/__init__.py \
+    && pip install --no-cache-dir --default-timeout=120 --retries 10 -e .
 COPY src ./src
 COPY config ./config
-RUN pip install --no-cache-dir --default-timeout=120 --retries 10 -e .
 
 ENV FEJKI_DATA=/data \
     PYTHONUNBUFFERED=1 \

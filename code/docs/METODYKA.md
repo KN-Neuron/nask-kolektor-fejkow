@@ -160,6 +160,24 @@ tekstu materiały jednego operatora powinny być bliżej siebie.
   spada 0,98 → 0,60 (najważniejszy kanał przy braku wspólnych identyfikatorów); sam tekst daje kampanię F1 0,91; sam „adres” tylko 0,60.
   Ograniczenie: syntetyka sprawdza odzyskanie podłożonej struktury, nie realizm kampanii.
 
+## 5e. Jak czytać wynik analizy (dla analityka)
+
+Wynik „nowy wzorzec, 0,00” ma dwa różne znaczenia, które narzędzie teraz rozróżnia (`demo/explain.py`):
+- **„za mało danych, żeby rozstrzygnąć”** (wejście ma ≤ 2 z 7 kanałów, np. sam adres): brak powiązania **nie znaczy**, że materiał jest nowy; narzędzie podaje,
+  jakie dane miało i czego zabrakło, oraz co dołożyć (HTML, HAR, zrzut);
+- **„nic wspólnego przy dostępnych danych”**: możliwa nowa kampania albo kampania spoza zbioru referencyjnego.
+Pozostałe werdykty: przypisano do kampanii (ten sam przekaz) · nowy przekaz, ale ta sama infrastruktura (kolejna kampania tej samej sieci) ·
+możliwe powiązanie (trop do weryfikacji, nie ustalenie). Zawsze pokazujemy 5 najbliższych materiałów z przesłankami i wielkość zbioru referencyjnego.
+
+**Odcisk schematu adresu** liczymy tylko z parametrów o losowych wartościach (podpis systemu kierowania ruchu). Wcześniej dopiski platformy
+(`utm_source`, `utm_term`, `fbclid`) zmieniały odcisk i adres z tego samego systemu trafiał jako „nowy wzorzec 0,00” (zgłoszone z użycia).
+**Zbiór referencyjny** można rozszerzyć o skany urlscan (`fejki demo build --extra ../data/urlscan`): 132 materiały, sieci o 46, 30, 6, 5… członkach.
+Uczciwie: adres pochodzący ze zbioru referencyjnego dopasuje się po tej samej domenie, więc do testu bierzemy adresy spoza zbioru
+(ten sam schemat, nieznana domena → „możliwe powiązanie” 0,6; inny schemat → „za mało danych”).
+
+**Dane z Meta Ad Library** nie wchodzą do wyniku podobieństwa, tylko do panelu **„Co wiemy z Meta”** (`sources/meta_knowledge.py`): dla domeny, strony-reklamodawcy
+lub identyfikatora reklamy podaje liczbę reklam, ile usuniętych przez Metę, strony i daty emisji. Domeny ze zbioru organizatora w zebranych reklamach nie występują.
+
 ## 6. Testy (`fejki demo eval`)
 
 Nie mamy etykiet kampanii od organizatora, więc „oczekiwane” = wynik na pełnym zbiorze. Test mierzy stabilność i odporność,
