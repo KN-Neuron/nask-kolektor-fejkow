@@ -47,8 +47,10 @@ class Score:
 class Corpus:
     def __init__(self, cases: list[Case], vecs: np.ndarray | None = None, weights: dict[str, float] | None = None,
                  rotating: set[str] | None = ROTATING, adjust_ref: float | None = None, trace_mode: str = "jaccard",
-                 combine: str = "mean", embed_fix: str = "none", lex_max_chars: int | None = None):
+                 combine: str = "mean", embed_fix: str = "none", lex_max_chars: int | None = None,
+                 hub_frac: float | None = None, hub_abs: int | None = None, hub_min: int = 6):
         self.rotating = set(rotating or ())
+        self.hub_frac, self.hub_abs, self.hub_min = hub_frac, hub_abs, hub_min   # limit częstości śladów (zob. _is_hub)
         self.lex_max_chars = lex_max_chars                # obcięcie tekstu tylko dla TF-IDF (przyspieszenie; embedding i tak widzi ~256 tokenów)
         self.adjust_ref = adjust_ref
         assert trace_mode in ("jaccard", "contain", "overlap") and combine in ("mean", "noisy_or")
@@ -67,6 +69,8 @@ class Corpus:
                 d = self.df.setdefault(ch, {})
                 for x in s:
                     d[x] = d.get(x, 0) + 1
+        # huby: ślad obecny w zbyt wielu materiałach (tracker, CDN, /static) niczego nie dowodzi i jest ignorowany jak brak śladu
+        self.hubs: dict[str, set[str]] = {ch: {x for x, d in dc.items() if self._is_hub(d)} for ch, dc in self.df.items()}
         self.lex = None                                   # macierz kosinusów TF-IDF (n×n) albo None (duże korpusy: liczone na żądanie)
         self.mu_lex = 0.0
         self._tfidf = None                                # dopasowany TfidfVectorizer (do zapytań spoza korpusu)
@@ -141,6 +145,18 @@ class Corpus:
     def _sv(c: Case):
         return c.vec_t if c.vec_t is not None else c.vec
 
+    def _is_hub(self, df: int) -> bool:
+        """Hub: występuje w co najmniej `hub_min` materiałach ORAZ w więcej niż `hub_frac` galerii albo w więcej niż `hub_abs` materiałach.
+        Próg minimalny chroni ślady prawdziwej kampanii w małych galeriach (kampania ma kilka wariantów, nie kilkadziesiąt)."""
+        if df < self.hub_min:
+            return False
+        return bool((self.hub_frac and df > self.hub_frac * self.n) or (self.hub_abs and df > self.hub_abs))
+
+    def _sets(self, c: Case, ch: str):
+        s = c.sets.get(ch)
+        h = self.hubs.get(ch)
+        return (s - h) if (s and h) else s
+
     def _lex_row(self, c: Case):
         if c.lex_vec is not None:
             return c.lex_vec
@@ -177,7 +193,7 @@ class Corpus:
             if va is None or vb is None:
                 return None, []
             return float(np.clip((float(va @ vb) - self.mu) / (1 - self.mu), 0, 1)), []
-        sa, sb = a.sets.get(ch), b.sets.get(ch)
+        sa, sb = self._sets(a, ch), self._sets(b, ch)
         if not sa or not sb:
             return None, []
         inter, union = sa & sb, sa | sb
@@ -205,7 +221,7 @@ class Corpus:
             return self._lex_row(a) is not None and self._lex_row(b) is not None
         if ch in SEMANTIC:
             return self._sv(a) is not None and self._sv(b) is not None
-        return bool(a.sets.get(ch)) and bool(b.sets.get(ch))
+        return bool(self._sets(a, ch)) and bool(self._sets(b, ch))
 
     def availability(self, a: Case, b: Case) -> float:
         """e = Σ w_c · [oba mają kanał c] / Σ w_c: ile dowodu w ogóle da się porównać (0..1)."""

@@ -138,9 +138,37 @@ oszustw** przez wspólne pospolite ślady (np. `/static`, `/artykul`): w 4 z 6 �
 | 0,60 | 0,476 | 8 z 42 | 140 / 84 |
 | 0,75 i 0,90 | 0,488 | 0 z 42 | 164 / 84 (każdy osobno) |
 
-Żaden próg nie rozwiązuje obu problemów: zlewania operatorów i wpinania legalnych stron. Wniosek: reguła „najbliższy sąsiad ≥ próg” na poziomie
-operatora jest słaba, a potrzebne jest odfiltrowanie pospolitych śladów (limit częstości, jak `hub_cap` w grafie), czego jeszcze nie zrobiono.
-**Scenariusz demo „obcy materiał dostaje nowy wzorzec” na poziomie operatora jest więc zawodny dla stron, które dzielą tylko pospolite zasoby.**
+Żaden próg nie rozwiązuje obu problemów: zlewania operatorów i wpinania legalnych stron.
+
+**Limit częstości śladów (sprawdzony, nie pomaga).** `Corpus(hub_frac=…)` ignoruje ślad w więcej niż ułamku galerii (min. 6 materiałów; domyślnie
+wyłączony). Progi kalibrowane od nowa na dev v2, ocena przyrostowa na tych samych 6 światach:
+
+| limit | ARI operatora (próg skalibrowany / 0,45) | ARI kampanii | legalne w operatorze (skalibrowany / 0,45) |
+|---|---|---|---|
+| brak | 0,562 / 0,652 | 0,609 | 27 / 10 z 42 |
+| 15% galerii | 0,176 / 0,588 | 0,504 | 19 / 8 z 42 |
+| 25% | 0,238 / 0,533 | 0,424 | 21 / 10 z 42 |
+| 40% | 0,330 / 0,539 | 0,431 | 21 / 10 z 42 |
+
+Limit pogarsza ARI (kampanii najbardziej: ucina ślady, które w małych galeriach skleją prawdziwe kampanie) i prawie nie zmniejsza liczby wpiętych
+legalnych stron.
+
+**Reguła „operator tylko przy rzadkim wspólnym śladzie” (działa).** Decyzja „znany operator” wymaga, by materiał dzielił z galerią ślad
+obecny w co najwyżej `op_rare_df` materiałach galerii (`Config.op_rare_df`, tylko ścieżka `Gallery.query`; wsad i kampania bez zmian). Dobór na dev
+(próg operatora 0,25, konfiguracja `v3_mixed_pca` bez innych zmian):
+
+| `op_rare_df` | ARI operatora | legalne w operatorze | grup operatora / prawdziwych |
+|---|---|---|---|
+| brak | 0,562 | 27 z 42 | 46 / 84 |
+| 16 | 0,578 | 27 | 47 |
+| 8 | 0,547 | 21 | 48 |
+| 4 | 0,621 | 10 | 61 |
+| **2** | **0,705** | **7** | **76** |
+
+Potwierdzenie na świeżych światach testowych v2 (30–35, użyte raz, tylko dla wartości 2 i bez): ARI operatora **0,415 → 0,599**, legalne w operatorze
+**30 → 9 z 43**, grup 44 → 78 przy 86 prawdziwych; ARI kampanii bez zmian (0,583). Zamrożona konfiguracja `v4_rare2`, jest teraz domyślna.
+Zastrzeżenia: wartość bezwzględna (2) zależy od wielkości galerii (światy mają 20–40 materiałów; w dużej galerii prawdziwy operator z wieloma
+kampaniami przekroczy limit, więc trzeba go będzie skalować), wynik dotyczy syntetyki, a na prawdziwych danych nie był sprawdzany.
 Naprawiony przy okazji błąd: dzielenie przez zero w normalizacji, gdy w galerii dominują identyczne teksty.
 
 ## 8. Pochodzenie danych

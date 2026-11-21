@@ -115,3 +115,16 @@ def test_frozen_config_loads_from_tracked_dir_in_clean_clone(tmp_path, monkeypat
     from embsim.api import DEFAULT_CONFIG
     d = bench.load_frozen(DEFAULT_CONFIG)[0]
     assert d.embed_fix == "abtt1" and d.trace_mode == "overlap" and d.trace_mode_operator == "contain"
+
+
+def test_operator_requires_rare_shared_trace_when_op_rare_df_set():
+    def gal(rare):
+        c = cfg(); c.op_rare_df = rare
+        g = Gallery(c, embed_fn=fake_embed)
+        for i in range(9):                                    # pospolity ślad w 3 z 9 materiałów, reszta ma własne
+            g.add(case_from_text(f"P{i}", f"Zupełnie różny tekst numer {i} o ogrodach i pogodzie w regionie {i * 7}",
+                                 kit={"/static/app"} if i < 3 else {f"/own{i}/x"}))
+        return g
+    probe = case_from_text("Q", "Inna treść o samochodach i naprawie silników diesla", kit={"/static/app"})
+    assert gal(None).query(probe).verdict == "znany_operator_nowa_kampania"   # bez reguły pospolity ślad skleja
+    assert gal(2).query(probe).verdict == "nowy_wzorzec"                       # z regułą: ślad w 3 materiałach nie dowodzi operatora

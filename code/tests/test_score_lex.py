@@ -49,3 +49,32 @@ def test_identical_texts_do_not_divide_by_zero():
     c = Corpus(cs, None, {"text": 1.0, "text_lex": 1.0})
     s = c.score(cs[0], cs[1])
     assert 0.0 <= s.value <= 1.0 and np.isfinite(s.value) and c.mu < 1.0 and c.mu_lex < 1.0
+
+
+def _traces_corpus(n_hub_users=12, **kw):
+    from embsim.features import Case as C
+
+    cs = []
+    for i in range(20):
+        sets = {"kit": {"/static", f"/uniq{i}"} if i < n_hub_users else {f"/uniq{i}"}, "scheme": {"utm_a"} if i < 3 else {f"s{i}"}}
+        cs.append(C(f"c{i}", "", sets))
+    return cs, Corpus(cs, None, {"kit": 1.0, "scheme": 1.0}, trace_mode="overlap", **kw)
+
+
+def test_hub_trace_is_ignored_but_campaign_trace_in_small_group_is_kept():
+    cs, plain = _traces_corpus()
+    _, capped = _traces_corpus(hub_frac=0.4)                  # /static w 12 z 20 materiałów (60%) = hub
+    a, b = cs[0], cs[1]                                       # wspólne: pospolite /static i rzadkie utm_a (3 materiały)
+    assert "kit" in plain.score(a, b).channels and "kit" not in capped.score(a, b).channels     # /static zignorowany
+    assert "scheme" in capped.score(a, b).channels                                               # utm_a (3 < hub_min) zostaje
+    assert "/static" in capped.hubs["kit"] and "utm_a" not in capped.hubs["scheme"]
+    x, y = cs[15], cs[16]                                     # materiały bez wspólnego śladu
+    assert capped.score(x, y).value == 0.0
+    # materiał z samymi hubami nie ma danych w kanale (brak dowodu), a nie „zerowe podobieństwo”
+    only_hub = Case("h", "", {"kit": {"/static"}})
+    assert capped.availability(only_hub, cs[0]) < plain.availability(only_hub, cs[0])
+
+
+def test_hub_min_protects_small_galleries():
+    cs, c = _traces_corpus(hub_frac=0.01)                     # bardzo niski ułamek, ale df < hub_min nie jest hubem
+    assert c.hubs["scheme"] == set() and "/static" in c.hubs["kit"]

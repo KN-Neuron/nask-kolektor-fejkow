@@ -84,6 +84,9 @@ class Config:
     combine: str = "mean"                              # łączenie kanałów: mean | noisy_or
     embed_fix: str = "none"                            # korekta embeddingów tekstu: none | center | abtt1 (PCA korpusu, bez etykiet)
     trace_mode_operator: str | None = None             # miara śladów dla poziomu operatora (None = jak trace_mode)
+    hub_frac: float | None = None                      # limit częstości śladów: ignoruj ślad obecny w > hub_frac galerii (score.Corpus)
+    hub_abs: int | None = None                         # ... albo w > hub_abs materiałach
+    op_rare_df: int | None = None                      # decyzja „operator” tylko przy wspólnym śladzie obecnym w <= tylu materiałach galerii
     thresholds: dict = field(default_factory=dict)   # {"campaign": t, "operator": t}, wypełnia calibrate
 
     def __post_init__(self):
@@ -93,7 +96,7 @@ class Config:
 
     def fingerprint(self) -> str:
         core = {k: v for k, v in asdict(self).items() if k not in ("thresholds", "e_ref")}
-        for k, default in (("trace_mode", "jaccard"), ("combine", "mean"), ("embed_fix", "none"), ("trace_mode_operator", None)):   # wsteczna zgodność odcisków zamrożonych konfiguracji
+        for k, default in (("trace_mode", "jaccard"), ("combine", "mean"), ("embed_fix", "none"), ("trace_mode_operator", None), ("hub_frac", None), ("hub_abs", None), ("op_rare_df", None)):   # wsteczna zgodność odcisków zamrożonych konfiguracji
             if core.get(k) == default:
                 core.pop(k, None)
         return hashlib.sha1(json.dumps(core, sort_keys=True).encode()).hexdigest()[:10]
@@ -179,7 +182,7 @@ def corpus(cfg: Config, lv: str, cases: list[Case], V) -> Corpus:
     ref = cfg.e_ref.get(lv) if lv in cfg.adjust_levels else None
     tm = (cfg.trace_mode_operator or cfg.trace_mode) if lv == "operator" else cfg.trace_mode
     return Corpus(copy.deepcopy(cases), V, w, rotating=set(cfg.rotating), adjust_ref=ref, trace_mode=tm,
-                  combine=cfg.combine, embed_fix=cfg.embed_fix)
+                  combine=cfg.combine, embed_fix=cfg.embed_fix, hub_frac=cfg.hub_frac, hub_abs=cfg.hub_abs)
 
 
 def score_matrices(cfg: Config, cases: list[Case], V: np.ndarray | None) -> dict[str, np.ndarray]:
@@ -253,10 +256,11 @@ def frozen_path(name: str) -> Path:
 
 
 def calibrate(name: str, adjust_levels: list, lexical: bool = False, family: int = 1, trace_mode: str = "jaccard",
-              combine: str = "mean", embed_fix: str = "none", trace_operator: str | None = None) -> None:
+              combine: str = "mean", embed_fix: str = "none", trace_operator: str | None = None, hub_frac: float | None = None,
+              hub_abs: int | None = None) -> None:
     """Progi i e_ref dobierane na PULI dev (rodzina 1: ziarna 1–10; rodzina 2: 21–29); test i final nie są używane."""
     cfg = Config(adjust_levels=adjust_levels, lexical=lexical, trace_mode=trace_mode, combine=combine, embed_fix=embed_fix,
-                 trace_mode_operator=trace_operator)
+                 trace_mode_operator=trace_operator, hub_frac=hub_frac, hub_abs=hub_abs)
     dev = [d for d in datasets(final=False, family=family) if d.role == "dev"]
     prep = [(d, d.cases, vectors(cfg, d.cases)) for d in dev]
     for lv in adjust_levels:
@@ -286,7 +290,7 @@ def load_frozen(name: str, force: bool = False) -> tuple[Config, dict]:
     fr = json.loads(f.read_text())
     cfg = Config(**fr["config"])
     now = Config(adjust_levels=cfg.adjust_levels, lexical=cfg.lexical, trace_mode=cfg.trace_mode, combine=cfg.combine,
-                 embed_fix=cfg.embed_fix, trace_mode_operator=cfg.trace_mode_operator)
+                 embed_fix=cfg.embed_fix, trace_mode_operator=cfg.trace_mode_operator, hub_frac=cfg.hub_frac, hub_abs=cfg.hub_abs, op_rare_df=cfg.op_rare_df)
     if now.fingerprint() != fr["fingerprint"] and not force:
         raise SystemExit("konfiguracja (model/wagi/rotujące/korekta) zmieniona po zamrożeniu: uruchom `calibrate` ponownie na dev; "
                          "wyniki na zbiorach test z poprzedniej wersji nie są już porównywalne (--force pomija to zabezpieczenie)")
@@ -350,15 +354,17 @@ def main() -> None:
     ap.add_argument("--trace", default="jaccard", choices=["jaccard", "contain", "overlap"])
     ap.add_argument("--combine", default="mean", choices=["mean", "noisy_or"])
     ap.add_argument("--trace-operator", default=None, choices=["jaccard", "contain", "overlap"], help="miara śladów tylko dla poziomu operatora")
+    ap.add_argument("--hub-frac", type=float, default=None, help="limit częstości śladów: ułamek galerii")
+    ap.add_argument("--hub-abs", type=int, default=None, help="limit częstości śladów: liczba materiałów")
     ap.add_argument("--embed-fix", default="none", choices=["none", "center", "abtt1"], help="korekta PCA embeddingów tekstu")
     ap.add_argument("--final", action="store_true")
     ap.add_argument("--force", action="store_true")
     a = ap.parse_args()
     if a.cmd == "calibrate":
         legacy = {"base": ([], False), "adj": (["campaign"], False), "lex": (["campaign"], True)}
-        explicit = a.adjust or a.lexical or a.trace != "jaccard" or a.combine != "mean" or a.family != 1 or a.embed_fix != "none" or a.trace_operator
+        explicit = a.adjust or a.lexical or a.trace != "jaccard" or a.combine != "mean" or a.family != 1 or a.embed_fix != "none" or a.trace_operator or a.hub_frac or a.hub_abs
         adj, lex = legacy[a.name] if (a.name in legacy and not explicit) else (["campaign"] if a.adjust else [], a.lexical)
-        calibrate(a.name, adj, lex, a.family, a.trace, a.combine, a.embed_fix, a.trace_operator)
+        calibrate(a.name, adj, lex, a.family, a.trace, a.combine, a.embed_fix, a.trace_operator, a.hub_frac, a.hub_abs)
     elif a.cmd == "run":
         run(a.name, a.final, a.force)
     else:

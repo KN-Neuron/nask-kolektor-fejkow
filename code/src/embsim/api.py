@@ -51,7 +51,7 @@ _CHANNEL_PL = {"text": "podobieństwo treści", "text_lex": "podobne brzmienie t
 _EXTRA_PL = {"payer": "ten sam płatnik", "page": "ta sama strona reklamodawcy", "text_hash": "identyczny tekst"}
 # Konfiguracja domyślna (progi z kalibracji na syntetyce v2 z szumem jak w HAR): kampania = nakładanie śladów, operator = zawieranie,
 # kanał leksykalny, korekta PCA embeddingów, korekta o dostępność dowodu. Starsze: "adj", "lex" (syntetyka v1, gorzej przenoszą się).
-DEFAULT_CONFIG = "v3_mixed_pca"
+DEFAULT_CONFIG = "v4_rare2"
 HOST = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}$")
 # Kanały dokładnych zgodności dokładane do zamrożonej konfiguracji (nie było ich w kalibracji na syntetyce, która nie ma obrazów):
 # waga jak pozostałych śladów, „rotujący” (brak wspólnego obrazu nie jest dowodem różnicy, bo często po prostu brak danych).
@@ -245,7 +245,7 @@ class Gallery:
         mk = lambda w, lv: Corpus(list(cases), None, w, rotating=set(self.cfg.rotating),
                                   adjust_ref=self.cfg.e_ref.get(lv) if lv in self.cfg.adjust_levels else None,
                                   trace_mode=(self.cfg.trace_mode_operator or self.cfg.trace_mode) if lv == "operator" else self.cfg.trace_mode,
-                                  combine=self.cfg.combine, embed_fix=self.cfg.embed_fix)
+                                  combine=self.cfg.combine, embed_fix=self.cfg.embed_fix, hub_frac=self.cfg.hub_frac, hub_abs=self.cfg.hub_abs)
         self._corp = (mk(self.cfg.weights_campaign, "campaign"), mk(self.cfg.weights_operator, "operator"))
         self._fit_n = len(cases)
 
@@ -278,6 +278,15 @@ class Gallery:
             return Decision("nowy_wzorzec", None, None, 0.0, 0.0, thr, [])
         rows.sort(key=lambda t: -t[0].value)
         best_o = max(rows, key=lambda t: t[1].value)
+        rare = self.cfg.op_rare_df
+        if rare is not None:                          # operator tylko przy wspólnym rzadkim śladzie (pospolite ślady nie dowodzą wspólnego operatora)
+            def has_rare(t):
+                return any(co.df[ch].get(x, 0) <= rare for ch, v in t[1].shared.items() if ch in co.df for x in v)
+            ok = [t for t in rows if has_rare(t)]
+            if ok:
+                best_o = max(ok, key=lambda t: t[1].value)
+            else:
+                best_o = (best_o[0], type(best_o[1])(0.0, 0.0, 0.0, {}, {}), best_o[2])
         scored = {*self.cfg.weights_campaign, *self.cfg.weights_operator}
 
         def mk(t) -> Match:
