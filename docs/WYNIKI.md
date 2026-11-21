@@ -167,6 +167,23 @@ obecny w co najwyżej `op_rare_df` materiałach galerii (`Config.op_rare_df`, ty
 
 Potwierdzenie na świeżych światach testowych v2 (30–35, użyte raz, tylko dla wartości 2 i bez): ARI operatora **0,415 → 0,599**, legalne w operatorze
 **30 → 9 z 43**, grup 44 → 78 przy 86 prawdziwych; ARI kampanii bez zmian (0,583). Zamrożona konfiguracja `v4_rare2`, jest teraz domyślna.
+**Sprawdzenie na prawdziwych reklamach Meta** (`embsim/meta_incremental.py`: 665 reklam z treścią od 100 losowych twórców, min. 3 reklamy, do 10 na twórcę,
+dodawane chronologicznie przez `Gallery.add`; prawdy o operatorach brak, przybliżeniem jest twórca `page_id`, więc jeden operator z kilkoma stronami
+liczy się jako błąd; operator ma tu tylko kanał domeny):
+
+| próg kampanii | `op_rare_df` | ARI operatora | ARI kampanii | reklamy w grupach z >1 twórcą | grup operatora (twórców 100) |
+|---|---|---|---|---|---|
+| 0,95 | brak | 0,568 | 0,624 | 38% | 132 |
+| 0,95 | 2 | 0,620 | 0,624 | 20% | 201 |
+| 0,95 | 4 | 0,633 | 0,624 | 23% | 185 |
+| 0,5 | brak | 0,555 | 0,708 | 45% | 117 |
+| 0,5 | 2 | 0,650 | 0,708 | 30% | 151 |
+| 0,5 | 4 | 0,656 | 0,708 | 32% | 143 |
+
+Reguła pomaga także na Mecie (ARI operatora +0,05…0,10, błędne sklejenia −15…−18 pp), kosztem rozdrobnienia (143–201 grup przy 100 twórcach).
+Limity 2 i 4 dają podobnie. Próg kampanii 0,5 daje lepszy ARI kampanii (0,708) niż 0,95 (0,624), co potwierdza, że próg z syntetyki jest na Mecie za wysoki.
+Próbka mała, jedno losowanie (ziarno 7), bez przedziałów ufności.
+
 Zastrzeżenia: wartość bezwzględna (2) zależy od wielkości galerii (światy mają 20–40 materiałów; w dużej galerii prawdziwy operator z wieloma
 kampaniami przekroczy limit, więc trzeba go będzie skalować), wynik dotyczy syntetyki, a na prawdziwych danych nie był sprawdzany.
 Naprawiony przy okazji błąd: dzielenie przez zero w normalizacji, gdy w galerii dominują identyczne teksty.
