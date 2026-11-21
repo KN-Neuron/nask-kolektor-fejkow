@@ -23,6 +23,7 @@ Bezpieczeństwem Sztucznej Inteligencji NASK PIB.
 | [docs/07_ZBIORY_DANYCH.md](docs/07_ZBIORY_DANYCH.md) | budowa zbiorów treningowych i testowych poza Metą (urlscan.io, listy ostrzeżeń, IoC, negatywy) i co trenować |
 | [docs/09_DZIENNIK_DECYZJI.md](docs/09_DZIENNIK_DECYZJI.md) | dziennik decyzji i procesu (na bieżąco) |
 | [docs/10_PODOBIENSTWO.md](docs/10_PODOBIENSTWO.md) | jak oceniamy podobieństwo i jak to mierzymy |
+| [docs/13_BAZA_GRAFOWA.md](docs/13_BAZA_GRAFOWA.md) | **baza grafowa Neo4j**: co w niej jest, jak wejść na serwer zespołu, jak załadować dane, gotowe zapytania |
 | [docs/11_WZORCE_KAMPANII.md](docs/11_WZORCE_KAMPANII.md) | wzorce kampanii i rekomendacje dla NASK (pkt 10 opisu wyzwania) |
 | [docs/12_ZGODNOSC_Z_WYMAGANIAMI.md](docs/12_ZGODNOSC_Z_WYMAGANIAMI.md) | **macierz zgodności z każdym punktem opisu wyzwania**, z luk |
 | [DOKUMENT_ZBIORCZY.md](DOKUMENT_ZBIORCZY.md) | dziennik prac z pierwszego dnia (chronologicznie, z pomyłkami i korektami) |
