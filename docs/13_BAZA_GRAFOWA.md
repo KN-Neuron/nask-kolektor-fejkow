@@ -268,6 +268,24 @@ Eksport dla silnika (wersja 2 kanału, z krokami przekierowań i liczbą żąda�
 .venv/bin/python graph/load.py traffic     # -> code/artifacts/traffic/traffic.jsonl
 ```
 
+## Widok w demo: zakładka „🧩 Klastry w grafie”
+
+```bash
+cd code && .venv/bin/fejki demo app        # http://localhost:8501, zakładka „Klastry w grafie”
+```
+
+Zakładka czyta Neo4j z `code/.env` (lokalna baza albo serwer zespołu: ustaw `NEO4J_URI` i `NEO4J_PASSWORD`).
+Bez bazy pokazuje komunikat, a reszta demo działa dalej. Zasada: **jeden klaster naraz i tylko to, co go skleja**;
+huby (google.com, CDN) są pominięte. Rysunek ma stały układ (bez „pływających kulek”), każdy owal mówi, czym jest ślad.
+
+| widok | co widać |
+|---|---|
+| Twórcy (Meta) | filtr etykiety i wyszukiwarka → karta: liczby (reklamy, zdjęte, strony, płatnicy, okres), rysunek „strony ↔ płatnik / domena / identyczny tekst”, tabela przesłanek, przypadki NASK tego twórcy, reklamy z linkiem do Ad Library, karta do pobrania (Markdown) i zapytanie do Neo4j Browser |
+| Sieci i kampanie (NASK, syntetyka, nowe) | lista sieci → rysunek „materiały ↔ wspólne ślady” (ślady tego samego rodzaju łączące te same materiały są jednym owalem, np. „11 × ten sam obraz”), tabela wspólnych śladów, pary z wynikiem i przesłankami |
+| Nowe materiały (add / scraper) | co dodano, jaka decyzja, do którego twórcy i dlaczego, pełne wyjaśnienie po polsku |
+
+To samo z wiersza poleceń (np. do prezentacji): `graph/clusters.py creator "Sharon Coleman"`, `graph/clusters.py group S1`.
+
 ## Wektory tekstów reklam (kolejność kroków)
 
 ```bash

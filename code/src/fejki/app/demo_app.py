@@ -240,9 +240,14 @@ def evidence_table(p) -> pd.DataFrame:
 
 # --- zakładki ------------------------------------------------------------------------------------------------------
 
-tab_new, tab_batch, tab_camp, tab_graph, tab_tmpl, tab_mat, tab_method = st.tabs(
-    ["🔎 Analiza nowego materiału", "📥 Nowy zbiór (folder / zip)", "📦 Kampanie i sieci", "🕸️ Graf powiązań", "🧬 Schemat perswazji",
-     "📄 Materiały", "📐 Metodyka i testy"])
+tab_new, tab_batch, tab_camp, tab_clusters, tab_graph, tab_tmpl, tab_mat, tab_method = st.tabs(
+    ["🔎 Analiza nowego materiału", "📥 Nowy zbiór (folder / zip)", "📦 Kampanie i sieci", "🧩 Klastry w grafie", "🕸️ Graf powiązań",
+     "🧬 Schemat perswazji", "📄 Materiały", "📐 Metodyka i testy"])
+
+with tab_clusters:
+    from fejki.app.graph_tab import render as render_clusters
+
+    render_clusters()
 
 with tab_new:
     st.header("Analiza nowego materiału")
