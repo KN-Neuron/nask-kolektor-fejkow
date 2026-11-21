@@ -100,6 +100,7 @@ def mixed_script(name: str) -> bool:
 
 
 def meta_record(r: dict, persons) -> dict:
+    from embsim.api import case_from_meta_ad
     from fejki.demo.material import find_persons
 
     bodies = [str(x) for x in as_list(r.get("ad_creative_bodies"))]
@@ -119,8 +120,9 @@ def meta_record(r: dict, persons) -> dict:
         "platforms": [str(x) for x in as_list(r.get("publisher_platforms"))],
         "library_url": f"https://www.facebook.com/ads/library/?id={r['id']}",  # publiczny link, bez tokenu
         "flag": flag, "query": q,
-        # odcisk tekstu (jak w embsim.eda): ta sama reklama w wielu kopiach = jeden węzeł Text i jeden wektor
-        "text_hash": hashlib.sha1(body.encode()).hexdigest()[:12] if body.strip() else None,
+        # odcisk tekstu liczony DOKŁADNIE jak w embsim.api (tytuł + treść), żeby `add` znajdował w grafie identyczny tekst;
+        # ta sama reklama w wielu kopiach = jeden węzeł Text i jeden wektor
+        "text_hash": next(iter(case_from_meta_ad(r).sets.get("text_hash", ())), None),
         "page_id": r["page_id"], "page_name": r.get("page_name") or r["page_id"], "mixed": mixed_script(r.get("page_name") or ""),
         "payers": payers, "domains": domains, "topic": q[3:] if q.startswith("kw:") else None,
         "persons": [{"name": k, "count": v} for k, v in find_persons(f"{title} {body}", persons).items()] if body or title else [],
@@ -382,11 +384,11 @@ def export_texts(session, out: Path) -> None:
     out.mkdir(parents=True, exist_ok=True)
     texts, n = {}, 0
     with (out / "ad_meta.jsonl").open("w", encoding="utf-8") as f:
-        for r in session.run("MATCH (a:Ad) RETURN a.id AS id, a.text_hash AS h, a.body AS body, a.fold AS fold, "
-                             "a.subject AS subject"):
+        for r in session.run("MATCH (a:Ad) RETURN a.id AS id, a.text_hash AS h, a.title AS title, a.body AS body, "
+                             "a.fold AS fold, a.subject AS subject"):
             f.write(json.dumps({"id": r["id"], "h": r["h"], "fold": r["fold"], "subject": r["subject"]}) + "\n")
             if r["h"]:
-                texts.setdefault(r["h"], r["body"])
+                texts.setdefault(r["h"], "\n".join(x for x in (r["title"], r["body"]) if x))  # jak tekst w embsim.api
             n += 1
     with (out / "ad_texts.jsonl").open("w", encoding="utf-8") as f:
         for h, t in texts.items():
