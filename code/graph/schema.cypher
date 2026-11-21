@@ -51,3 +51,9 @@ CREATE VECTOR INDEX material_embedding IF NOT EXISTS FOR (n:Material) ON n.embed
   OPTIONS {indexConfig: {`vector.dimensions`: 1024, `vector.similarity_function`: 'cosine'}};
 CREATE VECTOR INDEX artifact_embedding IF NOT EXISTS FOR (n:Artifact) ON n.embedding
   OPTIONS {indexConfig: {`vector.dimensions`: 1024, `vector.similarity_function`: 'cosine'}};
+
+// ---------- Unikalny tekst reklamy i jego embedding (Meta) ----------
+// Wiele reklam ma identyczny tekst, więc wektor trzyma węzeł Text, a reklamy wskazują go przez HAS_TEXT.
+CREATE CONSTRAINT text_hash IF NOT EXISTS FOR (n:Text) REQUIRE n.hash IS UNIQUE;
+CREATE VECTOR INDEX text_embedding IF NOT EXISTS FOR (n:Text) ON n.embedding
+  OPTIONS {indexConfig: {`vector.dimensions`: 1024, `vector.similarity_function`: 'cosine'}};
