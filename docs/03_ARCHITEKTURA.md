@@ -41,10 +41,14 @@ demo/evaluate.py: leave_one_out(), partial_inputs()  (CLI: fejki demo eval)
 | `demo/similar.py` | dowody, wynik, relacje, grupowanie, dopasowanie | `W` (wagi), `TextSpace` (TF-IDF), `evidence`, `combine`, `relation`, `all_pairs`, `campaigns`, `match` |
 | `demo/store.py` | indeks na dysku, zbieranie infrastruktury | `build`, `save`, `load`, `case_dirs`, `collect_infra`, `infra_records` |
 | `demo/evaluate.py` | testy zachowania bez etykiet | `leave_one_out`, `partial_inputs` |
+| `demo/persuasion.py` | ruchy perswazji („DNA”) ze słowników | `moves`, `dna`, `shared_moves` |
+| `demo/template.py` | fragmenty tekstu, enkoder (LSA offline / bge-m3), LEACE tematu, kontrola losowa, rozdzielenie sieci, rzut 2D | `TemplateSpace`, `separation`, `project_2d`, `model_available` |
 | `demo/cards.py` | karty kampanii: okno obserwacji, domeny do weryfikacji, przesłanki; eksport MD/CSV | `build_cards`, `card_markdown`, `domains_csv` |
 | `app/demo_app.py` | interfejs | zakładki, `graph_html` (pyvis), `show_material` |
 | `infra/collect.py` | bierne dane domeny: DNS, ASN (Team Cymru), RDAP, crt.sh; cache w `data/raw/infra/` | `collect`, `collect_cached`, `url_shape` |
 | `infra/link.py` | reguły łączenia domen z uzasadnieniem | `evidence`, `score`, `link` |
+| `sources/urlscan.py` | gotowe skany z urlscan.io jako foldery przypadków (bez zlecania nowych skanów) | `Client.search/iter_search/result/dom/screenshot`, `collect`, `save_case` |
+| `config/urlscan_pivots.yaml` | pivoty (zapytanie, etykieta, limit, pozytyw/negatyw) | |
 | `config/osoby.txt` | baza osób publicznych (format w nagłówku pliku) | |
 | `cli.py` | polecenia `fejki …` | `demo build|eval|app`, `infra collect|link`, część badawcza |
 
@@ -57,6 +61,9 @@ demo/evaluate.py: leave_one_out(), partial_inputs()  (CLI: fejki demo eval)
 | `fejki demo cards [--thr 0.7]` | karty kampanii (`artifacts/demo/cards/K*.md`) i `domeny_do_weryfikacji.csv` |
 | `fejki demo app [--port 8501]` | interfejs Streamlit |
 | `fejki infra collect PLIK` / `fejki infra link PLIK` | infrastruktura dla adresów z pliku tekstowego |
+| `fejki urlscan search ZAPYTANIE` | podgląd wyników wyszukiwarki urlscan |
+| `fejki urlscan collect [--pivots …] [--out ../data/urlscan]` | zbiera skany dla pivotów jako foldery przypadków + `labels.csv` |
+| `fejki urlscan eval` | osobny indeks ze skanów i ocena B-cubed względem etykiet pivotów (z liczbą doklejonych negatywów) |
 | `pytest` | wszystkie testy (bez sieci, bez danych organizatora) |
 
 ## Jak dodać nowy kanał (przykład: hash favicony)

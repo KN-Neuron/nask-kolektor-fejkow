@@ -81,3 +81,40 @@ def partial_inputs(case_dirs: list[Path], materials, thr: float = 0.7, ocr: bool
             rows.append({"przypadek": d.name, "wejście": name, "wynik": r.decision, "trafia do swojej sieci": ok,
                          "najlepszy wynik": r.best_score})
     return pd.DataFrame(rows)
+
+
+def bcubed(pred: dict[str, str], gold: dict[str, str]) -> dict[str, float]:
+    """B-cubed precision/recall/F1 dla przypisań id -> grupa (tylko id obecne w obu słownikach)."""
+    ids = [i for i in gold if i in pred]
+    if not ids:
+        return {"precision": 0.0, "recall": 0.0, "f1": 0.0, "n": 0}
+    by_p, by_g = {}, {}
+    for i in ids:
+        by_p.setdefault(pred[i], set()).add(i)
+        by_g.setdefault(gold[i], set()).add(i)
+    p = sum(len(by_p[pred[i]] & by_g[gold[i]]) / len(by_p[pred[i]]) for i in ids) / len(ids)
+    r = sum(len(by_p[pred[i]] & by_g[gold[i]]) / len(by_g[gold[i]]) for i in ids) / len(ids)
+    return {"precision": round(p, 3), "recall": round(r, 3), "f1": round(2 * p * r / (p + r), 3) if p + r else 0.0, "n": len(ids)}
+
+
+def against_labels(materials, labels: dict[str, dict], thr: float = 0.7) -> dict:
+    """Ocena względem etykiet z pivotów (np. urlscan `labels.csv`: case_id -> {label, kind}).
+
+    Negatywy (kind=negatyw) dostają każdy własną grupę w etykietach, więc ich doklejenie do czegokolwiek obniża precyzję;
+    osobno liczymy, ile negatywów trafiło do grupy z pozytywem (fałszywe połączenia).
+    """
+    pairs = all_pairs(materials)
+    out = {}
+    for level in ("kampania", "sieć"):
+        groups = campaigns(materials, pairs, thr, level)
+        pred = {mid: g.id for g in groups for mid in g.members}
+        gold = {i: (v["label"] if v.get("kind") != "negatyw" else f"neg:{i}") for i, v in labels.items()}
+        res = bcubed(pred, gold)
+        neg_merged = 0
+        for g in groups:
+            kinds = [labels[x].get("kind") for x in g.members if x in labels]
+            if "negatyw" in kinds and "pozytyw" in kinds:
+                neg_merged += kinds.count("negatyw")
+        res["negatywy_doklejone_do_oszustw"] = neg_merged
+        out[level] = res
+    return out

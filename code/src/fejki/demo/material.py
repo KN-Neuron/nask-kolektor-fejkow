@@ -312,6 +312,40 @@ def date_from_name(name: str) -> str | None:
     return local.astimezone(UTC).isoformat()[:19]
 
 
+def parse_urlscan(path: Path) -> dict:
+    """Plik `urlscan.json` z kolektora `fejki.sources.urlscan`: metadane z wyszukiwarki, opcjonalnie pełny wynik skanu."""
+    j = json.loads(path.read_text(encoding="utf-8"))
+    hit = j.get("search_hit") or {}
+    page, task = hit.get("page") or {}, hit.get("task") or {}
+    full = j.get("result") or {}
+    urls = [u for u in (page.get("url"), task.get("url")) if u]
+    urls += (full.get("lists") or {}).get("urls", [])[:300]
+    redirects = []
+    for q in (full.get("data") or {}).get("requests", [])[:500]:
+        req = q.get("request") or {}
+        u = (req.get("request") or {}).get("url")
+        if u:
+            urls.append(u)
+        rr = req.get("redirectResponse") or {}
+        if rr.get("url") and u and 300 <= int(rr.get("status") or 0) < 400:
+            a, b = urlsplit(rr["url"]).hostname, urlsplit(u).hostname
+            if a != b and not (is_common_host(a) and is_common_host(b)):
+                redirects.append(f"{a} → {b} ({rr.get('status')})")
+    notes = ["materiał ze skanu urlscan.io (bierne: strona zeskanowana przez kogoś innego)"]
+    if page.get("domainAgeDays") is not None:
+        notes.append(f"wiek domeny w chwili skanu: {page['domainAgeDays']} dni (urlscan)")
+    if page.get("tlsAgeDays") is not None:
+        notes.append(f"wiek certyfikatu w chwili skanu: {page['tlsAgeDays']} dni")
+    if page.get("asnname"):
+        notes.append(f"hosting: {page.get('asn', '')} {page['asnname']}")
+    if page.get("redirected"):
+        notes.append(f"przekierowanie przy wejściu: {page['redirected']}")
+    if j.get("label"):
+        notes.append(f"etykieta pivotu: {j['label']} ({j.get('query', '')})")
+    return {"urls": urls, "title": page.get("title"), "landing": page.get("url"), "time": task.get("time"),
+            "redirects": redirects, "notes": notes}
+
+
 # --- obrazy ---------------------------------------------------------------------------------------------------------
 
 def phash(img) -> str:
@@ -390,6 +424,24 @@ def build_material(mid: str, label: str, source: str, files: list[Path] | None =
     assets = [f for f in files if f.suffix.lower() in IMG_EXT and _is_asset(f)]
     vids = [f for f in files if f.suffix.lower() in VID_EXT]
     infos = [f for f in files if f.name.endswith(".info.json")]
+    scans = [f for f in files if f.name == "urlscan.json"]
+    scan_landing: list[str] = []
+    for f in scans:
+        try:
+            d = parse_urlscan(f)
+        except Exception as e:
+            m.notes.append(f"urlscan.json nieczytelny ({type(e).__name__})")
+            continue
+        all_urls += d["urls"]
+        m.redirects += d["redirects"]
+        m.notes += d["notes"]
+        if d["title"]:
+            m.titles.append(d["title"])
+            texts.append(d["title"])
+        if d["landing"]:
+            scan_landing.append(d["landing"])
+        if d["time"]:
+            m.observed.append({"date": d["time"][:19], "source": "czas skanu urlscan.io"})
     page_titles = []
     for h in htmls:
         try:
@@ -497,7 +549,7 @@ def build_material(mid: str, label: str, source: str, files: list[Path] | None =
             prefixes.append(f["prefix"])
     m.urls = _uniq(u for u in all_urls if urlsplit(u).hostname and not is_common_host(urlsplit(u).hostname))[:200]
     # domeny docelowe: z adresów zapisu stron i pierwszych dokumentów (strona, na którą trafia ofiara)
-    for u in [p[1] for p in page_titles if p[1]] + (urls or []):
+    for u in [p[1] for p in page_titles if p[1]] + (urls or []) + scan_landing:
         if u and u.startswith("http"):
             landing.append(url_features(u)["domain"])
     for h in hars:

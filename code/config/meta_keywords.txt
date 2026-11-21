@@ -1,0 +1,65 @@
+# Słowa kluczowe do Meta Ad Library (kraj PL). Jedno na linię. Wybrane z przypadków organizatora i typowych oszustw.
+# osoby, których wizerunek bywa wykorzystywany
+Brzoska
+InPost
+Olejnik
+Glapiński
+Morawiecki
+Tusk
+Nawrocki
+Lewandowski
+Stanowski
+Sekielski
+Kulczyk
+Sołowow
+Owsiak
+Kraśko
+Wojewódzki
+# narracje-wabiki
+wywiad
+skandal
+aresztowany
+kajdankach
+nagranie usunięto
+transmisji na żywo
+szokujące
+zakazane
+nie chcą żebyś
+# inwestycje
+inwestycja
+inwestuj
+zarabiaj
+pasywny dochód
+platforma inwestycyjna
+sztuczna inteligencja
+kryptowaluty
+bitcoin
+giełda
+dochód dziennie
+1000 zł
+Baltic
+Orlen akcje
+# zdrowie i suplementy
+prostata
+cukrzyca
+nadciśnienie
+stawy
+kręgosłup
+odchudzanie
+schudnij
+grzybica
+potencja
+dr n. med
+Uromexil
+Metabo
+# hazard
+kasyno
+bonus
+Sweet Bonanza
+Aviator
+darmowe spiny
+# podszywanie się pod portale
+TVN24
+Gazeta.pl
+Onet
+Polsat News

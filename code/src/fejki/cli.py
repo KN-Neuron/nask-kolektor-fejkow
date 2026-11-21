@@ -241,6 +241,66 @@ def demo_eval(thr: float = 0.7, data: str = DEFAULT_DATA, partial: bool = True):
         pi.to_csv(out / "eval_partial_inputs.csv", index=False)
 
 
+urlscan_app = typer.Typer(help="urlscan.io: gotowe publiczne skany jako zbiór treningowy/testowy (nie zlecamy nowych skanów)")
+app.add_typer(urlscan_app, name="urlscan")
+URLSCAN_DIR = os.environ.get("FEJKI_URLSCAN", "../data/urlscan")
+
+
+def _load_env():
+    """Wczytuje code/.env (np. URLSCAN_API_KEY), bez czytania konfiguracji YAML."""
+    from dotenv import load_dotenv
+
+    from .config import ROOT
+
+    load_dotenv(ROOT / ".env")
+
+
+@urlscan_app.command("search")
+def urlscan_search(query: str, size: int = 10):
+    """Podgląd wyników zapytania (bez zapisu)."""
+    from .sources.urlscan import Client
+
+    _load_env()
+    j = Client().search(query, size=size)
+    typer.echo(f"wszystkich: {j.get('total')}")
+    for r in j.get("results", []):
+        p = r.get("page", {})
+        typer.echo(f"{r['task']['time'][:10]}  {p.get('domain', '')[:40]:40s} wiek dom.: {p.get('domainAgeDays', '?'):>4}  {(p.get('title') or '')[:70]}")
+
+
+@urlscan_app.command("collect")
+def urlscan_collect(pivots: str = "config/urlscan_pivots.yaml", out: str = URLSCAN_DIR, max_per_domain: int = 2,
+                    no_screenshots: bool = False):
+    """Zbiera skany dla pivotów z pliku YAML; każdy skan = folder przypadku, etykiety w labels.csv."""
+    from pathlib import Path
+
+    from .sources.urlscan import Client, collect, load_pivots
+
+    _load_env()
+    c = Client()
+    typer.echo("tryb: " + ("z kluczem API (pełne wyniki i DOM)" if c.api_key else "bez klucza (metadane i zrzuty)"))
+    rows = collect(c, load_pivots(Path(pivots)), Path(out), max_per_domain, not no_screenshots, log=typer.echo)
+    typer.echo(f"razem przypadków: {len(rows)} → {out}")
+
+
+@urlscan_app.command("eval")
+def urlscan_eval(data: str = URLSCAN_DIR, thr: float = 0.7, no_ocr: bool = False):
+    """Buduje osobny indeks ze skanów urlscan i ocenia grupowanie względem etykiet z pivotów."""
+    import csv
+    from pathlib import Path
+
+    from .demo import store
+    from .demo.evaluate import against_labels
+
+    labels = {r["case_id"]: r for r in csv.DictReader((Path(data) / "labels.csv").open(encoding="utf-8"))}
+    idx = store.build(Path(data), ocr=not no_ocr, progress=lambda k, n, d: typer.echo(f"[{k + 1}/{n}] {d}") if k % 25 == 0 else None)
+    store.save(idx, path("artifacts/demo/urlscan_index.json"))
+    res = against_labels(idx.materials, labels, thr)
+    for level, r in res.items():
+        typer.echo(f"{level}: B-cubed P {r['precision']} R {r['recall']} F1 {r['f1']} (n={r['n']}); "
+                   f"negatywy doklejone do oszustw: {r['negatywy_doklejone_do_oszustw']}")
+
+
 @demo_app.command("cards")
 def demo_cards(thr: float = 0.7):
     """Karty kampanii (Markdown) i lista domen do weryfikacji (CSV) w artifacts/demo/cards/."""

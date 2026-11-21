@@ -12,6 +12,19 @@ w bibliotekach to funkcja **dodatkowo punktowana**, nie wymóg. Szczegóły z pi
 | Snapchat Ads Gallery API | otwarte | sprawdzone, mało przydatne | wymaga nazwy reklamodawcy (brak wyszukiwania po słowie) |
 | Lista Ostrzeżeń CERT Polska (hole.cert.pl) | otwarte | adapter `ingest/cert.py` | domeny oszustw: etykiety i sprawdzanie wyprzedzenia |
 
+## Stan dostępu (2026-11-21, po uzyskaniu tokenu)
+
+- **Token działa**, `ads_archive` zwraca wyniki dla `ad_reached_countries=["PL"]`, `ad_type=ALL` (komercyjne też).
+- **Nie da się pobrać reklamy po identyfikatorze** (ani id z Ad Library, np. 1982065065827084, ani `ad_id` z adresu,
+  np. 120250558396250564): `GET /{id}` zwraca „Unsupported get request”. API tylko wyszukuje (`search_terms`,
+  `search_page_ids`, kraje, daty).
+- Wyszukiwanie po treściach z naszych przypadków (Metabo, Uromexil, Bonanza, Brzoska, Olejnik, „kajdankach”…) **nie
+  zwróciło naszych reklam ani reklamodawców**: reklamy-oszustwa żyją krótko, a usunięte przez Metę mają w API treść
+  „This content was removed because it didn't follow our Advertising Standards”. Dla „Uromexil” 4 z 23, dla „Poland Invest
+  Summit” 11 z 48 trafień to reklamy usunięte; strony-reklamodawcy mają przypadkowe nazwy (np. „Tihomir Maclean”).
+- Wniosek: Meta przyda się do **wyszukiwania nowych podejrzanych reklam** (słowa kluczowe, usunięte reklamy jako sygnał,
+  `page_id` reklamodawców) i do dat emisji, a nie do odtwarzania reklam z przypadków organizatora.
+
 ## Jak to wpiąć w demonstrator (zadania D2, D3)
 
 - Materiały ze zbioru mają **identyfikatory reklam Meta** (przypadki 5, 14, 36, 47: `ad_id` w adresie, link Ad Library,

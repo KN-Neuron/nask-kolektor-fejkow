@@ -208,8 +208,9 @@ def evidence_table(p) -> pd.DataFrame:
 
 # --- zakładki ------------------------------------------------------------------------------------------------------
 
-tab_new, tab_camp, tab_graph, tab_mat, tab_method = st.tabs(
-    ["🔎 Analiza nowego materiału", "📦 Kampanie i sieci", "🕸️ Graf powiązań", "📄 Materiały", "📐 Metodyka i testy"])
+tab_new, tab_camp, tab_graph, tab_tmpl, tab_mat, tab_method = st.tabs(
+    ["🔎 Analiza nowego materiału", "📦 Kampanie i sieci", "🕸️ Graf powiązań", "🧬 Schemat perswazji", "📄 Materiały",
+     "📐 Metodyka i testy"])
 
 with tab_new:
     st.header("Analiza nowego materiału")
@@ -356,6 +357,52 @@ with tab_mat:
     sel = st.selectbox("Szczegóły materiału", [m.id for m in idx.materials])
     show_material(by_id[sel])
     st.caption("Pliki: " + ", ".join(by_id[sel].files[:20]) + (" …" if len(by_id[sel].files) > 20 else ""))
+
+with tab_tmpl:
+    import plotly.express as px
+
+    from fejki.demo.persuasion import MOVES, moves
+    from fejki.demo.template import TemplateSpace, model_available, project_2d, separation
+
+    st.header("Schemat perswazji ponad tematami")
+    st.caption("Hipoteza projektu: oszuści zmieniają temat (osoba, produkt), ale powtarzają ten sam schemat perswazji. "
+               "Sprawdzamy, czy po usunięciu tematu z wektorów tekstu (LEACE) materiały tej samej sieci operatora są bliżej "
+               "siebie niż materiały różnych sieci. Sieci pochodzą z infrastruktury i śledzenia; ten widok używa wyłącznie tekstu, "
+               "więc ocena nie jest cyrkularna. Wynik jest analizą, nie wpływa na grupowanie.")
+    st.subheader("DNA perswazji (ruchy na 1000 słów)")
+    dna_df = pd.DataFrame({m.id: moves(" ".join(m.titles) + " " + m.text) for m in idx.materials}).T
+    dna_df.columns = [MOVES[c][0] for c in dna_df.columns]
+    dna_df.index = [f"{i} ({net_of.get(i, '—')})" for i in dna_df.index]
+    st.plotly_chart(px.imshow(dna_df, color_continuous_scale="Reds", aspect="auto", labels={"color": "na 1000 słów"}),
+                    use_container_width=True)
+    bge_ok = model_available()
+    enc = st.radio("Enkoder tekstu", ["lsa", "bge-m3"], horizontal=True, index=0,
+                   format_func=lambda e: "TF-IDF + SVD (offline)" if e == "lsa" else "bge-m3 (semantyczny)" + ("" if bge_ok else ": model niepobrany"))
+    if enc == "bge-m3" and not bge_ok:
+        st.warning("Model BAAI/bge-m3 (~2,3 GB) nie jest pobrany. Pobranie wymaga decyzji zespołu; do tego czasu używamy LSA.")
+        enc = "lsa"
+
+    @st.cache_resource(show_spinner="Liczę wektory fragmentów i LEACE…")
+    def _space(materials_key: str, encoder: str):
+        return TemplateSpace([Material.model_validate(m) for m in json.loads(materials_key)], encoder=encoder)
+
+    space = _space(json.dumps([m.model_dump() for m in idx.materials]), enc)
+    groups = {mid: n.id for n in nets for mid in n.members if len(n.members) > 1}
+    main_topic = {m.id: next(iter(m.topics), "inne") for m in idx.materials}
+    st.subheader("Czy po usunięciu tematu sieci się rozdzielają?")
+    st.dataframe(pd.DataFrame(separation(space, groups, main_topic)), use_container_width=True, hide_index=True)
+    st.caption(f"Fragmentów: {len(space.chunk_ids)}, klas tematu: {len(space.topic_classes)}, usunięty rząd: {space.rank}. "
+               "Kontrola losowa usuwa losową podprzestrzeń tego samego rzędu. Duplikaty pominięte. Przy 10 przypadkach to "
+               "ilustracja, nie dowód: do dowodu potrzebny większy zbiór (urlscan z kluczem) i podział po sieciach.")
+    cols = st.columns(2)
+    for col, variant in zip(cols, ["surowe", "LEACE (bez tematu)"]):
+        pts = project_2d(space, variant)
+        df2 = pd.DataFrame([{"x": x, "y": y, "materiał": k, "sieć": net_of.get(k, "—") if k in groups else "osobno",
+                             "temat": main_topic.get(k, "inne")} for k, (x, y) in pts.items()])
+        fig = px.scatter(df2, x="x", y="y", color="sieć", symbol="temat", text="materiał", title=variant, height=420)
+        fig.update_traces(textposition="top center", marker={"size": 13})
+        fig.update_layout(xaxis_title="", yaxis_title="", legend={"orientation": "h", "y": -0.2})
+        col.plotly_chart(fig, use_container_width=True)
 
 with tab_method:
     st.header("Metodyka")

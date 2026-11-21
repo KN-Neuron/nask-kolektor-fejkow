@@ -3,6 +3,9 @@ data/DANE.zip
 data/dane/
 *.zip
 
+# Dane stron trzecich (skany urlscan.io): lokalnie, w repo tylko konfiguracja pivotów i kod
+data/urlscan/
+
 # Pliki pobrane ze strony-zagadki organizatora (media, zip, rozpakowane archiwum)
 research/nask-hacknation/media/
 research/nask-hacknation/files/
@@ -19,3 +22,11 @@ __pycache__/
 
 # artefakty instalacji pakietu
 *.egg-info/
+
+# Surowe reklamy z Meta Ad Library (lokalnie)
+data/meta/
+
+# Pliki z sekretami trzymane przez zespół lokalnie
+data/si.txt
+*.token
+*secret*

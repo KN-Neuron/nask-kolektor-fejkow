@@ -82,6 +82,45 @@ Z kanałem infrastruktury karta podaje datę rejestracji, rejestratora i **wiek 
 (≤ 7 dni = „świeża domena”). Okno to czas zebrania materiałów, nie czas emisji reklam; daty emisji da Meta Ad Library.
 Eksport: Markdown (karta lub wszystkie) i CSV domen do weryfikacji.
 
+## 5b. Schemat perswazji ponad tematami (zakładka „Schemat perswazji”; analiza, nie wpływa na grupowanie)
+
+Hipoteza z pierwotnego planu: oszuści zmieniają temat, ale powtarzają schemat perswazji, więc po usunięciu tematu z wektorów
+tekstu materiały jednego operatora powinny być bliżej siebie.
+
+- **DNA perswazji** (`demo/persuasion.py`): 10 ruchów wykrywanych słownikami (szokujący news, tajemnica, autorytet,
+  presja czasu, dowód społeczny, obietnica zysku, niska bariera, formularz, podrobiony portal, cena/rabat) na 1000 słów.
+  Sieć S1 łączy profil „szokujący news + obietnica zysku + niska bariera”; landery produktowe (14, 47) to „dowód społeczny
+  + presja czasu”; przypadek 36 prawie nie ma ruchów (strona-przykrywka).
+- **LEACE** (`demo/template.py`): tekst dzielony na fragmenty ~400 znaków (bez adresów), kodowany enkoderem, etykieta
+  **tematu** ze słownika dla każdego fragmentu (nigdy etykieta sieci), LEACE usuwa liniowo temat; kontrola: losowa
+  podprzestrzeń tego samego rzędu; wektor materiału = średnia fragmentów. Sieci do oceny pochodzą z infrastruktury, kanał
+  widzi tylko tekst, więc ocena nie jest cyrkularna.
+- **Wynik wstępny (2026-11-21, enkoder offline TF-IDF+SVD, 10 przypadków, 271 fragmentów, usunięty rząd 5, bez duplikatów):**
+
+| Wariant | ta sama sieć | ta sama sieć, inny temat | różne sieci | odstęp |
+|---|---|---|---|---|
+| surowe | 0,190 | 0,171 | 0,055 | 0,135 |
+| LEACE (bez tematu) | 0,190 | 0,169 | 0,057 | 0,133 |
+| kontrola losowa | 0,178 | 0,174 | 0,051 | 0,127 |
+
+  Sam tekst odróżnia sieć S1 od reszty (0,17–0,19 wobec 0,055), ale **LEACE nic nie zmienia**: przy enkoderze leksykalnym
+  temat nie leży w kilku kierunkach.
+
+- **Wynik z bge-m3 (2026-11-21, te same dane i ustawienia):**
+
+| Wariant | ta sama sieć | ta sama sieć, inny temat | różne sieci | odstęp |
+|---|---|---|---|---|
+| surowe | 0,897 | 0,898 | 0,683 | **0,214** |
+| LEACE (bez tematu) | 0,909 | 0,924 | 0,751 | **0,158** |
+| kontrola losowa | 0,897 | 0,898 | 0,682 | 0,215 |
+
+  LEACE **zbliża wszystkie strony oszustw do siebie** (różne sieci: 0,683 → 0,751), więc odstęp między sieciami **maleje**
+  (0,214 → 0,158); kontrola losowa nie zmienia nic, czyli efekt jest realny. Wniosek: po usunięciu tematu zostaje wspólny
+  „język oszustwa”, a nie podpis konkretnego operatora. **Hipoteza „schemat perswazji odróżnia operatorów” na tych danych
+  nie jest potwierdzona.** Nowa, testowalna hipoteza: schemat perswazji (po LEACE) odróżnia **oszustwa od legalnych treści**
+  ponad tematami; do sprawdzenia na trudnych negatywach (prawdziwe portale, legalne reklamy z Meta). Uwaga: 10 przypadków,
+  ilustracja, nie dowód.
+
 ## 6. Testy (`fejki demo eval`)
 
 Nie mamy etykiet kampanii od organizatora, więc „oczekiwane” = wynik na pełnym zbiorze. Test mierzy stabilność i odporność,
@@ -116,6 +155,10 @@ nie trafność względem podziału organizatora.
 | pytesseract, Tesseract OCR | Apache-2.0 | OCR |
 | FFmpeg | LGPL-2.1+ (zależnie od kompilacji GPL) | klatki z nagrań |
 | dnspython | ISC | DNS |
+
+Dodatkowe dane (budowa zbiorów, nie demonstracja): **urlscan.io**, wyszukiwarka istniejących publicznych skanów
+(bez klucza: metadane i zrzuty; z darmowym kluczem `URLSCAN_API_KEY`: pełny wynik i DOM); nie zlecamy nowych skanów; dane
+zostają lokalnie; źródło każdego przypadku zapisane w `labels.csv`. Opis: `docs/07_ZBIORY_DANYCH.md`.
 
 Usługi zewnętrzne (tylko kanał infrastruktury, opcjonalnie): publiczne serwery DNS, Team Cymru IP-to-ASN (DNS), rdap.org,
 crt.sh. Nie wymagają kluczy. **Meta Ad Library API** (opcjonalnie, do sprawdzania `ad_id`): wymaga potwierdzenia tożsamości

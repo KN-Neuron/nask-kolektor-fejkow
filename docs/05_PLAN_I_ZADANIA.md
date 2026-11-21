@@ -166,6 +166,24 @@ Termin oddania: **do potwierdzenia na Discordzie** (zadanie D0). Etapy poniżej 
   `config/osoby.txt`; dowód `same_face`. **Decyzja zespołu przed startem** (prywatność, licencje modeli InsightFace są
   niekomercyjne; dziś osoby rozpoznajemy tylko po nazwiskach).
 
+### A6. Zbiór z urlscan.io i model podobieństwa par (P1, ~3 h) — A (+ B dla zrzutów)
+- ✅ **Zrobione:** kolektor `fejki urlscan collect` (gotowe skany jako foldery przypadków, etykiety z pivotów, negatywy
+  z prawdziwych portali), ocena `fejki urlscan eval` (B-cubed + doklejone negatywy). Opis: `docs/07_ZBIORY_DANYCH.md`.
+- Zostaje: założyć darmowy klucz urlscan (pełne żądania i DOM); dopisać pivoty z list ostrzeżeń (CERT, KNF) i raportów IoC;
+  wytrenować model podobieństwa par (regresja logistyczna na wynikach kanałów, podział po grupach) i porównać z ręcznymi wagami
+  `W` na przypadkach organizatora (tylko test).
+- **Gotowe gdy:** tabela „ręczne wagi vs model” na zbiorze organizatora i na odłożonych grupach urlscan w METODYKA.md.
+
+### C5. Hipoteza „schemat perswazji ponad tematami” na prawdziwych danych (P1, ~3 h) — C (+ A do walidacji)
+- ✅ **Zrobione:** DNA perswazji (10 ruchów), fragmenty + LEACE tematu + kontrola losowa, tabela rozdzielenia sieci,
+  rzuty 2D przed/po w zakładce „Schemat perswazji”; wynik wstępny w METODYKA.md (5b): z enkoderem offline LEACE nie pomaga.
+- Zostaje: (1) decyzja o pobraniu bge-m3 (~2,3 GB) i powtórka; (2) klucz urlscan → DOM → setki stron z sieci S1 i innych
+  zestawów; (3) podział po sieciach (LEACE dopasowane bez sieci testowej), metryki: recall międzytematowy, B-cubed,
+  doklejone negatywy, porównanie z kontrolą losową; (4) jeśli teza się potwierdzi: kanał „ten sam schemat perswazji”
+  w `evidence()` z listą wspólnych ruchów jako przesłanką.
+- **Gotowe gdy:** tabela „surowe / LEACE / losowa” na odłożonych sieciach z urlscan i na zbiorze organizatora w METODYKA.md
+  z jednoznacznym werdyktem (potwierdzona / niepotwierdzona).
+
 ### A5. Wzorce kampanii dla NASK (P1, ~1,5 h) — A
 - Dokument `docs/07_WZORCE_KAMPANII.md`: opis sieci S1 (zestaw stron, TDS, rotacja domen i reklamodawców, narracje),
   cloakingu, kampanii produktowych, przydatnych źródeł metadanych. To „wiedza z wyzwania”, o którą prosi pkt 10 opisu.

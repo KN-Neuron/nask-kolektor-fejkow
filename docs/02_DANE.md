@@ -89,6 +89,7 @@ przy progu 0,7; **nie są to etykiety organizatora**.
 | Ręczny zbiór reklam | `data/reklamy_reczne.jsonl` (pusty) + wzór | format w [data/README.md](../data/README.md) |
 | Zebrane dane infrastruktury (DNS/RDAP/crt.sh) | `code/data/raw/infra/` (ignorowane) | 14 domen ze strony-zagadki + 9 domen docelowych z `DANE.zip` (`fejki demo build --infra`; crt.sh bywa przeciążony: timeouty dla 3 domen) |
 | Meta Ad Library API | adapter `code/src/fejki/ingest/meta_api.py` | tożsamość potwierdzona, token do wpięcia |
+| **urlscan.io** (gotowe publiczne skany) | `data/urlscan/<uuid>/` + `labels.csv` (ignorowane) | kolektor `fejki urlscan collect`, pivoty w `code/config/urlscan_pivots.yaml`; opis: [07_ZBIORY_DANYCH.md](07_ZBIORY_DANYCH.md) |
 
 ## Czego w danych brakuje (i jak sobie radzimy)
 

@@ -1,0 +1,29 @@
+# Pivoty do budowy zbioru z urlscan.io (`fejki urlscan collect`).
+# Każdy pivot = zapytanie do wyszukiwarki urlscan (składnia: https://urlscan.io/docs/search/) + etykieta grupy.
+# kind: pozytyw = materiały oszustw powiązane wspólnym śladem; negatyw = legalne strony podobne z wyglądu (trudne negatywy).
+# Etykieta z pivotu technicznego jest SŁABA: ten sam zestaw stron może być sprzedawany wielu operatorom.
+# Ślady wzięliśmy z oficjalnego zbioru (sieć S1 i kampanie produktowe); nie wpisujemy tu treści stron organizatora.
+pivots:
+  # --- sieć S1: zestaw stron z /aio-static/sdk i system kierowania ruchu z utm_visit -----------------------------
+  - label: zestaw-aio-sdk
+    kind: pozytyw
+    query: 'filename:"aio-static/sdk/main.js"'
+    limit: 120
+  - label: tds-utm-visit
+    kind: pozytyw
+    query: 'page.url:"utm_visit="'
+    limit: 60
+  # --- kampanie produktowe ----------------------------------------------------------------------------------------
+  - label: uromexil-forte
+    kind: pozytyw
+    query: 'page.title:"Uromexil Forte"'
+    limit: 30
+  # --- trudne negatywy: prawdziwe portale, które oszuści podrabiają -------------------------------------------------
+  - label: neg-gazeta-pl
+    kind: negatyw
+    query: 'page.domain:wiadomosci.gazeta.pl'
+    limit: 25
+  - label: neg-tvn24
+    kind: negatyw
+    query: 'page.domain:tvn24.pl'
+    limit: 25

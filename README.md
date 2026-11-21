@@ -18,6 +18,7 @@ Bezpieczeństwem Sztucznej Inteligencji NASK PIB.
 | [docs/04_ZAGADKA_I_ODKRYCIA.md](docs/04_ZAGADKA_I_ODKRYCIA.md) | strona-zagadka organizatorów i to, co z niej wyciągnęliśmy |
 | [docs/05_PLAN_I_ZADANIA.md](docs/05_PLAN_I_ZADANIA.md) | **plan i podział pracy na 3–4 osoby** (zadania, pliki, kryteria ukończenia, zależności) |
 | [docs/06_DOSTEP_DO_REKLAM.md](docs/06_DOSTEP_DO_REKLAM.md) | biblioteki reklam (Meta, TikTok, Google, Snapchat): jak uzyskać dostęp, stan |
+| [docs/07_ZBIORY_DANYCH.md](docs/07_ZBIORY_DANYCH.md) | budowa zbiorów treningowych i testowych poza Metą (urlscan.io, listy ostrzeżeń, IoC, negatywy) i co trenować |
 | [DOKUMENT_ZBIORCZY.md](DOKUMENT_ZBIORCZY.md) | dziennik prac z pierwszego dnia (chronologicznie, z pomyłkami i korektami) |
 | [code/docs/PROGRESS.md](code/docs/PROGRESS.md) | wyniki części badawczej na danych syntetycznych (LEACE, eksperymenty E1–E8) |
 
@@ -35,6 +36,36 @@ Bezpieczeństwem Sztucznej Inteligencji NASK PIB.
   właściwą sieć, **same zrzuty ekranu nie wystarczają** (najważniejsza luka).
 - **Docker** zbudowany i sprawdzony (z polskim OCR).
 - Meta Ad Library API: tożsamość potwierdzona, **token jeszcze nie wpięty**. Kod adaptera gotowy, niesprawdzony z działającym tokenem.
+
+## Dane
+
+Wszystkie surowe dane leżą **lokalnie** w `data/` i są w `.gitignore`. W repo są tylko opisy, konfiguracja i kod.
+Szczegóły: [docs/02_DANE.md](docs/02_DANE.md) (zbiór organizatora) i [docs/07_ZBIORY_DANYCH.md](docs/07_ZBIORY_DANYCH.md) (zbiory dodatkowe).
+
+| Zbiór | Gdzie (lokalnie) | Co to jest | Rola | Skąd |
+|---|---|---|---|---|
+| **Zbiór organizatora** | `data/dane/do_udostępnienia/<nr>/` | 10 incydentów (1, 2, 3, 5, 10, 14, 36, 47, 48, 61): zapis strony-wabika (HTML), log ruchu po kliknięciu (HAR), zrzut reklamy z feedu, czasem nagranie lub `info.json` z Ad Library | **wyłącznie test końcowy** (nie stroimy na nim) | `DANE.zip` z Discorda; zakaz rozpowszechniania |
+| **urlscan.io** | `data/urlscan/<uuid>/` + `labels.csv` | gotowe publiczne skany stron (metadane, zrzut; z kluczem: żądania i DOM); etykieta = pivot (wspólny zestaw strony, schemat TDS, produkt); pozytywy i negatywy | trening i walidacja grupowania | `fejki urlscan collect`; nie zlecamy nowych skanów |
+| **Meta Ad Library** | `data/meta/ads.jsonl` + `queries.jsonl` | reklamy dostarczane w PL (2026): tekst kreacji, tytuły i domeny linków, strona-reklamodawca, płatnik, daty emisji, zasięg w UE, link do podglądu; także reklamy usunięte przez Metę | wyszukiwanie nowych podejrzanych reklam, etykiety słabe („usunięta przez Metę”), negatywy (legalne reklamy) | oficjalne API, token w `code/.env` |
+| Infrastruktura domen | `code/data/raw/infra/` | DNS, ASN, RDAP, crt.sh dla domen docelowych | cechy i karta kampanii | bierne źródła publiczne |
+| Syntetyka | `code/data/fixtures/` | fikcyjne kampanie (część badawcza) | eksperymenty metodyczne | generator `fejki synth` |
+
+### Ochrona przed wyciekiem
+
+**Na zewnątrz (dane i sekrety):**
+- `.gitignore` obejmuje `data/dane/`, `data/urlscan/`, `data/meta/`, `*.zip`, `code/.env`, indeks i cache embeddingów;
+  przed commitem `git status` i przegląd listy plików;
+- tokeny tylko w `code/.env` (uprawnienia 600), nigdy w kodzie, logach, plikach wynikowych ani na czacie;
+- repo prywatne; opis danych organizatora w `docs/` musi zniknąć przed ewentualnym upublicznieniem.
+
+**W ocenie (żeby wynik nie był zawyżony):** podział **subject-based** (`code/src/fejki/demo/splits.py`):
+- „podmiot” = składowa spójna grafu łączącego materiały **dowolnym** wspólnym śladem (domena, piksel, identyfikator
+  reklamy, kontakt, produkt, tytuł, reklamodawca, niemal identyczny tekst, podobny obraz) + znane grupy (sieci, pivoty);
+- cały podmiot trafia do jednego foldu; **solowe** materiały zawsze do testu jako przykłady „nowego wzorca” (open-set);
+- `audit(train, test)` wypisuje każdy możliwy przeciek; czysty podział = pusta lista (test `tests/test_splits.py`);
+- kanał, z którego pochodzi etykieta (np. infrastruktura), jest wyłączony z cech modelu, który oceniamy na tej etykiecie;
+- zbiór organizatora tylko raz, na koniec. Na nim jest jeden podmiot wieloelementowy ({1, 2, 3, 48, 61}) i 5 solowych,
+  więc walidacja krzyżowa na nim nie ma sensu; kalibracja idzie na urlscan i Meta.
 
 ## Szybki start
 
