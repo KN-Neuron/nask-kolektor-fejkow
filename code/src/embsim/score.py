@@ -51,22 +51,28 @@ class Corpus:
         self.cases = cases
         self.w = dict(weights or DEFAULT_WEIGHTS)
         self.n = len(cases)
-        for c, v in zip(cases, vecs if vecs is not None else [None] * len(cases)):
-            c.vec = v
+        if vecs is not None:                              # None = zostaw wektory ustawione w Case (np. galeria)
+            for c, v in zip(cases, vecs):
+                c.vec = v
         self.df: dict[str, dict[str, int]] = {}
         for c in cases:
             for ch, s in c.sets.items():
                 d = self.df.setdefault(ch, {})
                 for x in s:
                     d[x] = d.get(x, 0) + 1
-        self.lex = None                                   # macierz kosinusów TF-IDF (n×n) albo None
+        self.lex = None                                   # macierz kosinusów TF-IDF (n×n) albo None (duże korpusy: liczone na żądanie)
         self.mu_lex = 0.0
+        self._tfidf = None                                # dopasowany TfidfVectorizer (do zapytań spoza korpusu)
+        self._X = None                                    # rzadka macierz TF-IDF korpusu
         if self.w.get("text_lex", 0) > 0:
             self._fit_lexical()
         self.mu = 0.0
-        if vecs is not None and len(vecs) > 1:
-            S = np.asarray(vecs) @ np.asarray(vecs).T
-            self.mu = float(np.median(S[np.triu_indices(len(vecs), 1)]))
+        have = [c.vec for c in cases if c.vec is not None]
+        if len(have) > 1:                                 # μ: mediana kosinusów (duże korpusy: z losowej podpróby)
+            if len(have) > 1500:
+                have = [have[i] for i in np.random.default_rng(0).choice(len(have), size=1500, replace=False)]
+            S = np.asarray(have) @ np.asarray(have).T
+            self.mu = float(np.median(S[np.triu_indices(len(have), 1)]))
 
     def _fit_lexical(self) -> None:
         """TF-IDF n-gramów znaków (3–5) na tekstach korpusu, bez etykiet i bez modelu. Wynik: kosinus znormalizowany jak kanał tekstowy."""
@@ -75,11 +81,11 @@ class Corpus:
         idx = [i for i, c in enumerate(self.cases) if c.text.strip()]
         if len(idx) < 2:
             return
-        X = None
+        X = vec = None
         for min_df in (2, 1):                             # małe korpusy: bez progu częstości
             try:
-                X = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=min_df, sublinear_tf=True).fit_transform(
-                    [self.cases[i].text for i in idx])
+                vec = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=min_df, sublinear_tf=True)
+                X = vec.fit_transform([self.cases[i].text for i in idx])
                 break
             except ValueError:
                 continue
@@ -87,18 +93,45 @@ class Corpus:
             return
         for r, i in enumerate(idx):
             self.cases[i].lex_i = r
-        self.lex = (X @ X.T).toarray()
-        iu = np.triu_indices(self.lex.shape[0], 1)
-        self.mu_lex = float(np.median(self.lex[iu])) if len(iu[0]) else 0.0
+        self._tfidf, self._X = vec, X
+        if X.shape[0] <= 1500:                            # małe korpusy: pełna macierz (szybkie macierze w harnessie)
+            self.lex = (X @ X.T).toarray()
+            iu = np.triu_indices(self.lex.shape[0], 1)
+            self.mu_lex = float(np.median(self.lex[iu])) if len(iu[0]) else 0.0
+        else:                                             # duże: μ z losowej podpróby wierszy, reszta na żądanie
+            sub = np.random.default_rng(0).choice(X.shape[0], size=1500, replace=False)
+            S = (X[sub] @ X[sub].T).toarray()
+            self.mu_lex = float(np.median(S[np.triu_indices(len(sub), 1)]))
+
+    def _lex_row(self, c: Case):
+        if c.lex_vec is not None:
+            return c.lex_vec
+        return self._X[c.lex_i] if (self._X is not None and c.lex_i is not None) else None
+
+    def prepare(self, q: Case) -> Case:
+        """Przygotowuje materiał spoza korpusu do punktowania względem tego korpusu (wiersz TF-IDF z już dopasowanego słownika)."""
+        if self._tfidf is not None and q.text.strip():
+            q.lex_vec = self._tfidf.transform([q.text])
+        return q
+
+    def add_late(self, c: Case) -> Case:
+        """Dodaje materiał do korpusu BEZ ponownego dopasowania (słownik TF-IDF, idf i μ zostają z ostatniego dopasowania)."""
+        self.cases.append(self.prepare(c))
+        return c
 
     def idf(self, ch: str, x: str) -> float:
         return math.log((self.n + 1) / (self.df[ch].get(x, 0) + 0.5))
 
     def channel(self, a: Case, b: Case, ch: str) -> tuple[float | None, list[str]]:
         if ch == "text_lex":
-            if self.lex is None or a.lex_i is None or b.lex_i is None:
+            ra, rb = self._lex_row(a), self._lex_row(b)
+            if ra is None or rb is None:
                 return None, []
-            return float(np.clip((self.lex[a.lex_i, b.lex_i] - self.mu_lex) / (1 - self.mu_lex), 0, 1)), []
+            if self.lex is not None and a.lex_vec is None and b.lex_vec is None:
+                cos = self.lex[a.lex_i, b.lex_i]
+            else:
+                cos = float(ra.multiply(rb).sum())
+            return float(np.clip((cos - self.mu_lex) / (1 - self.mu_lex), 0, 1)), []
         if ch in SEMANTIC:
             if a.vec is None or b.vec is None:
                 return None, []
@@ -117,7 +150,7 @@ class Corpus:
     def has(self, a: Case, b: Case, ch: str) -> bool:
         """Czy OBA materiały mają dane w kanale (niezależnie od tego, czy cokolwiek się pokrywa)."""
         if ch == "text_lex":
-            return a.lex_i is not None and b.lex_i is not None
+            return self._lex_row(a) is not None and self._lex_row(b) is not None
         if ch in SEMANTIC:
             return a.vec is not None and b.vec is not None
         return bool(a.sets.get(ch)) and bool(b.sets.get(ch))
