@@ -1,0 +1,26 @@
+[project]
+name = "fejki"
+version = "0.1.0"
+description = "Kolekcjoner Fejkow: campaign discovery for scam ads (HackNation x NASK)"
+requires-python = ">=3.11"
+# Zależności demonstratora (wystarczą do `fejki demo ...`).
+dependencies = [
+  "pydantic>=2", "typer", "httpx", "tldextract", "rapidfuzz", "numpy", "scipy", "scikit-learn>=1.3", "networkx", "pandas",
+  "pyyaml", "python-dotenv", "dnspython", "streamlit", "plotly", "pyvis", "beautifulsoup4", "lxml", "pillow", "pytesseract",
+]
+[project.optional-dependencies]
+# Część badawcza (embeddingi, LEACE, Leiden, eksperymenty na syntetyce).
+research = ["datasketch", "python-igraph", "leidenalg", "duckdb", "matplotlib", "sentence-transformers", "concept-erasure"]
+dev = ["pytest", "ruff"]
+[project.scripts]
+fejki = "fejki.cli:app"
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+[tool.setuptools.packages.find]
+where = ["src"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+[tool.ruff]
+line-length = 110

@@ -1,0 +1,239 @@
+{
+ "note": "SIMULATED",
+ "domains": [
+  {
+   "domain": "eko-nowy103.example",
+   "insert_date": "2026-09-19T20:00:36.215261+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "max-super747.example",
+   "insert_date": "2026-11-03T01:24:02.180224+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "max-szybki605.example",
+   "insert_date": "2026-10-16T19:12:40.074408+00:00",
+   "delete_date": "2026-11-15T19:12:40.074408+00:00",
+   "simulated": true
+  },
+  {
+   "domain": "mega-mega262.example",
+   "insert_date": "2026-09-25T21:52:27.598982+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "mega-plus719.example",
+   "insert_date": "2026-11-03T14:53:02.986301+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "mega-profit213.example",
+   "insert_date": "2026-11-05T17:02:26.027868+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "net-zysk863.example",
+   "insert_date": "2026-11-12T05:34:26.237485+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "nowy-eko615.example",
+   "insert_date": "2026-10-28T19:15:18.741252+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "nowy-zysk893.example",
+   "insert_date": "2026-10-09T02:00:08.914599+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "pewny-plus822.example",
+   "insert_date": "2026-09-21T15:29:46.923558+00:00",
+   "delete_date": "2026-10-21T15:29:46.923558+00:00",
+   "simulated": true
+  },
+  {
+   "domain": "pewny-plus935.example",
+   "insert_date": "2026-10-28T22:13:30.559421+00:00",
+   "delete_date": "2026-11-27T22:13:30.559421+00:00",
+   "simulated": true
+  },
+  {
+   "domain": "pewny-start729.example",
+   "insert_date": "2026-10-01T03:57:01.359077+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "pewny-szybki427.example",
+   "insert_date": "2026-11-01T11:14:33.808494+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "pewny-z\u0142oty253.example",
+   "insert_date": "2026-11-10T05:59:02.157622+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "plus-profit855.example",
+   "insert_date": "2026-10-31T10:58:12.746990+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "profit-eko872.example",
+   "insert_date": "2026-10-14T07:49:50.559000+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "profit-max302.example",
+   "insert_date": "2026-09-10T08:30:58.347511+00:00",
+   "delete_date": "2026-10-10T08:30:58.347511+00:00",
+   "simulated": true
+  },
+  {
+   "domain": "profit-mega673.example",
+   "insert_date": "2026-09-28T13:50:56.077086+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "profit-nowy513.example",
+   "insert_date": "2026-09-25T02:29:39.575594+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "profit-szybki983.example",
+   "insert_date": "2026-09-26T11:48:51.789081+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "profit-z\u0142oty275.example",
+   "insert_date": "2026-10-01T06:47:02.017608+00:00",
+   "delete_date": "2026-10-31T06:47:02.017608+00:00",
+   "simulated": true
+  },
+  {
+   "domain": "smart-max347.example",
+   "insert_date": "2026-10-15T23:26:32.697207+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "smart-profit353.example",
+   "insert_date": "2026-11-05T07:43:18.377460+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "start-mega376.example",
+   "insert_date": "2026-10-03T23:42:45.098964+00:00",
+   "delete_date": "2026-11-02T23:42:45.098964+00:00",
+   "simulated": true
+  },
+  {
+   "domain": "start-plus881.example",
+   "insert_date": "2026-11-15T09:03:28.378586+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "start-start749.example",
+   "insert_date": "2026-10-05T17:31:43.682633+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "start-super191.example",
+   "insert_date": "2026-11-08T19:32:37.064375+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "super-eko30.example",
+   "insert_date": "2026-09-07T12:10:45.718831+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "super-mega993.example",
+   "insert_date": "2026-11-02T00:45:28.874868+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "super-pewny565.example",
+   "insert_date": "2026-11-01T01:56:25.292949+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "szybki-net236.example",
+   "insert_date": "2026-10-30T20:27:59.716163+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "szybki-net662.example",
+   "insert_date": "2026-10-22T10:52:24.326968+00:00",
+   "delete_date": "2026-11-21T10:52:24.326968+00:00",
+   "simulated": true
+  },
+  {
+   "domain": "szybki-plus983.example",
+   "insert_date": "2026-10-11T00:21:34.396496+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "szybki-profit554.example",
+   "insert_date": "2026-10-25T19:25:25.456893+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "szybki-profit900.example",
+   "insert_date": "2026-10-10T08:23:38.930334+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "zysk-pewny134.example",
+   "insert_date": "2026-10-11T20:32:12.832489+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "zysk-profit585.example",
+   "insert_date": "2026-11-11T09:52:18.925823+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "zysk-szybki32.example",
+   "insert_date": "2026-09-25T16:29:04.831418+00:00",
+   "delete_date": null,
+   "simulated": true
+  },
+  {
+   "domain": "z\u0142oty-z\u0142oty321.example",
+   "insert_date": "2026-10-08T10:56:50.826411+00:00",
+   "delete_date": null,
+   "simulated": true
+  }
+ ]
+}

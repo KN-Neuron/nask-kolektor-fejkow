@@ -1,0 +1,11 @@
+.venv/
+.env
+__pycache__/
+*.pyc
+data/raw/
+data/emb/
+data/cert/raw_*.json
+data/db.duckdb*
+artifacts/
+.pytest_cache/
+.ruff_cache/

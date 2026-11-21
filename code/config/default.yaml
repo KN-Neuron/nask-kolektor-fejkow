@@ -1,0 +1,62 @@
+seed: 1
+device: auto            # cuda > mps > cpu
+db_path: data/db.duckdb
+encoder:
+  name: BAAI/bge-m3     # "char-tfidf" = offline fallback (no download)
+  max_length: 256
+  batch_size: 64
+  prefix: ""
+text:
+  normalize_lower: true
+  strip_emoji: true
+hash:
+  simhash_bits: 64
+  simhash_hamming_max: 3
+  minhash_perm: 128
+  shingle_char_n: 5
+  lsh_threshold: 0.6
+cluster:
+  agglo_linkage: average
+  agglo_distance_threshold: auto_dev
+  hdbscan_min_cluster_size: 5
+erase:
+  topic_labeler: rule
+  fit_split: background_fit
+  controls: [random_k1, random_pca]
+  pca_pool: 50
+coordination:
+  min_ads: 5
+  weights: {near_dup: 0.3, adv_entropy_low: 0.15, domain_novelty: 0.2, start_sync: 0.2, cert_hit: 0.15}
+  tau: 0.55
+bursts:
+  baseline_days: 14
+  p_threshold: 1.0e-3
+  region_method: kmeans
+  n_regions: 8
+  reference_days: 14
+infra:
+  min_score: 0.5
+  shared_ip_cdn: 0.15
+  created_within_14d: 0.5
+
+graph:
+  knn_k: 10
+  edge_cos_min: 0.80
+  leiden_resolution: 1.0
+  decoy_weight: 0.5
+synth:
+  n_campaigns: 20
+  dev_fraction: 0.4
+  variants_per_campaign: [20, 60]
+  n_background: 1200
+  n_controls: 150
+  cert_delay_lognormal: {mu: 1.6, sigma: 0.6}   # days, SIMULATION
+eval:
+  bootstrap: 1000
+privacy:
+  comment_ttl_days: 30
+comments:
+  lsh_threshold: 0.6
+  sync_window_minutes: 30
+meta:
+  api_version: v21.0

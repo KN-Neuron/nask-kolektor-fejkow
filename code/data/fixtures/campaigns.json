@@ -1,0 +1,817 @@
+[
+ {
+  "campaign_id": "C00",
+  "template_id": "T1",
+  "schema_moves": [
+   "authority",
+   "scarcity",
+   "social_proof",
+   "urgency",
+   "cta"
+  ],
+  "topics": [
+   "loans",
+   "invest_crypto",
+   "institution",
+   "remote_work"
+  ],
+  "names": [
+   "Osoba Publiczna B",
+   "Ewa Wymyślona",
+   "Karolina Syntetyczna"
+  ],
+  "n_variants": 44,
+  "paraphrase_level": 1,
+  "domains": [
+   "super-eko30.example",
+   "max-smart444.example",
+   "zysk-net786.example",
+   "szybki-plus457.example",
+   "pewny-plus822.example",
+   "złoty-zysk968.example"
+  ],
+  "advertisers": [
+   "PX432849",
+   "PX132075"
+  ],
+  "start": "2026-09-02T08:08:37.823535Z",
+  "burst_profile": "pulse",
+  "cloaking_decoys": 0,
+  "split": "dev"
+ },
+ {
+  "campaign_id": "C01",
+  "template_id": "T2",
+  "schema_moves": [
+   "hook",
+   "social_proof",
+   "authority",
+   "scarcity",
+   "cta"
+  ],
+  "topics": [
+   "ecommerce",
+   "remote_work",
+   "invest_crypto",
+   "health",
+   "loans",
+   "institution"
+  ],
+  "names": [
+   "Karolina Syntetyczna",
+   "Jan Przykładowski",
+   "Osoba Publiczna B"
+  ],
+  "n_variants": 34,
+  "paraphrase_level": 2,
+  "domains": [
+   "pewny-szybki427.example",
+   "max-profit945.example",
+   "start-super191.example",
+   "start-plus881.example"
+  ],
+  "advertisers": [
+   "PX226762",
+   "PX879245",
+   "PX448856",
+   "PX856531"
+  ],
+  "start": "2026-10-29T09:28:59.700511Z",
+  "burst_profile": "pulse",
+  "cloaking_decoys": 12,
+  "split": "test"
+ },
+ {
+  "campaign_id": "C02",
+  "template_id": "T3",
+  "schema_moves": [
+   "story",
+   "authority",
+   "social_proof",
+   "urgency",
+   "cta"
+  ],
+  "topics": [
+   "lottery",
+   "ecommerce",
+   "loans",
+   "remote_work"
+  ],
+  "names": [
+   "Osoba Publiczna B",
+   "Jan Przykładowski",
+   "Karolina Syntetyczna"
+  ],
+  "n_variants": 45,
+  "paraphrase_level": 2,
+  "domains": [
+   "start-mega376.example",
+   "profit-plus795.example",
+   "start-plus384.example"
+  ],
+  "advertisers": [
+   "PX560284",
+   "PX796000"
+  ],
+  "start": "2026-10-01T12:08:02.915088Z",
+  "burst_profile": "spike",
+  "cloaking_decoys": 12,
+  "split": "dev"
+ },
+ {
+  "campaign_id": "C03",
+  "template_id": "T4",
+  "schema_moves": [
+   "urgency",
+   "authority",
+   "scarcity",
+   "social_proof",
+   "cta"
+  ],
+  "topics": [
+   "invest_crypto",
+   "ecommerce",
+   "loans",
+   "institution",
+   "remote_work"
+  ],
+  "names": [
+   "Marek Fikcyjny",
+   "Jan Przykładowski",
+   "Piotr Nieistniejący"
+  ],
+  "n_variants": 34,
+  "paraphrase_level": 0,
+  "domains": [
+   "net-złoty553.example",
+   "max-profit238.example",
+   "smart-profit353.example",
+   "max-zysk362.example",
+   "eko-pewny676.example",
+   "profit-zysk981.example"
+  ],
+  "advertisers": [
+   "PX502327",
+   "PX921722"
+  ],
+  "start": "2026-10-22T10:00:24.273710Z",
+  "burst_profile": "pulse",
+  "cloaking_decoys": 0,
+  "split": "test"
+ },
+ {
+  "campaign_id": "C04",
+  "template_id": "T5",
+  "schema_moves": [
+   "hook",
+   "authority",
+   "social_proof",
+   "scarcity",
+   "urgency",
+   "cta"
+  ],
+  "topics": [
+   "invest_crypto",
+   "ecommerce",
+   "institution",
+   "health"
+  ],
+  "names": [
+   "Osoba Publiczna B",
+   "Osoba Publiczna A",
+   "Marek Fikcyjny"
+  ],
+  "n_variants": 46,
+  "paraphrase_level": 1,
+  "domains": [
+   "szybki-profit554.example",
+   "zysk-net628.example",
+   "nowy-eko615.example",
+   "szybki-net236.example",
+   "start-mega564.example",
+   "zysk-mega882.example"
+  ],
+  "advertisers": [
+   "PX937223",
+   "PX677795"
+  ],
+  "start": "2026-10-18T19:49:13.764702Z",
+  "burst_profile": "ramp",
+  "cloaking_decoys": 0,
+  "split": "dev"
+ },
+ {
+  "campaign_id": "C05",
+  "template_id": "T1",
+  "schema_moves": [
+   "authority",
+   "scarcity",
+   "social_proof",
+   "urgency",
+   "cta"
+  ],
+  "topics": [
+   "invest_crypto",
+   "ecommerce",
+   "loans"
+  ],
+  "names": [
+   "Ewa Wymyślona",
+   "Marek Fikcyjny",
+   "Anna Testowska"
+  ],
+  "n_variants": 59,
+  "paraphrase_level": 1,
+  "domains": [
+   "nowy-pewny72.example",
+   "mega-mega262.example",
+   "profit-mega673.example",
+   "pewny-start729.example",
+   "pewny-eko720.example"
+  ],
+  "advertisers": [
+   "PX620611",
+   "PX596784",
+   "PX219737",
+   "PX124782"
+  ],
+  "start": "2026-09-19T17:17:13.540016Z",
+  "burst_profile": "ramp",
+  "cloaking_decoys": 12,
+  "split": "test"
+ },
+ {
+  "campaign_id": "C06",
+  "template_id": "T2",
+  "schema_moves": [
+   "hook",
+   "social_proof",
+   "authority",
+   "scarcity",
+   "cta"
+  ],
+  "topics": [
+   "institution",
+   "remote_work",
+   "lottery",
+   "health"
+  ],
+  "names": [
+   "Anna Testowska",
+   "Jan Przykładowski",
+   "Osoba Publiczna B"
+  ],
+  "n_variants": 45,
+  "paraphrase_level": 1,
+  "domains": [
+   "szybki-plus983.example",
+   "mega-eko722.example",
+   "profit-start437.example",
+   "profit-max226.example",
+   "start-net712.example",
+   "profit-eko229.example"
+  ],
+  "advertisers": [
+   "PX514080",
+   "PX807686"
+  ],
+  "start": "2026-10-05T13:13:05.471093Z",
+  "burst_profile": "ramp",
+  "cloaking_decoys": 12,
+  "split": "test"
+ },
+ {
+  "campaign_id": "C07",
+  "template_id": "T3",
+  "schema_moves": [
+   "story",
+   "authority",
+   "social_proof",
+   "urgency",
+   "cta"
+  ],
+  "topics": [
+   "institution",
+   "health",
+   "invest_crypto"
+  ],
+  "names": [
+   "Jan Przykładowski",
+   "Osoba Publiczna A",
+   "Anna Testowska"
+  ],
+  "n_variants": 39,
+  "paraphrase_level": 1,
+  "domains": [
+   "plus-mega427.example",
+   "zysk-pewny134.example",
+   "szybki-profit900.example",
+   "max-szybki605.example",
+   "max-złoty986.example"
+  ],
+  "advertisers": [
+   "PX279848",
+   "PX968129",
+   "PX917907",
+   "PX838221",
+   "PX753223"
+  ],
+  "start": "2026-10-01T12:46:41.499668Z",
+  "burst_profile": "ramp",
+  "cloaking_decoys": 0,
+  "split": "dev"
+ },
+ {
+  "campaign_id": "C08",
+  "template_id": "T4",
+  "schema_moves": [
+   "urgency",
+   "authority",
+   "scarcity",
+   "social_proof",
+   "cta"
+  ],
+  "topics": [
+   "lottery",
+   "remote_work",
+   "ecommerce",
+   "health",
+   "loans"
+  ],
+  "names": [
+   "Osoba Publiczna A",
+   "Marek Fikcyjny",
+   "Piotr Nieistniejący"
+  ],
+  "n_variants": 51,
+  "paraphrase_level": 0,
+  "domains": [
+   "nowy-zysk893.example",
+   "smart-pewny19.example",
+   "mega-złoty879.example"
+  ],
+  "advertisers": [
+   "PX950540",
+   "PX690705",
+   "PX920720",
+   "PX241707"
+  ],
+  "start": "2026-09-21T08:17:51.838459Z",
+  "burst_profile": "spike",
+  "cloaking_decoys": 5,
+  "split": "dev"
+ },
+ {
+  "campaign_id": "C09",
+  "template_id": "T5",
+  "schema_moves": [
+   "hook",
+   "authority",
+   "social_proof",
+   "scarcity",
+   "urgency",
+   "cta"
+  ],
+  "topics": [
+   "remote_work",
+   "loans",
+   "other"
+  ],
+  "names": [
+   "Ewa Wymyślona",
+   "Anna Testowska",
+   "Karolina Syntetyczna"
+  ],
+  "n_variants": 22,
+  "paraphrase_level": 0,
+  "domains": [
+   "mega-mega171.example",
+   "profit-złoty275.example",
+   "net-nowy615.example",
+   "profit-max262.example",
+   "nowy-nowy349.example",
+   "super-pewny241.example"
+  ],
+  "advertisers": [
+   "PX241920",
+   "PX708129",
+   "PX677944",
+   "PX907668",
+   "PX209340"
+  ],
+  "start": "2026-09-20T05:50:43.352590Z",
+  "burst_profile": "ramp",
+  "cloaking_decoys": 0,
+  "split": "test"
+ },
+ {
+  "campaign_id": "C10",
+  "template_id": "T1",
+  "schema_moves": [
+   "authority",
+   "scarcity",
+   "social_proof",
+   "urgency",
+   "cta"
+  ],
+  "topics": [
+   "institution",
+   "loans",
+   "health",
+   "other",
+   "invest_crypto",
+   "lottery"
+  ],
+  "names": [
+   "Jan Przykładowski",
+   "Piotr Nieistniejący",
+   "Osoba Publiczna A"
+  ],
+  "n_variants": 34,
+  "paraphrase_level": 0,
+  "domains": [
+   "pewny-nowy913.example",
+   "pewny-zysk548.example",
+   "super-eko919.example",
+   "pewny-super806.example",
+   "szybki-max303.example",
+   "szybki-zysk687.example"
+  ],
+  "advertisers": [
+   "PX196136",
+   "PX533622"
+  ],
+  "start": "2026-09-07T21:44:51.351850Z",
+  "burst_profile": "spike",
+  "cloaking_decoys": 0,
+  "split": "dev"
+ },
+ {
+  "campaign_id": "C11",
+  "template_id": "T2",
+  "schema_moves": [
+   "hook",
+   "social_proof",
+   "authority",
+   "scarcity",
+   "cta"
+  ],
+  "topics": [
+   "loans",
+   "health",
+   "invest_crypto",
+   "ecommerce"
+  ],
+  "names": [
+   "Ewa Wymyślona",
+   "Jan Przykładowski",
+   "Karolina Syntetyczna"
+  ],
+  "n_variants": 26,
+  "paraphrase_level": 2,
+  "domains": [
+   "smart-net994.example",
+   "profit-max302.example",
+   "profit-pewny729.example",
+   "eko-nowy103.example"
+  ],
+  "advertisers": [
+   "PX783724",
+   "PX432835",
+   "PX141544"
+  ],
+  "start": "2026-09-02T15:15:29.039503Z",
+  "burst_profile": "ramp",
+  "cloaking_decoys": 5,
+  "split": "test"
+ },
+ {
+  "campaign_id": "C12",
+  "template_id": "T3",
+  "schema_moves": [
+   "story",
+   "authority",
+   "social_proof",
+   "urgency",
+   "cta"
+  ],
+  "topics": [
+   "ecommerce",
+   "invest_crypto",
+   "remote_work",
+   "institution",
+   "loans",
+   "health"
+  ],
+  "names": [
+   "Piotr Nieistniejący",
+   "Jan Przykładowski",
+   "Osoba Publiczna B"
+  ],
+  "n_variants": 54,
+  "paraphrase_level": 2,
+  "domains": [
+   "start-nowy266.example",
+   "mega-profit213.example",
+   "pewny-złoty253.example"
+  ],
+  "advertisers": [
+   "PX185321",
+   "PX959808",
+   "PX394426",
+   "PX193758"
+  ],
+  "start": "2026-10-30T00:03:44.902065Z",
+  "burst_profile": "ramp",
+  "cloaking_decoys": 0,
+  "split": "dev"
+ },
+ {
+  "campaign_id": "C13",
+  "template_id": "T4",
+  "schema_moves": [
+   "urgency",
+   "authority",
+   "scarcity",
+   "social_proof",
+   "cta"
+  ],
+  "topics": [
+   "loans",
+   "institution",
+   "invest_crypto",
+   "other",
+   "health"
+  ],
+  "names": [
+   "Piotr Nieistniejący",
+   "Jan Przykładowski",
+   "Marek Fikcyjny"
+  ],
+  "n_variants": 26,
+  "paraphrase_level": 0,
+  "domains": [
+   "złoty-złoty21.example",
+   "net-złoty412.example",
+   "super-pewny565.example",
+   "max-super747.example",
+   "super-szybki651.example"
+  ],
+  "advertisers": [
+   "PX404948",
+   "PX887196"
+  ],
+  "start": "2026-10-18T12:44:45.784862Z",
+  "burst_profile": "ramp",
+  "cloaking_decoys": 12,
+  "split": "test"
+ },
+ {
+  "campaign_id": "C14",
+  "template_id": "T5",
+  "schema_moves": [
+   "hook",
+   "authority",
+   "social_proof",
+   "scarcity",
+   "urgency",
+   "cta"
+  ],
+  "topics": [
+   "loans",
+   "institution",
+   "invest_crypto",
+   "health"
+  ],
+  "names": [
+   "Marek Fikcyjny",
+   "Jan Przykładowski",
+   "Osoba Publiczna B"
+  ],
+  "n_variants": 39,
+  "paraphrase_level": 0,
+  "domains": [
+   "plus-profit855.example",
+   "zysk-pewny130.example",
+   "złoty-mega559.example",
+   "plus-szybki799.example"
+  ],
+  "advertisers": [
+   "PX960912",
+   "PX753816",
+   "PX942904",
+   "PX804851"
+  ],
+  "start": "2026-10-25T10:18:05.128111Z",
+  "burst_profile": "pulse",
+  "cloaking_decoys": 0,
+  "split": "test"
+ },
+ {
+  "campaign_id": "C15",
+  "template_id": "T1",
+  "schema_moves": [
+   "authority",
+   "scarcity",
+   "social_proof",
+   "urgency",
+   "cta"
+  ],
+  "topics": [
+   "lottery",
+   "health",
+   "invest_crypto",
+   "remote_work"
+  ],
+  "names": [
+   "Jan Przykładowski",
+   "Karolina Syntetyczna",
+   "Ewa Wymyślona"
+  ],
+  "n_variants": 47,
+  "paraphrase_level": 1,
+  "domains": [
+   "profit-eko872.example",
+   "profit-eko12.example",
+   "smart-max347.example",
+   "mega-pewny498.example",
+   "szybki-net662.example"
+  ],
+  "advertisers": [
+   "PX698321",
+   "PX119829",
+   "PX165348",
+   "PX825303",
+   "PX472185"
+  ],
+  "start": "2026-10-05T19:18:05.840798Z",
+  "burst_profile": "pulse",
+  "cloaking_decoys": 0,
+  "split": "test"
+ },
+ {
+  "campaign_id": "C16",
+  "template_id": "T2",
+  "schema_moves": [
+   "hook",
+   "social_proof",
+   "authority",
+   "scarcity",
+   "cta"
+  ],
+  "topics": [
+   "loans",
+   "institution",
+   "ecommerce",
+   "lottery"
+  ],
+  "names": [
+   "Jan Przykładowski",
+   "Osoba Publiczna B",
+   "Ewa Wymyślona"
+  ],
+  "n_variants": 20,
+  "paraphrase_level": 1,
+  "domains": [
+   "profit-nowy513.example",
+   "start-eko953.example",
+   "start-start749.example",
+   "złoty-złoty321.example"
+  ],
+  "advertisers": [
+   "PX820318",
+   "PX602086",
+   "PX335994",
+   "PX847473",
+   "PX532271"
+  ],
+  "start": "2026-09-21T05:12:36.567666Z",
+  "burst_profile": "pulse",
+  "cloaking_decoys": 5,
+  "split": "test"
+ },
+ {
+  "campaign_id": "C17",
+  "template_id": "T3",
+  "schema_moves": [
+   "story",
+   "authority",
+   "social_proof",
+   "urgency",
+   "cta"
+  ],
+  "topics": [
+   "invest_crypto",
+   "lottery",
+   "institution",
+   "health"
+  ],
+  "names": [
+   "Piotr Nieistniejący",
+   "Marek Fikcyjny",
+   "Karolina Syntetyczna"
+  ],
+  "n_variants": 39,
+  "paraphrase_level": 1,
+  "domains": [
+   "mega-plus719.example",
+   "plus-eko609.example",
+   "super-max127.example",
+   "zysk-profit585.example"
+  ],
+  "advertisers": [
+   "PX284838",
+   "PX263346",
+   "PX362768",
+   "PX547482",
+   "PX328189"
+  ],
+  "start": "2026-10-27T12:02:18.042894Z",
+  "burst_profile": "pulse",
+  "cloaking_decoys": 0,
+  "split": "test"
+ },
+ {
+  "campaign_id": "C18",
+  "template_id": "T4",
+  "schema_moves": [
+   "urgency",
+   "authority",
+   "scarcity",
+   "social_proof",
+   "cta"
+  ],
+  "topics": [
+   "remote_work",
+   "loans",
+   "institution",
+   "ecommerce",
+   "lottery",
+   "invest_crypto"
+  ],
+  "names": [
+   "Jan Przykładowski",
+   "Osoba Publiczna A",
+   "Marek Fikcyjny"
+  ],
+  "n_variants": 60,
+  "paraphrase_level": 0,
+  "domains": [
+   "pewny-plus935.example",
+   "super-mega993.example",
+   "net-zysk863.example"
+  ],
+  "advertisers": [
+   "PX566677",
+   "PX992307"
+  ],
+  "start": "2026-10-26T11:00:11.648808Z",
+  "burst_profile": "ramp",
+  "cloaking_decoys": 12,
+  "split": "dev"
+ },
+ {
+  "campaign_id": "C19",
+  "template_id": "T5",
+  "schema_moves": [
+   "hook",
+   "authority",
+   "social_proof",
+   "scarcity",
+   "urgency",
+   "cta"
+  ],
+  "topics": [
+   "institution",
+   "ecommerce",
+   "health",
+   "remote_work",
+   "invest_crypto",
+   "loans"
+  ],
+  "names": [
+   "Osoba Publiczna A",
+   "Anna Testowska",
+   "Karolina Syntetyczna"
+  ],
+  "n_variants": 38,
+  "paraphrase_level": 1,
+  "domains": [
+   "złoty-smart768.example",
+   "profit-szybki983.example",
+   "złoty-profit450.example",
+   "zysk-szybki32.example",
+   "start-zysk249.example",
+   "max-pewny212.example"
+  ],
+  "advertisers": [
+   "PX398615",
+   "PX255619",
+   "PX668684"
+  ],
+  "start": "2026-09-13T00:38:38.536058Z",
+  "burst_profile": "ramp",
+  "cloaking_decoys": 5,
+  "split": "test"
+ }
+]

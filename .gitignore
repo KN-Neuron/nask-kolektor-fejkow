@@ -1,0 +1,21 @@
+# --- Dane organizatora: NIGDY do repozytorium (zakaz rozpowszechniania, a DANE.zip ma ~510 MB) ---
+data/DANE.zip
+data/dane/
+*.zip
+
+# Pliki pobrane ze strony-zagadki organizatora (media, zip, rozpakowane archiwum)
+research/nask-hacknation/media/
+research/nask-hacknation/files/
+research/nask-hacknation/backup_extracted/
+
+# Lokalne ustawienia, sekrety, śmieci systemowe
+.claude/
+.env
+.DS_Store
+**/.DS_Store
+__pycache__/
+*.pyc
+.venv/
+
+# artefakty instalacji pakietu
+*.egg-info/

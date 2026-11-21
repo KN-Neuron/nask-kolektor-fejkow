@@ -1,0 +1,374 @@
+"""Wyjaśnialne podobieństwo materiałów, grupowanie w kampanie i dopasowanie nowego materiału.
+
+Każdy kanał (tekst, osoby, produkt, śledzenie, adres, infrastruktura, obraz, szablon strony) daje dowody z wagą i opisem.
+Dowody łączymy metodą noisy-OR najpierw w kanale, potem między kanałami. Słaby, pospolity sygnał (np. ta sama osoba publiczna
+w wielu kampaniach) nie tworzy krawędzi sam; krawędź powstaje, gdy kilka niezależnych śladów się zgadza albo jeden jest bardzo
+specyficzny (piksel, identyfikator reklamy, ta sama domena docelowa).
+"""
+from __future__ import annotations
+
+from collections import Counter, defaultdict
+from itertools import combinations
+
+import numpy as np
+from pydantic import BaseModel, Field
+from rapidfuzz import fuzz
+
+from .material import Material, hamming
+
+W = {
+    "same_landing": 0.9, "shared_ad_id": 0.95, "shared_pixel": 0.9, "shared_tracker": 0.85, "shared_account": 0.6,
+    "shared_contact": 0.9, "same_scheme": 0.6, "same_path_template": 0.7, "shared_prefix": 0.5, "shared_host": 0.6,
+    "shared_redirect": 0.6, "text_dup": 0.9, "text_max": 0.8, "same_title": 0.7, "person": 0.3, "person_cap": 0.5,
+    "same_product": 0.75, "img_shot": 0.7, "img_asset": 0.6, "dom_max": 0.6, "topic": 0.1, "infra_scale": 0.9,
+    "shared_advertiser": 0.7,
+}
+CHANNELS = {
+    "same_landing": "domena", "shared_ad_id": "śledzenie", "shared_pixel": "śledzenie", "shared_tracker": "śledzenie",
+    "shared_account": "śledzenie", "shared_contact": "kontakt", "same_scheme": "adres", "same_path_template": "adres",
+    "shared_prefix": "adres", "shared_host": "adres", "shared_redirect": "przekierowania", "text": "tekst", "same_title": "tekst",
+    "person": "osoby", "same_product": "produkt", "img_shot": "obraz", "img_asset": "obraz", "dom": "szablon strony",
+    "topic": "tematyka", "infra": "infrastruktura", "shared_advertiser": "reklamodawca",
+}
+
+
+class Evidence(BaseModel):
+    code: str
+    channel: str
+    weight: float
+    reason: str
+
+
+class Pair(BaseModel):
+    a: str
+    b: str
+    score: float
+    relation: str
+    text_sim: float = 0.0
+    evidence: list[Evidence] = Field(default_factory=list)
+
+
+class Campaign(BaseModel):
+    id: str
+    name: str
+    members: list[str]
+    strength: float
+    signals: dict[str, int] = Field(default_factory=dict)
+    persons: list[str] = Field(default_factory=list)
+    domains: list[str] = Field(default_factory=list)
+    topics: list[str] = Field(default_factory=list)
+
+
+class MatchResult(BaseModel):
+    decision: str
+    best_campaign: str | None
+    best_score: float
+    ranking: list[dict] = Field(default_factory=list)  # [{campaign, score, via, evidence}]
+    pairs: list[Pair] = Field(default_factory=list)
+
+
+# --- tekst ----------------------------------------------------------------------------------------------------------
+
+_PL = str.maketrans("ąćęłńóśźżĄĆĘŁŃÓŚŹŻ", "acelnoszzACELNOSZZ")
+
+
+def fold_pl(s: str) -> str:
+    return s.translate(_PL).lower()
+
+
+class TextSpace:
+    """TF-IDF (słowa 1–2) na tytułach i treści. Mały, szybki, a wspólne słowa da się pokazać jako uzasadnienie."""
+
+    def __init__(self, materials: list[Material]):
+        from sklearn.feature_extraction.text import TfidfVectorizer
+
+        self.ids = [m.id for m in materials]
+        # polskie znaki ujednolicone: OCR bez polskiego pakietu językowego gubi diakrytyki, HTML je ma
+        docs = [fold_pl(((" ".join(m.titles) + " ") * 3 + m.text)[:60000]) for m in materials]
+        self.vec = TfidfVectorizer(ngram_range=(1, 2), min_df=1, sublinear_tf=True, max_features=60000,
+                                   token_pattern=r"(?u)\b[^\W\d_]{3,}\b", lowercase=True)
+        self.X = self.vec.fit_transform(docs) if any(d.strip() for d in docs) else None
+        self.terms = np.array(self.vec.get_feature_names_out()) if self.X is not None else np.array([])
+        self.idx = {i: k for k, i in enumerate(self.ids)}
+
+    def sim(self, a: str, b: str) -> tuple[float, list[str]]:
+        if self.X is None:
+            return 0.0, []
+        va, vb = self.X[self.idx[a]], self.X[self.idx[b]]
+        if va.nnz == 0 or vb.nnz == 0:
+            return 0.0, []
+        prod = va.multiply(vb)
+        s = float(prod.sum())
+        top = []
+        if prod.nnz:
+            coo = prod.tocoo()
+            order = np.argsort(-coo.data)[:6]
+            top = [str(self.terms[coo.col[i]]) for i in order]
+        return round(s, 3), top
+
+
+# --- dowody dla pary -------------------------------------------------------------------------------------------------
+
+def _rarity(df: int) -> float:
+    """Im więcej materiałów dzieli cechę, tym mniej mówi ona o wspólnej kampanii."""
+    return 1.0 if df <= 2 else 2.0 / df
+
+
+def doc_freq(materials: list[Material]) -> dict[str, Counter]:
+    df: dict[str, Counter] = defaultdict(Counter)
+    for m in materials:
+        for p in set(m.persons):
+            df["person"][p] += 1
+        for t in list(m.topics)[:1]:
+            df["topic"][t] += 1
+        for h in set(m.third_party_hosts):
+            df["host"][h] += 1
+        for p in set(m.path_prefixes):
+            df["prefix"][p] += 1
+    return df
+
+
+def evidence(a: Material, b: Material, ts: TextSpace, df: dict[str, Counter], infra: dict | None = None) -> tuple[list[Evidence], float]:
+    ev: list[Evidence] = []
+
+    def add(code, weight, reason, channel=None):
+        ev.append(Evidence(code=code, channel=channel or CHANNELS.get(code, code), weight=round(weight, 3), reason=reason))
+
+    for d in sorted(set(a.landing_domains) & set(b.landing_domains)):
+        add("same_landing", W["same_landing"], f"ta sama domena docelowa: {d}")
+    for x in sorted(set(a.ad_ids) & set(b.ad_ids)):
+        add("shared_ad_id", W["shared_ad_id"], f"ten sam identyfikator reklamy Meta: {x}")
+    for x in sorted(set(a.pixel_ids) & set(b.pixel_ids)):
+        add("shared_pixel", W["shared_pixel"], f"ten sam piksel Meta: {x} (to samo konto reklamowe lub operator)")
+    for x in sorted(set(a.tracker_ids) & set(b.tracker_ids)):
+        add("shared_tracker", W["shared_tracker"], f"ten sam identyfikator śledzenia: {x}")
+    for x in sorted(set(a.ad_accounts) & set(b.ad_accounts)):
+        add("shared_account", W["shared_account"], f"ten sam oznacznik konta w adresie (acc={x})")
+    for x in sorted(set(a.contacts) & set(b.contacts)):
+        add("shared_contact", W["shared_contact"], f"ten sam kontakt: {x}")
+    adv = [(x, y) for x in a.advertisers for y in b.advertisers if fuzz.ratio(fold_pl(x), fold_pl(y)) >= 90]
+    if adv:
+        add("shared_advertiser", W["shared_advertiser"], f"ten sam reklamodawca w kreacji: {adv[0][0]}")
+    sch = sorted(set(a.url_schemes) & set(b.url_schemes))
+    if sch:
+        keys = ", ".join(s.split(":")[0] for s in sch[0].split("&")[:6])
+        add("same_scheme", W["same_scheme"], f"identyczny schemat parametrów adresu (losowe wartości o stałej długości: {keys}): ten sam system kierowania ruchu")
+    tm = sorted(t for t in set(a.path_templates) & set(b.path_templates) if len(t) > 6 and t.count("/") >= 2)
+    if tm:
+        add("same_path_template", W["same_path_template"], f"ten sam wzorzec ścieżki: {tm[0][:80]}")
+    pf = sorted(set(a.path_prefixes) & set(b.path_prefixes))
+    if pf and not tm:
+        r = _rarity(df["prefix"][pf[0]])
+        add("shared_prefix", W["shared_prefix"] * r, f"wspólny katalog zestawu strony: {pf[0][:70]}")
+    for h in sorted(set(a.third_party_hosts) & set(b.third_party_hosts))[:3]:
+        add("shared_host", W["shared_host"] * _rarity(df["host"][h]), f"ta sama nietypowa usługa zewnętrzna: {h}")
+    ra = {r.split(" → ")[-1].split(" ")[0] for r in a.redirects}
+    rb = {r.split(" → ")[-1].split(" ")[0] for r in b.redirects}
+    for h in sorted(ra & rb)[:2]:
+        add("shared_redirect", W["shared_redirect"], f"przekierowania prowadzą do tego samego hosta: {h}")
+    # tekst
+    s, top = ts.sim(a.id, b.id)
+    if s >= 0.9:
+        add("text", W["text_dup"], f"niemal identyczny tekst (podobieństwo {s:.2f}); wspólne: {', '.join(top[:4])}")
+    elif s >= 0.3:
+        add("text", W["text_max"] * min(1.0, (s - 0.25) / 0.6), f"podobny tekst (podobieństwo {s:.2f}); wspólne: {', '.join(top[:5])}")
+    tt = [(x, y) for x in a.titles for y in b.titles if x and y and fuzz.ratio(x.lower(), y.lower()) >= 92]
+    if tt:
+        add("same_title", W["same_title"], f"ten sam tytuł strony: „{tt[0][0][:70]}”")
+    # osoby (słaby sygnał: te same znane twarze bywają w wielu kampaniach)
+    pw = 0.0
+    for p in sorted(set(a.persons) & set(b.persons)):
+        r = _rarity(df["person"][p])
+        w = W["person"] * r
+        pw = 1 - (1 - pw) * (1 - w)
+        add("person", w, f"ta sama osoba publiczna: {p}" + ("" if r == 1 else f" (występuje w {df['person'][p]} materiałach, słaby sygnał)"))
+    # produkt
+    pr = [(x, y) for x in a.products for y in b.products if fuzz.ratio(x.lower(), y.lower()) >= 88]
+    if pr:
+        add("same_product", W["same_product"], f"ten sam produkt: {pr[0][0]}")
+    else:  # nazwa produktu jednego materiału pada w treści drugiego (np. wejście „nazwa produktu” albo OCR kreacji)
+        for x, other in [(p, b) for p in a.products] + [(p, a) for p in b.products]:
+            if len(x) >= 5 and fold_pl(x) in fold_pl(" ".join(other.titles) + " " + other.text[:20000]):
+                add("same_product", W["same_product"], f"nazwa produktu „{x}” występuje w treści drugiego materiału")
+                break
+    # obraz
+    shots = [(x, y, hamming(x.phash, y.phash)) for x in a.images for y in b.images
+             if x.role != "zasob" and y.role != "zasob"]
+    close = sorted([t for t in shots if t[2] <= 8], key=lambda t: t[2])
+    if close:
+        x, y, d = close[0]
+        add("img_shot", W["img_shot"], f"podobny obraz/zrzut ({x.file} ~ {y.file}, różnica pHash {d}/64)")
+    assets = {}
+    for x in a.images:
+        if x.role != "zasob":
+            continue
+        for y in b.images:
+            if y.role == "zasob" and hamming(x.phash, y.phash) <= 4:
+                assets[x.file] = y.file
+    if assets:
+        n = len(assets)
+        add("img_asset", min(0.9, W["img_asset"] + 0.05 * (n - 1)), f"te same obrazy użyte na obu stronach ({n}, np. {next(iter(assets))})")
+    # szablon strony (struktura DOM)
+    if a.dom_tokens and b.dom_tokens:
+        sa, sb = set(a.dom_tokens), set(b.dom_tokens)
+        j = len(sa & sb) / max(1, len(sa | sb))
+        if j >= 0.45:
+            add("dom", W["dom_max"] * min(1.0, (j - 0.4) / 0.4), f"podobna struktura strony (wspólne klasy HTML: {j:.0%})")
+    # tematyka (bardzo słaby)
+    ta, tb = list(a.topics)[:1], list(b.topics)[:1]
+    if ta and ta == tb:
+        add("topic", W["topic"] * _rarity(df["topic"][ta[0]]), f"ta sama główna tematyka: {ta[0]}")
+    # infrastruktura bierna (DNS/RDAP/CT), jeśli zebrana
+    if infra:
+        from ..infra.link import evidence as infra_ev
+        from ..infra.link import score as infra_score
+
+        best = None
+        for da in a.landing_domains:
+            for dbn in b.landing_domains:
+                if da == dbn or da not in infra or dbn not in infra:
+                    continue
+                e = infra_ev(infra[da], infra[dbn])
+                sc = infra_score(e)
+                if e and (best is None or sc > best[0]):
+                    best = (sc, da, dbn, e)
+        if best and best[0] >= 0.3:
+            sc, da, dbn, e = best
+            add("infra", sc * W["infra_scale"], f"infrastruktura {da} ↔ {dbn}: " + "; ".join(x.reason for x in sorted(e, key=lambda x: -x.weight)[:3]))
+    return ev, s
+
+
+def combine(ev: list[Evidence]) -> float:
+    """noisy-OR w kanale (osoby z limitem), potem noisy-OR między kanałami."""
+    per: dict[str, float] = defaultdict(float)
+    for e in ev:
+        per[e.channel] = 1 - (1 - per[e.channel]) * (1 - e.weight)
+    if "osoby" in per:
+        per["osoby"] = min(per["osoby"], W["person_cap"])
+    p = 1.0
+    for v in per.values():
+        p *= 1 - min(v, 0.97)
+    return round(1 - p, 3)
+
+
+def relation(ev: list[Evidence], text_sim: float) -> str:
+    codes = {e.code for e in ev}
+    if "shared_ad_id" in codes or (text_sim >= 0.95 and ({"same_title", "same_landing"} & codes or "img_shot" in codes)):
+        return "duplikat"
+    if text_sim >= 0.6 or "same_title" in codes or "same_product" in codes or ("dom" in codes and text_sim >= 0.4):
+        return "wariant tego samego przekazu"
+    tech = {"same_landing", "shared_ad_id", "shared_pixel", "shared_tracker", "shared_account", "same_scheme", "same_path_template",
+            "shared_prefix", "shared_host", "shared_redirect", "infra", "shared_contact", "img_asset", "shared_advertiser"}
+    if codes & tech:
+        return "wspólna infrastruktura / operator"
+    return "podobieństwo treści" if codes else "brak"
+
+
+def pair(a: Material, b: Material, ts: TextSpace, df, infra=None) -> Pair:
+    ev, s = evidence(a, b, ts, df, infra)
+    return Pair(a=a.id, b=b.id, score=combine(ev), relation=relation(ev, s), text_sim=s, evidence=sorted(ev, key=lambda e: -e.weight))
+
+
+def all_pairs(materials: list[Material], infra: dict | None = None) -> list[Pair]:
+    ts = TextSpace(materials)
+    df = doc_freq(materials)
+    return sorted((pair(a, b, ts, df, infra) for a, b in combinations(materials, 2)), key=lambda p: -p.score)
+
+
+# --- kampanie -------------------------------------------------------------------------------------------------------
+
+CONTENT_RELATIONS = ("duplikat", "wariant tego samego przekazu")
+
+
+def campaigns(materials: list[Material], pairs: list[Pair], thr: float = 0.7, level: str = "kampania") -> list[Campaign]:
+    """Składowe spójne grafu krawędzi o wyniku >= thr. Pojedyncze materiały zostają osobnymi grupami.
+
+    level="kampania": tylko krawędzie typu duplikat/wariant (ten sam przekaz).
+    level="sieć": każda krawędź (także sama wspólna infrastruktura), czyli prawdopodobnie ten sam operator.
+    """
+    keep = [p for p in pairs if p.score >= thr and (level != "kampania" or p.relation in CONTENT_RELATIONS)]
+    parent = {m.id: m.id for m in materials}
+
+    def find(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    for p in keep:
+        parent[find(p.a)] = find(p.b)
+    groups: dict[str, list[str]] = defaultdict(list)
+    for m in materials:
+        groups[find(m.id)].append(m.id)
+    by_id = {m.id: m for m in materials}
+    out = []
+    prefix = "K" if level == "kampania" else "S"
+    for k, (root, mem) in enumerate(sorted(groups.items(), key=lambda g: (-len(g[1]), g[1][0]))):
+        mem = sorted(mem, key=lambda x: (len(x), x))
+        inner = [p for p in keep if p.a in mem and p.b in mem]
+        sig = Counter(e.channel for p in inner for e in p.evidence)
+        ms = [by_id[x] for x in mem]
+        persons = [p for p, _ in Counter(p for m in ms for p in m.persons).most_common(4)]
+        topics = [t for t, _ in Counter(next(iter(m.topics), "") for m in ms if m.topics).most_common(2)]
+        domains = sorted({d for m in ms for d in m.landing_domains})
+        products = Counter(p for m in ms for p in m.products)
+        titles = Counter(t for m in ms for t in m.titles[:1])
+        name_bits = [topics[0] if topics else "bez tematu"]
+        common_prod = [p for p, n in products.most_common() if n * 2 >= len(ms)]
+        if common_prod:
+            name_bits.append(common_prod[0])
+        elif persons:
+            name_bits.append(", ".join(persons[:2]))
+        elif titles:
+            name_bits.append(titles.most_common(1)[0][0][:40])
+        out.append(Campaign(id=f"{prefix}{k + 1}", name=" · ".join(name_bits), members=mem,
+                            strength=round(float(np.mean([p.score for p in inner])) if inner else 0.0, 3),
+                            signals=dict(sig.most_common()), persons=persons, domains=domains, topics=topics))
+    return out
+
+
+def match(new: Material, materials: list[Material], camps: list[Campaign], nets: list[Campaign] | None = None, thr: float = 0.7,
+          maybe: float = 0.4, infra: dict | None = None) -> MatchResult:
+    """Porównuje nowy materiał ze zbiorem.
+
+    - ten sam przekaz (duplikat/wariant) z wynikiem >= thr: przypisanie do istniejącej kampanii,
+    - tylko wspólna infrastruktura >= thr: nowa kampania w znanej sieci operatora,
+    - wynik między `maybe` a `thr`: możliwe powiązanie do weryfikacji,
+    - poniżej: nowy wzorzec.
+    """
+    pool = [m for m in materials if m.id != new.id] + [new]
+    ts = TextSpace(pool)
+    df = doc_freq(pool)
+    prs = sorted((pair(new, m, ts, df, infra) for m in pool if m.id != new.id), key=lambda p: -p.score)
+    camp_of = {mid: c.id for c in camps for mid in c.members}
+    net_of = {mid: c.id for c in (nets or []) for mid in c.members}
+    best: dict[str, Pair] = {}
+    for p in prs:
+        c = camp_of.get(p.b)
+        if c and (c not in best or p.score > best[c].score):
+            best[c] = p
+    ranking = [{"campaign": c, "network": net_of.get(p.b), "score": p.score, "via": p.b, "relation": p.relation,
+                "evidence": [e.reason for e in p.evidence[:6]]} for c, p in sorted(best.items(), key=lambda x: -x[1].score)]
+    members = {c.id: c.members for c in camps}
+
+    def cname(cid):  # numery kampanii zależą od zbioru, więc zawsze podajemy też materiały
+        return f"{cid} [materiały: {', '.join(members.get(cid, []))}]"
+
+    content = [r for r in ranking if r["relation"] in CONTENT_RELATIONS and r["score"] >= thr]
+    top = ranking[0] if ranking else None
+    assigned = None
+    if content:
+        assigned = content[0]["campaign"]
+        decision = f"przypisano do kampanii {cname(assigned)}" + (f" (sieć {content[0]['network']})" if content[0]["network"] else "")
+    elif top and top["score"] >= thr:
+        decision = (f"nowy przekaz, ale ta sama infrastruktura co kampania {cname(top['campaign'])}"
+                    + (f": prawdopodobnie ten sam operator (sieć {top['network']})" if top["network"] else ""))
+    elif top and top["score"] >= maybe:
+        decision = f"możliwe powiązanie z {cname(top['campaign'])} (słabe ślady, do weryfikacji przez analityka)"
+    else:
+        decision = "nowy wzorzec: brak wystarczających wspólnych śladów ze znanymi kampaniami"
+    return MatchResult(decision=decision, best_campaign=assigned, best_score=top["score"] if top else 0.0, ranking=ranking, pairs=prs)
+
+
+def confidence_label(score: float) -> str:
+    return "silne" if score >= 0.85 else "umiarkowane" if score >= 0.7 else "słabe" if score >= 0.4 else "brak"

@@ -1,0 +1,31 @@
+# Mała baza referencyjna osób publicznych, których wizerunek bywa wykorzystywany w reklamach oszukańczych.
+# Format: Imię Nazwisko | alias | alias ...
+# Pełne imię i nazwisko jest dopasowywane z odmianą (np. "Rafała Brzoskę", "Mateusza Morawieckiego").
+# Aliasy (samo nazwisko) podajemy tylko dla nazwisk jednoznacznych; pospolite nazwiska (np. Lewandowski) wymagają imienia.
+# Rozmiar bazy nie jest kluczowy (opis wyzwania, pkt 5); lista ma wykazać użyteczność narzędzia.
+Rafał Brzoska | Brzoska
+Monika Olejnik | Olejnik
+Adam Glapiński | Glapiński
+Krzysztof Stanowski
+Tomasz Sekielski | Sekielski
+Tomasz Lis
+Anita Werner
+Donald Tusk | Tusk
+Mateusz Morawiecki | Morawiecki
+Andrzej Duda
+Karol Nawrocki | Nawrocki
+Szymon Hołownia | Hołownia
+Robert Lewandowski
+Anna Lewandowska
+Cristiano Ronaldo | Ronaldo
+Kuba Wojewódzki | Wojewódzki
+Marcin Prokop
+Dorota Wellman | Wellman
+Piotr Kraśko | Kraśko
+Ewa Chodakowska | Chodakowska
+Elon Musk | Musk
+Jerzy Owsiak | Owsiak
+Mariusz Max Kolonko | Kolonko
+Dominika Kulczyk
+Michał Sołowow | Sołowow
+Zbigniew Jakubas | Jakubas
