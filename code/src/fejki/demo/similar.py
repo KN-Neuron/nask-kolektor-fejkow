@@ -280,14 +280,8 @@ def all_pairs(materials: list[Material], infra: dict | None = None) -> list[Pair
 CONTENT_RELATIONS = ("duplikat", "wariant tego samego przekazu")
 
 
-def campaigns(materials: list[Material], pairs: list[Pair], thr: float = 0.7, level: str = "kampania") -> list[Campaign]:
-    """Składowe spójne grafu krawędzi o wyniku >= thr. Pojedyncze materiały zostają osobnymi grupami.
-
-    level="kampania": tylko krawędzie typu duplikat/wariant (ten sam przekaz).
-    level="sieć": każda krawędź (także sama wspólna infrastruktura), czyli prawdopodobnie ten sam operator.
-    """
-    keep = [p for p in pairs if p.score >= thr and (level != "kampania" or p.relation in CONTENT_RELATIONS)]
-    parent = {m.id: m.id for m in materials}
+def _components(ids: list[str], keep: list[Pair]) -> dict[str, list[str]]:
+    parent = {i: i for i in ids}
 
     def find(x):
         while parent[x] != x:
@@ -298,8 +292,49 @@ def campaigns(materials: list[Material], pairs: list[Pair], thr: float = 0.7, le
     for p in keep:
         parent[find(p.a)] = find(p.b)
     groups: dict[str, list[str]] = defaultdict(list)
-    for m in materials:
-        groups[find(m.id)].append(m.id)
+    for i in ids:
+        groups[find(i)].append(i)
+    return groups
+
+
+def _average_linkage(ids: list[str], keep: list[Pair], pairs: list[Pair], thr: float, min_support: float) -> dict[str, list[str]]:
+    """Łączenie bez łańcuchowania: dwie grupy scalamy tylko wtedy, gdy łączy je krawędź ≥ thr ORAZ średni wynik
+    wszystkich par między nimi ≥ min_support (pary bez dowodów liczą się jako 0). Dzięki temu A~B i B~C nie skleja A z C,
+    jeśli A i C nie mają ze sobą nic wspólnego (zjawisko „czarnej dziury” w łączeniu rekordów)."""
+    score = {(p.a, p.b): p.score for p in pairs}
+    score.update({(p.b, p.a): p.score for p in pairs})
+    allowed = {(p.a, p.b) for p in keep} | {(p.b, p.a) for p in keep}
+    clusters = {i: [i] for i in ids}
+    while True:
+        best, best_avg = None, -1.0
+        keys = list(clusters)
+        for x in range(len(keys)):
+            for y in range(x + 1, len(keys)):
+                A, B = clusters[keys[x]], clusters[keys[y]]
+                if not any((a, b) in allowed for a in A for b in B):
+                    continue
+                avg = sum(score.get((a, b), 0.0) for a in A for b in B) / (len(A) * len(B))
+                if avg >= min_support and avg > best_avg:
+                    best, best_avg = (keys[x], keys[y]), avg
+        if best is None:
+            break
+        clusters[best[0]] += clusters.pop(best[1])
+    return clusters
+
+
+def campaigns(materials: list[Material], pairs: list[Pair], thr: float = 0.7, level: str = "kampania",
+              method: str = "average", min_support: float = 0.15) -> list[Campaign]:
+    """Grupy z krawędzi o wyniku >= thr. Pojedyncze materiały zostają osobnymi grupami.
+
+    method="average" (domyślnie): średnie wiązanie z wymogiem wsparcia (bez łańcuchowania);
+    method="components": składowe spójne (stara wersja, podatna na łańcuchowanie).
+
+    level="kampania": tylko krawędzie typu duplikat/wariant (ten sam przekaz).
+    level="sieć": każda krawędź (także sama wspólna infrastruktura), czyli prawdopodobnie ten sam operator.
+    """
+    keep = [p for p in pairs if p.score >= thr and (level != "kampania" or p.relation in CONTENT_RELATIONS)]
+    groups = _average_linkage([m.id for m in materials], keep, pairs, thr, min_support) if method == "average" \
+        else _components([m.id for m in materials], keep)
     by_id = {m.id: m for m in materials}
     out = []
     prefix = "K" if level == "kampania" else "S"

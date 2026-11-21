@@ -36,3 +36,7 @@ Chronologicznie: co zrobiliśmy, **dlaczego**, co wyszło, co nie wyszło. Nowe 
 
 11. **Dokument wejściowy** `docs/00_START_TUTAJ.md` dla nowych osób (słowniczek, zasady, uruchomienie, mapa, wyniki).
 12. **Plan syntetyki**: generator folderów przypadków w formacie organizatora (szablony z prawdziwych przypadków, operator = zestaw + TDS + piksel + styl domen, warianty z kontrolowaną zmiennością i brakami, trudne przypadki, domeny `.example`/`.test`), ocena z ablacją kanałów; wyniki raportowane osobno od danych prawdziwych.
+
+13. **Łańcuchowanie (zarzut krytyka potwierdzony).** urlscan, próg 0,5: składowe spójne sklejają 89/122 w jedną grupę (B-cubed P 0,627). Wdrożone średnie wiązanie z wymogiem wsparcia 0,15 (`similar.campaigns`, domyślne): F1 0,627 → 0,678, największa grupa 89 → 46; zbiór organizatora bez zmian (S1 = 1,2,3,48,61). Źródło pomysłu: literatura entity resolution („black hole”, correlation clustering).
+14. **Faza uczenia** (`demo/learn.py`): regresja logistyczna par z nieujemnymi wagami, leave-one-group-out na urlscan (7380 par). ROC AUC 0,791 / AP 0,797 wobec ręcznych wag 0,775 / 0,759. Kontrola cyrkularności: bez cech, z których zbudowano pivoty (schemat, ścieżka, prefiks, host), wynik ten sam (0,791 / 0,798). Model zapisany w `artifacts/demo/pair_model.json`; jeszcze NIE wpięty w demonstrator.
+15. **Multimodal** (uwaga: CLIP przestarzały): kandydaci Qwen3-VL-Embedding-2B, jina-embeddings-v5-omni, SigLIP 2; plus VLM (np. Qwen3-VL) do odczytu zrzutów zamiast Tesseracta. Do decyzji: pobranie (kilka GB) i licencje.
