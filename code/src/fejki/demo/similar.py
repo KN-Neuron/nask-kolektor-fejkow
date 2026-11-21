@@ -20,16 +20,21 @@ W = {
     "same_landing": 0.9, "shared_ad_id": 0.95, "shared_pixel": 0.9, "shared_tracker": 0.85, "shared_account": 0.6,
     "shared_contact": 0.9, "same_scheme": 0.6, "same_path_template": 0.7, "shared_prefix": 0.5, "shared_host": 0.6,
     "shared_redirect": 0.6, "text_dup": 0.9, "text_max": 0.8, "same_title": 0.7, "person": 0.3, "person_cap": 0.5,
-    "same_product": 0.75, "img_shot": 0.7, "img_asset": 0.6, "dom_max": 0.6, "topic": 0.1, "infra_scale": 0.9,
-    "shared_advertiser": 0.7,
+    "same_product": 0.75, "img_shot": 0.7, "img_asset": 0.6, "dom_max": 0.35, "topic": 0.1, "infra_scale": 0.9,
+    "shared_advertiser": 0.7, "semantic": 0.5, "same_logo": 0.3,
 }
 CHANNELS = {
     "same_landing": "domena", "shared_ad_id": "śledzenie", "shared_pixel": "śledzenie", "shared_tracker": "śledzenie",
     "shared_account": "śledzenie", "shared_contact": "kontakt", "same_scheme": "adres", "same_path_template": "adres",
     "shared_prefix": "adres", "shared_host": "adres", "shared_redirect": "przekierowania", "text": "tekst", "same_title": "tekst",
     "person": "osoby", "same_product": "produkt", "img_shot": "obraz", "img_asset": "obraz", "dom": "szablon strony",
-    "topic": "tematyka", "infra": "infrastruktura", "shared_advertiser": "reklamodawca",
+    "topic": "tematyka", "infra": "infrastruktura", "shared_advertiser": "reklamodawca", "semantic": "semantyka",
+    "same_logo": "obraz",
 }
+
+
+DOM_MIN = 25  # minimalna liczba różnych klas/elementów HTML, by szablon był dowodem
+SEM_FLOOR = 0.88  # poniżej tego podobieństwa bge-m3 nie jest dowodem: tło między różnymi sieciami sięga 0,86
 
 
 class Evidence(BaseModel):
@@ -90,6 +95,21 @@ class TextSpace:
         self.X = self.vec.fit_transform(docs) if any(d.strip() for d in docs) else None
         self.terms = np.array(self.vec.get_feature_names_out()) if self.X is not None else np.array([])
         self.idx = {i: k for k, i in enumerate(self.ids)}
+        self.sem: dict[str, np.ndarray] | None = None
+
+    def enable_semantic(self, materials: list[Material], encoder: str = "bge-m3") -> None:
+        """Wektory znaczenia tekstu (średnia z fragmentów) z enkodera semantycznego; bez modelu na dysku nic nie robi."""
+        from .template import TemplateSpace, model_available
+
+        if encoder == "bge-m3" and not model_available():
+            return
+        sp = TemplateSpace(materials, encoder=encoder)
+        self.sem = dict(sp.X["surowe"])
+
+    def sem_sim(self, a: str, b: str) -> float | None:
+        if not self.sem or a not in self.sem or b not in self.sem:
+            return None
+        return float(self.sem[a] @ self.sem[b])
 
     def sim(self, a: str, b: str) -> tuple[float, list[str]]:
         if self.X is None:
@@ -172,6 +192,13 @@ def evidence(a: Material, b: Material, ts: TextSpace, df: dict[str, Counter], in
         add("text", W["text_dup"], f"niemal identyczny tekst (podobieństwo {s:.2f}); wspólne: {', '.join(top[:4])}")
     elif s >= 0.3:
         add("text", W["text_max"] * min(1.0, (s - 0.25) / 0.6), f"podobny tekst (podobieństwo {s:.2f}); wspólne: {', '.join(top[:5])}")
+    sm = ts.sem_sim(a.id, b.id)
+    if sm is not None and sm >= SEM_FLOOR:  # tło: wszystkie strony oszustw są do siebie podobne (~0,68), więc liczy się tylko nadwyżka
+        add("semantic", W["semantic"] * min(1.0, (sm - SEM_FLOOR) / (1 - SEM_FLOOR)),
+            f"podobne znaczenie tekstu (bge-m3, podobieństwo {sm:.2f}, tło oszustw {SEM_FLOOR:.2f})")
+    lg = sorted(set(a.logos) & set(b.logos))
+    if lg:
+        add("same_logo", W["same_logo"], f"podrabiana ta sama marka / portal: {', '.join(lg[:3])} (logo w zasobach strony)")
     tt = [(x, y) for x in a.titles for y in b.titles if x and y and fuzz.ratio(x.lower(), y.lower()) >= 92]
     if tt:
         add("same_title", W["same_title"], f"ten sam tytuł strony: „{tt[0][0][:70]}”")
@@ -209,7 +236,7 @@ def evidence(a: Material, b: Material, ts: TextSpace, df: dict[str, Counter], in
         n = len(assets)
         add("img_asset", min(0.9, W["img_asset"] + 0.05 * (n - 1)), f"te same obrazy użyte na obu stronach ({n}, np. {next(iter(assets))})")
     # szablon strony (struktura DOM)
-    if a.dom_tokens and b.dom_tokens:
+    if len(a.dom_tokens) >= DOM_MIN and len(b.dom_tokens) >= DOM_MIN:  # mała strona zawsze „pasuje” do małej strony
         sa, sb = set(a.dom_tokens), set(b.dom_tokens)
         j = len(sa & sb) / max(1, len(sa | sb))
         if j >= 0.45:
@@ -269,8 +296,10 @@ def pair(a: Material, b: Material, ts: TextSpace, df, infra=None) -> Pair:
     return Pair(a=a.id, b=b.id, score=combine(ev), relation=relation(ev, s), text_sim=s, evidence=sorted(ev, key=lambda e: -e.weight))
 
 
-def all_pairs(materials: list[Material], infra: dict | None = None) -> list[Pair]:
+def all_pairs(materials: list[Material], infra: dict | None = None, semantic: bool = False) -> list[Pair]:
     ts = TextSpace(materials)
+    if semantic:
+        ts.enable_semantic(materials)
     df = doc_freq(materials)
     return sorted((pair(a, b, ts, df, infra) for a, b in combinations(materials, 2)), key=lambda p: -p.score)
 
@@ -363,7 +392,7 @@ def campaigns(materials: list[Material], pairs: list[Pair], thr: float = 0.7, le
 
 
 def match(new: Material, materials: list[Material], camps: list[Campaign], nets: list[Campaign] | None = None, thr: float = 0.7,
-          maybe: float = 0.4, infra: dict | None = None) -> MatchResult:
+          maybe: float = 0.4, infra: dict | None = None, semantic: bool = False) -> MatchResult:
     """Porównuje nowy materiał ze zbiorem.
 
     - ten sam przekaz (duplikat/wariant) z wynikiem >= thr: przypisanie do istniejącej kampanii,
@@ -373,6 +402,8 @@ def match(new: Material, materials: list[Material], camps: list[Campaign], nets:
     """
     pool = [m for m in materials if m.id != new.id] + [new]
     ts = TextSpace(pool)
+    if semantic:
+        ts.enable_semantic(pool)
     df = doc_freq(pool)
     prs = sorted((pair(new, m, ts, df, infra) for m in pool if m.id != new.id), key=lambda p: -p.score)
     camp_of = {mid: c.id for c in camps for mid in c.members}

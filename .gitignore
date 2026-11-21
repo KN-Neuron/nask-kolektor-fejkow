@@ -30,3 +30,8 @@ data/meta/
 data/si.txt
 *.token
 *secret*
+
+# Dane testowe do aplikacji (zawierają kopie plików organizatora i dane stron trzecich)
+data/testy_apki/
+data/testy_aplikacji/
+data/*test*/

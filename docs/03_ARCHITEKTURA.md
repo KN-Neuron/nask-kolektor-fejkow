@@ -43,6 +43,10 @@ demo/evaluate.py: leave_one_out(), partial_inputs()  (CLI: fejki demo eval)
 | `demo/evaluate.py` | testy zachowania bez etykiet | `leave_one_out`, `partial_inputs` |
 | `demo/persuasion.py` | ruchy perswazji („DNA”) ze słowników | `moves`, `dna`, `shared_moves` |
 | `demo/template.py` | fragmenty tekstu, enkoder (LSA offline / bge-m3), LEACE tematu, kontrola losowa, rozdzielenie sieci, rzut 2D | `TemplateSpace`, `separation`, `project_2d`, `model_available` |
+| `demo/batch.py` | wsad nowego zbioru (folder, płaski folder, zip), propozycje nowych kampanii | `materials_from`, `analyze`, `extract_zip` |
+| `demo/export.py` | eksport grafu: GraphML, Cypher (Neo4j), CSV | `build_graph`, `graphml`, `cypher`, `csvs` |
+| `demo/watch.py` | scheduler Meta Ad Library → dopasowanie do kampanii | `run_once`, `loop`, `material_from_ad` |
+| `demo/learn.py` | model par (regresja logistyczna), leave-one-group-out | `evaluate`, `train_and_save` |
 | `demo/cards.py` | karty kampanii: okno obserwacji, domeny do weryfikacji, przesłanki; eksport MD/CSV | `build_cards`, `card_markdown`, `domains_csv` |
 | `app/demo_app.py` | interfejs | zakładki, `graph_html` (pyvis), `show_material` |
 | `infra/collect.py` | bierne dane domeny: DNS, ASN (Team Cymru), RDAP, crt.sh; cache w `data/raw/infra/` | `collect`, `collect_cached`, `url_shape` |
@@ -59,6 +63,9 @@ demo/evaluate.py: leave_one_out(), partial_inputs()  (CLI: fejki demo eval)
 | `fejki demo build [FOLDER] [--no-ocr] [--infra]` | buduje indeks z folderu przypadków (domyślnie `FEJKI_DATA` / `../data/dane/do_udostępnienia`) |
 | `fejki demo eval [--thr 0.7] [--no-partial]` | test pomiń-jeden i test niepełnego wejścia; CSV w `artifacts/demo/` |
 | `fejki demo cards [--thr 0.7]` | karty kampanii (`artifacts/demo/cards/K*.md`) i `domeny_do_weryfikacji.csv` |
+| `fejki demo match FOLDER_LUB_ZIP [--semantic]` | dopasowanie całego nowego zbioru do indeksu → CSV |
+| `fejki demo export` | graf: GraphML, Cypher, CSV |
+| `fejki demo watch [--every-min N]` | scheduler Meta Ad Library (wymaga tokenu) |
 | `fejki demo app [--port 8501]` | interfejs Streamlit |
 | `fejki infra collect PLIK` / `fejki infra link PLIK` | infrastruktura dla adresów z pliku tekstowego |
 | `fejki urlscan search ZAPYTANIE` | podgląd wyników wyszukiwarki urlscan |

@@ -121,6 +121,23 @@ tekstu materiały jednego operatora powinny być bliżej siebie.
   ponad tematami; do sprawdzenia na trudnych negatywach (prawdziwe portale, legalne reklamy z Meta). Uwaga: 10 przypadków,
   ilustracja, nie dowód.
 
+## 5c. Dodatkowe mechanizmy
+
+- **Kanał semantyczny** (opcjonalny, `semantic=True` / przełącznik w UI): wektory znaczenia tekstu z bge-m3 (średnia z fragmentów).
+  Wszystkie strony oszustw mają do siebie wysokie podobieństwo (tło do 0,86), więc dowód powstaje dopiero **powyżej 0,88**
+  (`SEM_FLOOR`), z wagą do 0,5. Wynik: na zbiorze organizatora grupowanie bez zmian, dowód wzmacnia pary w sieci S1 (waga 0,02–0,11).
+- **Logotypy / podrabiane marki**: marka z nazwy pliku logotypu w zasobach strony (`logo-gazeta.svg` → „gazeta”); dowód o wadze 0,3
+  (wiele kampanii podrabia te same portale, więc to słaby sygnał).
+- **Szablon strony**: dowód tylko dla stron z ≥ 25 różnymi klasami/elementami HTML i wagą do 0,35 (mała strona zawsze „pasuje” do
+  małej; wykryte testem negatywnym: sam szablon dawał 0,6 i wprowadzał obcy materiał do „do weryfikacji”).
+- **Grupowanie**: średnie wiązanie z wymogiem wsparcia (średni wynik par między grupami ≥ 0,15) zamiast składowych spójnych;
+  na urlscan próg 0,5: F1 0,627 → 0,678, największa grupa 89 → 46 (literatura entity resolution: łańcuchowanie / „czarna dziura”).
+- **Wsad nowego zbioru** (`fejki demo match`, zakładka „Nowy zbiór”): folder z podfolderami, płaski folder lub zip (bezpieczne
+  rozpakowanie), CSV z decyzją, kampanią, siecią i przesłankami oraz **propozycje nowych kampanii** z materiałów nieprzypisanych.
+- **Scheduler** (`fejki demo watch`): okresowe zapytania do Meta Ad Library po słowach kluczowych, nowe reklamy jako materiały,
+  dopasowanie do kampanii, historia w `data/meta/watch_report.csv`; wymaga aktualnego tokenu (czytelny komunikat po wygaśnięciu).
+- **Eksport grafu** (`fejki demo export`): GraphML, Cypher dla Neo4j, CSV (węzły: Material, Domain, Pixel, Person, Campaign, Network).
+
 ## 6. Testy (`fejki demo eval`)
 
 Nie mamy etykiet kampanii od organizatora, więc „oczekiwane” = wynik na pełnym zbiorze. Test mierzy stabilność i odporność,
@@ -155,6 +172,11 @@ nie trafność względem podziału organizatora.
 | pytesseract, Tesseract OCR | Apache-2.0 | OCR |
 | FFmpeg | LGPL-2.1+ (zależnie od kompilacji GPL) | klatki z nagrań |
 | dnspython | ISC | DNS |
+| scikit-learn | BSD-3 | TF-IDF, regresja logistyczna (model par) |
+| sentence-transformers, PyTorch | Apache-2.0, BSD-3 | enkoder semantyczny (opcjonalny) |
+| BAAI/bge-m3 (model) | MIT | embeddingi tekstu wielojęzyczne, ~2,2 GB, lokalnie |
+| concept-erasure (LEACE) | MIT | analiza „schemat perswazji” (część badawcza) |
+| NetworkX | BSD-3 | graf, eksport GraphML |
 
 Dodatkowe dane (budowa zbiorów, nie demonstracja): **urlscan.io**, wyszukiwarka istniejących publicznych skanów
 (bez klucza: metadane i zrzuty; z darmowym kluczem `URLSCAN_API_KEY`: pełny wynik i DOM); nie zlecamy nowych skanów; dane

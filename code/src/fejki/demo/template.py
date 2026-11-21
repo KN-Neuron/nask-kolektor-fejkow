@@ -124,9 +124,12 @@ class TemplateSpace:
 
     def __init__(self, materials: list[Material], fit_ids: set[str] | None = None, seed: int = 1, encoder: str = "lsa"):
         """encoder: "lsa" (TF-IDF + SVD, offline, bez pobierania modelu) albo "bge-m3" (wymaga modelu na dysku)."""
-        import torch
-        from concept_erasure import LeaceEraser
-
+        try:
+            import torch
+            from concept_erasure import LeaceEraser
+        except ImportError:  # obraz podstawowy bez części badawczej: bez LEACE (warianty „LEACE” = surowe)
+            torch = LeaceEraser = None
+        self.leace_available = torch is not None
         self.ids = [m.id for m in materials]
         self.encoder = encoder
         self.chunks = {m.id: chunks(m) for m in materials}
@@ -144,7 +147,7 @@ class TemplateSpace:
         fit = [i for i, mid in enumerate(self.chunk_ids) if fit_ids is None or mid in fit_ids]
         classes = sorted({self.chunk_topics[i] for i in fit})
         self.topic_classes = classes
-        if len(classes) >= 2:
+        if len(classes) >= 2 and self.leace_available:
             z = torch.nn.functional.one_hot(torch.tensor([classes.index(self.chunk_topics[i]) for i in fit]), len(classes)).float()
             er = LeaceEraser.fit(torch.tensor(X[fit], dtype=torch.float32), z)
             with torch.no_grad():

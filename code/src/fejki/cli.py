@@ -301,6 +301,78 @@ def urlscan_eval(data: str = URLSCAN_DIR, thr: float = 0.7, no_ocr: bool = False
                    f"negatywy doklejone do oszustw: {r['negatywy_doklejone_do_oszustw']}")
 
 
+@demo_app.command("match")
+def demo_match(folder: str = typer.Argument(..., help="folder, płaski folder albo .zip z nowymi materiałami"),
+               out: str = "artifacts/demo/dopasowania.csv", thr: float = 0.7, maybe: float = 0.4, no_ocr: bool = False,
+               semantic: bool = typer.Option(False, help="dodaj kanał semantyczny (bge-m3, model musi być na dysku)")):
+    """Dopasowuje cały nowy zbiór do indeksu (np. ukryty zbiór testowy): CSV z decyzją, kampanią i przesłankami."""
+    from pathlib import Path
+
+    from .demo import store
+    from .demo.batch import analyze, materials_from
+
+    idx = store.load()
+    if not idx:
+        raise typer.Exit("brak indeksu: uruchom `fejki demo build`")
+    new = materials_from(Path(folder), ocr=not no_ocr, progress=lambda k, n, d: typer.echo(f"[{k + 1}/{n}] {d}"))
+    infra = store.infra_records(idx) if idx.infra else None
+    df, proposals = analyze(idx, new, thr, maybe, infra, semantic)
+    path_out = path(out); path_out.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(path_out, index=False)
+    typer.echo(df[["materiał", "decyzja", "najlepszy wynik"]].to_string(index=False))
+    for p in proposals:
+        typer.echo(f"propozycja nowej kampanii {p['id']}: {', '.join(p['materiały'])}")
+    typer.echo(f"zapisano {path_out}")
+
+
+@demo_app.command("export")
+def demo_export(out: str = "artifacts/demo/export", thr: float = 0.4):
+    """Eksport grafu: GraphML, Cypher (Neo4j) i CSV (nodes.csv, edges.csv)."""
+    from .demo import store
+    from .demo.export import build_graph, csvs, cypher, graphml
+    from .demo.similar import all_pairs, campaigns
+
+    idx = store.load()
+    if not idx:
+        raise typer.Exit("brak indeksu: uruchom `fejki demo build`")
+    infra = store.infra_records(idx) if idx.infra else None
+    pairs = all_pairs(idx.materials, infra)
+    g = build_graph(idx.materials, pairs, campaigns(idx.materials, pairs, 0.7, "kampania"), campaigns(idx.materials, pairs, 0.7, "sieć"), thr)
+    d = path(out); d.mkdir(parents=True, exist_ok=True)
+    (d / "graf.graphml").write_text(graphml(g), encoding="utf-8")
+    (d / "graf.cypher").write_text(cypher(g), encoding="utf-8")
+    for name, text in csvs(g).items():
+        (d / name).write_text(text, encoding="utf-8")
+    typer.echo(f"węzłów {g.number_of_nodes()}, krawędzi {g.number_of_edges()} → {d}")
+
+
+@demo_app.command("watch")
+def demo_watch(keywords: str = "config/meta_keywords.txt", out: str = "../data/meta", days: int = 7, every_min: int = 0,
+               max_pages: int = 2):
+    """Scheduler: szuka nowych reklam w Meta Ad Library i dopasowuje je do kampanii (--every-min 0 = jeden przebieg)."""
+    from pathlib import Path
+
+    from .demo import store
+    from .demo.watch import loop, run_once
+
+    _load_env()
+    idx = store.load()
+    if not idx:
+        raise typer.Exit("brak indeksu: uruchom `fejki demo build`")
+    terms = [t.strip() for t in open(keywords, encoding="utf-8") if t.strip() and not t.startswith("#")]
+    if every_min > 0:
+        loop(idx, terms, Path(out), every_min, days=days, max_pages=max_pages)
+    else:
+        from .sources.meta_library import MetaError
+
+        try:
+            df = run_once(idx, terms, Path(out), days=days, max_pages=max_pages, log=typer.echo)
+        except MetaError as e:
+            raise typer.Exit(f"Meta Ad Library: {e}. Wygeneruj nowy token (docs/06_DOSTEP_DO_REKLAM.md) i wpisz go do code/.env.")
+        if len(df):
+            typer.echo(df[["materiał", "decyzja", "najlepszy wynik"]].head(15).to_string(index=False))
+
+
 @demo_app.command("cards")
 def demo_cards(thr: float = 0.7):
     """Karty kampanii (Markdown) i lista domen do weryfikacji (CSV) w artifacts/demo/cards/."""

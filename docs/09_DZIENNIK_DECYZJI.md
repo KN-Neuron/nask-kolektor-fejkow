@@ -40,3 +40,16 @@ Chronologicznie: co zrobiliśmy, **dlaczego**, co wyszło, co nie wyszło. Nowe 
 13. **Łańcuchowanie (zarzut krytyka potwierdzony).** urlscan, próg 0,5: składowe spójne sklejają 89/122 w jedną grupę (B-cubed P 0,627). Wdrożone średnie wiązanie z wymogiem wsparcia 0,15 (`similar.campaigns`, domyślne): F1 0,627 → 0,678, największa grupa 89 → 46; zbiór organizatora bez zmian (S1 = 1,2,3,48,61). Źródło pomysłu: literatura entity resolution („black hole”, correlation clustering).
 14. **Faza uczenia** (`demo/learn.py`): regresja logistyczna par z nieujemnymi wagami, leave-one-group-out na urlscan (7380 par). ROC AUC 0,791 / AP 0,797 wobec ręcznych wag 0,775 / 0,759. Kontrola cyrkularności: bez cech, z których zbudowano pivoty (schemat, ścieżka, prefiks, host), wynik ten sam (0,791 / 0,798). Model zapisany w `artifacts/demo/pair_model.json`; jeszcze NIE wpięty w demonstrator.
 15. **Multimodal** (uwaga: CLIP przestarzały): kandydaci Qwen3-VL-Embedding-2B, jina-embeddings-v5-omni, SigLIP 2; plus VLM (np. Qwen3-VL) do odczytu zrzutów zamiast Tesseracta. Do decyzji: pobranie (kilka GB) i licencje.
+
+## 2026-11-21 (audyt zgodności)
+
+16. **Audyt wszystkich punktów opisu** (docs/12). Luki zamknięte kodem: kanał semantyczny w grupowaniu (bge-m3, podłoga 0,88),
+    logotypy/podrabiane marki, wsad nowego zbioru (folder/płaski/zip → CSV + propozycje nowych kampanii; to wejście ukrytego testu),
+    eksport grafu (GraphML, Cypher dla Neo4j), scheduler Meta (kod + test na atrapie).
+17. **Test negatywny wykrył fałszywe powiązanie**: sam szablon HTML (90% wspólnych klas, mała strona) dawał 0,6, więc obcy przepis trafiał do
+    „do weryfikacji”. Poprawka: szablon tylko dla stron z ≥ 25 elementami, waga ≤ 0,35. Wyniki na zbiorze organizatora bez zmian.
+18. **Token Meta wygasł** (kod 190) po kilku godzinach, zbiór 97 447 reklam zachowany. Scheduler zgłasza to czytelnym komunikatem.
+    Wniosek: przed demonstracją wygenerować nowy token.
+19. **Luki, których nie zamknęliśmy** (uczciwie): embeddingi obrazu i twarze (3.7–3.9), model par niewpięty w grupowanie, skala O(n²).
+    Same zrzuty nadal 0/4 w teście niepełnego wejścia.
+20. **Obraz Dockera bez części badawczej**: zakładka „Schemat perswazji” importowała torch i concept-erasure, których podstawowy obraz nie ma (wykryte przy przeglądzie). LEACE wyłącza się łagodnie z ostrzeżeniem w UI; pełna wersja: `pip install -e ".[research]"`.

@@ -45,22 +45,23 @@ def infra_or_none(idx):
     return None
 
 
-@st.cache_data(show_spinner=False)
-def _pairs(materials_json: str, infra_json: str):
+@st.cache_data(show_spinner="Liczę podobieństwa…")
+def _pairs(materials_json: str, infra_json: str, semantic: bool = False):
     mats = [Material.model_validate(m) for m in json.loads(materials_json)]
     infra = None
     if infra_json != "{}":
         from fejki.infra.collect import InfraRecord
 
         infra = {d: InfraRecord.model_validate(r) for d, r in json.loads(infra_json).items()}
-    return [p.model_dump() for p in all_pairs(mats, infra)]
+    return [p.model_dump() for p in all_pairs(mats, infra, semantic)]
 
 
 def get_pairs(idx):
     from fejki.demo.similar import Pair
 
     infra = idx.infra if st.session_state.get("use_infra") else {}
-    raw = _pairs(json.dumps([m.model_dump() for m in idx.materials]), json.dumps(infra, sort_keys=True))
+    raw = _pairs(json.dumps([m.model_dump() for m in idx.materials]), json.dumps(infra, sort_keys=True),
+                 bool(st.session_state.get("use_sem")))
     return [Pair.model_validate(p) for p in raw]
 
 
@@ -79,6 +80,10 @@ thr = st.sidebar.slider("Próg powiązania", 0.4, 0.95, 0.7, 0.05,
 maybe = st.sidebar.slider("Próg „do weryfikacji”", 0.2, 0.7, 0.4, 0.05)
 st.session_state.use_infra = st.sidebar.toggle("Kanał infrastruktury (DNS, RDAP, crt.sh)", value=bool(idx and idx.infra),
                                                help="Dane bierne z publicznych źródeł; wymaga sieci. Strony oszustów nie są odwiedzane.")
+
+st.session_state.use_sem = st.sidebar.toggle(
+    "Kanał semantyczny (bge-m3)", value=False,
+    help="Podobieństwo znaczenia tekstu (model BAAI/bge-m3, MIT, ~2,2 GB, musi być pobrany). Wolniejsze liczenie przy pierwszym użyciu.")
 
 with st.sidebar.expander("Zbiór danych i indeks"):
     data_dir = st.text_input("Folder z przypadkami", str(DEFAULT_DATA))
@@ -208,9 +213,9 @@ def evidence_table(p) -> pd.DataFrame:
 
 # --- zakładki ------------------------------------------------------------------------------------------------------
 
-tab_new, tab_camp, tab_graph, tab_tmpl, tab_mat, tab_method = st.tabs(
-    ["🔎 Analiza nowego materiału", "📦 Kampanie i sieci", "🕸️ Graf powiązań", "🧬 Schemat perswazji", "📄 Materiały",
-     "📐 Metodyka i testy"])
+tab_new, tab_batch, tab_camp, tab_graph, tab_tmpl, tab_mat, tab_method = st.tabs(
+    ["🔎 Analiza nowego materiału", "📥 Nowy zbiór (folder / zip)", "📦 Kampanie i sieci", "🕸️ Graf powiązań", "🧬 Schemat perswazji",
+     "📄 Materiały", "📐 Metodyka i testy"])
 
 with tab_new:
     st.header("Analiza nowego materiału")
@@ -264,7 +269,7 @@ with tab_new:
                 store.collect_infra(idx, [new])
                 store.save(idx)
             infra = store.infra_records(idx)
-        r = match(new, base, bc, bn, thr=thr, maybe=maybe, infra=infra)
+        r = match(new, base, bc, bn, thr=thr, maybe=maybe, infra=infra, semantic=bool(st.session_state.get("use_sem")))
         st.subheader("Wynik")
         box = st.success if r.best_campaign else st.warning if r.best_score >= maybe else st.info
         box(f"**{r.decision}** · najlepszy wynik {r.best_score:.2f} ({confidence_label(r.best_score)})")
@@ -289,6 +294,43 @@ with tab_new:
             st.cache_data.clear()
             del st.session_state["new"]
             st.rerun()
+
+with tab_batch:
+    from fejki.demo.batch import analyze as batch_analyze
+    from fejki.demo.batch import materials_from
+
+    st.header("Nowy zbiór: dopasowanie wielu materiałów naraz")
+    st.caption("Wskaż folder z przypadkami (podfolder = materiał), płaski folder z plikami albo wgraj archiwum .zip. Każdy materiał "
+               "zostanie dopasowany do zbioru; nieprzypisane, ale podobne do siebie, są grupowane w propozycje NOWYCH kampanii. "
+               "Wynik do pobrania jako CSV.")
+    src_mode = st.radio("Źródło", ["Ścieżka do folderu lub zip na serwerze", "Wgraj archiwum .zip"], horizontal=True, key="bsrc")
+    bpath = None
+    if src_mode.startswith("Ścieżka"):
+        txt = st.text_input("Ścieżka", "", placeholder="/ścieżka/do/nowego_zbioru lub /ścieżka/do/zbior.zip", key="bpath")
+        bpath = Path(txt) if txt.strip() else None
+    else:
+        up = st.file_uploader("Archiwum zip", type=["zip"], key="bzip")
+        if up is not None:
+            tmpz = Path(tempfile.mkdtemp(prefix="fejki_bz_")) / "zbior.zip"
+            tmpz.write_bytes(up.getbuffer())
+            bpath = tmpz
+    ocr_b = st.checkbox("OCR zrzutów i klatek", value=True, key="bocr")
+    if st.button("Analizuj zbiór", type="primary", key="bgo"):
+        if bpath is None or not bpath.exists():
+            st.error("Podaj istniejącą ścieżkę albo wgraj plik zip.")
+        else:
+            bar = st.progress(0.0, "start")
+            new_mats = materials_from(bpath, ocr=ocr_b, progress=lambda k, n, d: bar.progress((k + 1) / n, f"materiał {d}"))
+            infra_b = store.infra_records(idx) if (st.session_state.use_infra and idx.infra) else None
+            df_b, proposals = batch_analyze(idx, new_mats, thr, maybe, infra_b, st.session_state.get("use_sem", False))
+            st.session_state.batch = (df_b, proposals, len(new_mats))
+    if st.session_state.get("batch"):
+        df_b, proposals, n_new = st.session_state.batch
+        st.success(f"Przeanalizowano {n_new} materiałów.")
+        st.dataframe(df_b, use_container_width=True, hide_index=True)
+        for p_ in proposals:
+            st.info(f"Propozycja nowej kampanii {p_['id']}: materiały {', '.join(p_['materiały'])} ({p_['nazwa']})")
+        st.download_button("Pobierz wynik (CSV)", df_b.to_csv(index=False).encode("utf-8"), "dopasowania.csv")
 
 with tab_camp:
     st.header("Kampanie i sieci operatorów")
@@ -339,11 +381,21 @@ with tab_camp:
         st.caption("Daty rejestracji domen pojawią się po „Zbierz dane infrastruktury (bierne)” w panelu bocznym.")
 
 with tab_graph:
+    from fejki.demo.export import build_graph as exp_graph
+    from fejki.demo.export import csvs as exp_csvs
+    from fejki.demo.export import cypher as exp_cypher
+    from fejki.demo.export import graphml as exp_graphml
+
     st.header("Graf powiązań")
     st.caption("Węzeł = materiał (kolor = sieć). Czerwona linia ciągła = ten sam przekaz; niebieska przerywana = wspólna infrastruktura. "
                "Najedź na krawędź, żeby zobaczyć przesłanki.")
     shown = [p for p in pairs if p.score >= min(thr, maybe)]
     st.components.v1.html(graph_html([m.id for m in idx.materials], shown), height=600)
+    g_exp = exp_graph(idx.materials, pairs, camps, nets, min(thr, maybe))
+    e1, e2, e3 = st.columns(3)
+    e1.download_button("Graf (GraphML)", exp_graphml(g_exp).encode("utf-8"), "graf.graphml")
+    e2.download_button("Graf dla Neo4j (Cypher)", exp_cypher(g_exp).encode("utf-8"), "graf.cypher")
+    e3.download_button("Węzły i krawędzie (CSV)", exp_csvs(g_exp)["edges.csv"].encode("utf-8"), "krawedzie.csv")
     st.dataframe(pd.DataFrame([{"a": p.a, "b": p.b, "wynik": p.score, "pewność": confidence_label(p.score), "relacja": p.relation,
                                 "przesłanki": " | ".join(e.reason for e in p.evidence[:5])} for p in shown]),
                  use_container_width=True, hide_index=True)
@@ -387,6 +439,9 @@ with tab_tmpl:
         return TemplateSpace([Material.model_validate(m) for m in json.loads(materials_key)], encoder=encoder)
 
     space = _space(json.dumps([m.model_dump() for m in idx.materials]), enc)
+    if not getattr(space, "leace_available", True):
+        st.warning("Brak bibliotek części badawczej (torch, concept-erasure): wariant „LEACE” jest równy surowemu. "
+                   "Zainstaluj: pip install -e \".[research]\".")
     groups = {mid: n.id for n in nets for mid in n.members if len(n.members) > 1}
     main_topic = {m.id: next(iter(m.topics), "inne") for m in idx.materials}
     st.subheader("Czy po usunięciu tematu sieci się rozdzielają?")

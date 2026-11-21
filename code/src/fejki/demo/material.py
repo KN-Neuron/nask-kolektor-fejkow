@@ -81,6 +81,7 @@ class Material(BaseModel):
     tracker_ids: list[str] = Field(default_factory=list)
     ad_accounts: list[str] = Field(default_factory=list)
     contacts: list[str] = Field(default_factory=list)
+    logos: list[str] = Field(default_factory=list)  # marki/portale podrabiane wg nazw logotypów w zasobach strony
     advertisers: list[str] = Field(default_factory=list)  # nazwa strony-reklamodawcy z kreacji (np. zrzut z „Sponsorowane”)
     dom_tokens: list[str] = Field(default_factory=list)
     images: list[ImageHash] = Field(default_factory=list)
@@ -398,6 +399,24 @@ def _uniq(xs):
     return list(dict.fromkeys(x for x in xs if x))
 
 
+LOGO_NAME = re.compile(r"logo[-_ ]?([a-z0-9ąćęłńóśźż]{3,20})|([a-z0-9]{3,20})[-_ ]?logo", re.I)
+GENERIC_LOGO = {"header", "footer", "small", "large", "mobile", "white", "black", "dark", "light", "icon", "main", "default", "retina", "svg",
+                "png", "jpg", "webp", "image", "img", "new", "top", "bottom", "square", "wide"}
+
+
+def brand_logos(files: list[Path]) -> list[str]:
+    """Marki z nazw plików logotypów w zasobach strony (np. logo-gazeta.svg → „gazeta”): wskazują podrabiany portal."""
+    out = []
+    for f in files:
+        if "logo" not in f.name.lower():
+            continue
+        m = LOGO_NAME.search(f.stem)
+        tok = ((m.group(1) or m.group(2)) if m else "").lower()
+        if tok and tok not in GENERIC_LOGO and not tok.isdigit():
+            out.append(tok)
+    return sorted(set(out))
+
+
 def is_har(p: Path) -> bool:
     """HAR po rozszerzeniu, także plik nazwany samym „.har” (dla Pythona to nazwa bez rozszerzenia; jest taki w zbiorze)."""
     return p.suffix.lower() == ".har" or p.name.lower() == ".har"
@@ -518,6 +537,7 @@ def build_material(mid: str, label: str, source: str, files: list[Path] | None =
             m.images.append(ImageHash(file=f"{f.name}#{k}", phash=phash(img), role="klatka"))
             if ocr:
                 ocr_parts.append(_ocr(img))
+    m.logos = brand_logos(files)
     m.ocr_text = " ".join(x for x in ocr_parts if x)[:20000]
     m.advertisers = advertisers(m.ocr_text)
     # zrzut karty reklamy z Meta Ad Library: „Identyfikator biblioteki: 2186…” / „Library ID: …”

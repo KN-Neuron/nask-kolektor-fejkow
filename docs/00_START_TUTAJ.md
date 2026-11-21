@@ -71,6 +71,8 @@ docs/07_ZBIORY_DANYCH.md   zbiory dodatkowe (urlscan, Meta, listy, IoC), co tren
 docs/08_KRYTYKA_I_RYZYKA.md    14 słabości, wnioski z badań, pytania jury
 docs/09_DZIENNIK_DECYZJI.md    chronologia decyzji i wyników
 docs/10_PODOBIENSTWO.md    jak liczymy i mierzymy podobieństwo
+docs/11_WZORCE_KAMPANII.md wzorce kampanii i rekomendacje dla NASK
+docs/12_ZGODNOSC_Z_WYMAGANIAMI.md  macierz zgodności z opisem wyzwania
 code/docs/METODYKA.md      metodyka techniczna, wyniki, licencje (do oddania organizatorowi)
 code/src/fejki/demo/       demonstrator: material, similar, cards, splits, persuasion, template, evaluate, store
 code/src/fejki/sources/    urlscan.py, meta_library.py (zbiory dodatkowe)
