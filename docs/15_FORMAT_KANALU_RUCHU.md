@@ -78,3 +78,11 @@ czyli **kolejność kroków** (`hop`), **kod odpowiedzi** i liczba żądań. Z H
 - Trackery i CDN (np. `facebook.net`, `/signals/config`) występują w prawie każdym przypadku. **Nie filtrujcie ich w grafie**: wynik
   podobieństwa obniża ich wagę sam (`idf ≈ 0`), a w grafie warto je oznaczyć jako huby (duży stopień).
 - Domeny lądowania są jednorazowe i rotowane, więc brak wspólnego `host` nie jest dowodem różnicy (kanał wtedy milczy).
+
+## 7. Stan po stronie grafu
+
+- Graf liczy `host`, `kit`, `scheme` i `pixel` funkcją `embsim.features.load_case`; na 52 przypadkach (NASK + syntetyka)
+  zbiory `kit` i `scheme` są identyczne z `embsim`, a każdy piksel z `embsim` jest w grafie (graf ma też kilka z HAR).
+- Eksport z pkt 5 jest gotowy: `python graph/load.py traffic` → `code/artifacts/traffic/traffic.jsonl`
+  (`landing`, `calls`, `redirects` z `hop` i `status`, `n_requests`, `sets`, `hubs`). Przekierowań w HAR NASK jest mało (2 przypadki).
+- Huby są oznaczone (`hub = true`); szczegóły i reguła: [13_BAZA_GRAFOWA.md](13_BAZA_GRAFOWA.md), sekcja „Ruch sieciowy”.

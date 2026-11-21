@@ -131,6 +131,27 @@ def write_node(session, kind: str, payload: dict) -> str:
     return "Ad" if kind == "ad" else "Material"
 
 
+HUB_OF = {"host": "Domain {name: x}", "kit": "PageKit {prefix: x}", "scheme": "UrlScheme {fingerprint: x}"}
+
+
+def only_hubs(session, m) -> list[str]:
+    """Pospolite ślady (hub w grafie), jeśli to JEDYNE, co łączy z najbliższym materiałem; inaczej pusta lista.
+    Silnik embsim potrafi dać 0,95 za samo wspólne google.com; graf wie, że to hub, więc takiego połączenia nie przyjmujemy."""
+    chans = {k for k, v in m.channels.items() if v > 0}
+    if not chans or not chans <= set(HUB_OF):
+        return []
+    hubs = []
+    for ch in chans:
+        vals = m.shared.get(ch, [])
+        if not vals:
+            return []
+        n = session.run(f"UNWIND $v AS x MATCH (h:{HUB_OF[ch]}) WHERE h.hub RETURN count(h) AS n", v=vals).single()["n"]
+        if n < len(vals):
+            return []
+        hubs += vals
+    return hubs
+
+
 def decide_creator(session, label: str, id: str, d, gallery_group: dict) -> tuple[str, str, str]:
     """(id twórcy, nazwa, źródło przypisania)."""
     exact = list(session.run(q(EXACT, label), id=id))
@@ -143,6 +164,10 @@ def decide_creator(session, label: str, id: str, d, gallery_group: dict) -> tupl
     if d.verdict in ("znana_kampania", "znany_operator_nowa_kampania") and d.matches:
         best = d.matches[0] if d.verdict == "znana_kampania" else max(d.matches, key=lambda m: m.operator_score)
         g = gallery_group.get(best.id)
+        hubs = only_hubs(session, best)
+        if hubs:
+            why = f"nowy wzorzec: silnik łączył z {best.id} tylko przez pospolity ślad ({', '.join(hubs[:3])}), więc to pomijamy"
+            return f"tw:{id}", "nowy twórca", why
         if g:
             name = session.run("MATCH (c:Creator {id: $c}) RETURN c.name AS n", c=g).single()
             return g, name["n"] if name else g, f"podobieństwo do {best.id} ({d.verdict.replace('_', ' ')})"
@@ -191,7 +216,7 @@ def inputs(target: str | None, text: str | None, url: str | None):
         m.id = f"nowy:{p.name}"
         case = case_from_folder(p)
         case.id = m.id
-        payload = {**case_record(m, ROOT), "dataset": "nowe", "truth_campaign": None, "truth_operator": None, "truth_kind": None}
+        payload = {**case_record(m, ROOT, folder=p), "dataset": "nowe", "truth_campaign": None, "truth_operator": None, "truth_kind": None}
         return [("m", payload, case)]
     from fejki.demo.material import load_persons
 
@@ -216,6 +241,8 @@ def add(session, items, g=None, quiet: bool = False) -> list[dict]:
         d = g.query(case, TOP_K, exclude_id=case.id)
         label = write_node(session, kind, payload)
         cid, cname, src = decide_creator(session, label, case.id, d, group)
+        if "pospolity ślad" in src:  # decyzja silnika poprawiona przez graf (hub)
+            d.verdict = "nowy_wzorzec"
         text = d.explain() + f"\nTwórca: {cname} [{cid}] ({src})."
         session.run(q(DECISION, label), id=case.id, creator=cid, creator_name=cname, verdict=d.verdict, text=text, source=src,
                     matches=match_rows(d)).consume()
