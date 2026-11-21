@@ -131,6 +131,84 @@ NEO4J_URI=bolt://gondola.proxy.rlwy.net:38398 NEO4J_PASSWORD=<hasło serwera> .v
 
 Połączenie `bolt://` (Python) nie jest szyfrowane; podgląd w przeglądarce idzie przez https.
 
+## Próbka Mety (kryterium S1)
+
+Pełna Meta to 97 tys. reklam i ładuje się długo. Do pracy lokalnej i do ewaluacji służy mniejsza próbka z jawną regułą:
+
+```bash
+cd code
+.venv/bin/python graph/sample.py                                   # ~2 s, zawsze ten sam wynik (ziarno 1)
+.venv/bin/python graph/load.py meta --file ../data/meta/sample_s1.jsonl
+```
+
+Reguła w pięciu punktach:
+
+1. **Losujemy twórców, nie reklamy.** Twórca (strona, `page_id`) wchodzi z kompletem reklam, najwyżej 20 (`--cap`).
+   Inaczej reklamy jednego twórcy rozjechałyby się po próbce i nie dałoby się sprawdzić, czy umiemy go odtworzyć.
+2. **Grupa scam** = twórcy z co najmniej jedną reklamą zdjętą przez Metę. Wchodzą wszyscy „mieszani” (653: część reklam
+   zdjęta, część nie; tylko u nich zostaje tekst przy znanej etykiecie) i losowo dobrani „w pełni zdjęci” do 1000 twórców.
+3. **Grupa kontrolna** = 1000 twórców bez żadnej zdjętej reklamy, dobranych **z tych samych tematów** (to samo zapytanie,
+   którym ich znaleźliśmy). Bez tego model nauczyłby się „kasyno = scam”, a nie rozpoznawania twórcy.
+   W tematach, gdzie czystych twórców prawie nie ma (Sweet Bonanza, darmowe spiny), brakującą kontrolę dobieramy z innych tematów.
+4. **Kotwice NASK:** zawsze wchodzą strony „Sharon Coleman” i „Evelyn Johnson”, powiązane z przypadkami 48 i 47.
+5. **Ziarno 1:** każdy w zespole dostaje identyczny plik.
+
+Wynik: 2002 twórców, 14 936 reklam, z tego 5018 zdjętych. Lista twórców z powodem wyboru i rozkład tematów zapisuje się
+w `code/artifacts/samples/sample_s1.json`. Podział na trening/test robi dalej `graph/subjects.py` (po podmiotach, nie po reklamach).
+To kryterium robocze: osoba od ewaluacji może je zmienić, wtedy nowa wersja dostaje nową nazwę (S2…), a S1 zostaje do porównań.
+
+## Twórca (węzeł `Creator`)
+
+```bash
+cd code
+.venv/bin/python graph/creators.py build                                   # ~10 s na pełnej Mecie, idempotentne
+.venv/bin/python graph/creators.py diff "Sharon Coleman" "Evelyn Johnson"   # co odróżnia twórcę A od B
+```
+
+**Kto to jest twórca.** Reklamy wpadają do jednego twórcy, gdy łączy je strona, płatnik, domena albo identyczny tekst.
+Przykład: „Sharon Coleman”, „Cynthia Foster” i „Margaret Reynolds” to trzy strony, ale płaci za nie ten sam „Christian Russell”,
+więc to jeden twórca. Ślad, który ma ponad 100 reklam (płatnik „Advertiser”, youtube.com), jest za pospolity i nie skleja.
+Strona skleja zawsze: duża strona to jeden twórca, nie „hub”.
+
+**Etykieta scam przechodzi z twórcy na jego reklamy:**
+
+| twórca | warunek | jego niezdjęte reklamy |
+|---|---|---|
+| `scam` | Meta zdjęła co najmniej połowę jego reklam | `scam`, źródło `twórca` |
+| `podejrzany` | zdjęła część, mniej niż połowę | `podejrzany`, źródło `twórca` (do sprawdzenia) |
+| `brak sygnału` | nic nie zdjęto | `brak sygnału` (to NIE znaczy „uczciwy”) |
+
+Próg połowy jest po to, żeby jedna zdjęta reklama nie oznaczyła 3000 reklam dużego wydawcy seriali jako scam.
+Przypadek NASK, który wskazuje stronę z Mety, dostaje krawędź `CREATED_BY` do jej twórcy (dziś: 10, 47, 48).
+
+Na pełnej Mecie: 9709 twórców, 1571 scam, 302 podejrzanych; 1867 reklam, których Meta nie zdjęła, dostało `scam` po twórcy.
+Gotowe zapytania do Neo4j Browser (obrazek twórcy, A vs B, profil, propagacja, siatki stron): `code/graph/creator_queries.cypher`.
+
+## Syntetyka w grafie
+
+```bash
+.venv/bin/python graph/load.py synth      # generuje data/synth (jeśli nie ma), buduje indeks i ładuje
+```
+
+42 przypadki (6 operatorów, 36 oszustw, 6 „legalnych” negatywów) jako `Material {dataset: 'synth'}` z prawdą w
+`truth_campaign`, `truth_operator`, `truth_kind`. Kampanie i sieci mają prefiks `synth:`, reklamodawcy klucz `synth:name:…`,
+domeny są `.example`/`.test`, więc nic nie skleja się z prawdziwymi danymi (wspólne są tylko osoby wymienione w tekście).
+Porównanie z prawdą: `MATCH (m:Material {dataset:'synth'})-[:IN_CAMPAIGN]->()-[:IN_NETWORK]->(n) RETURN n.id, collect(DISTINCT m.truth_operator)`.
+Dziś: 4 z 6 operatorów odtworzone dokładnie; O1+O2 sklejone (celowo trudny przypadek: wspólny zestaw strony),
+a 6 negatywów wpada w jedną sieć (fałszywe połączenie, do poprawy w silniku).
+
+## Wektory tekstów reklam (kolejność kroków)
+
+```bash
+.venv/bin/python graph/load.py meta                          # zapisuje też Ad.text_hash
+.venv/bin/python graph/subjects.py split --write-graph       # Ad.fold, Ad.subject (podział bez przecieków)
+.venv/bin/python graph/load.py export                        # artifacts/meta/ad_texts.jsonl + ad_meta.jsonl
+.venv/bin/python -m embsim.batch artifacts/meta/ad_texts.jsonl artifacts/meta/qwen_ads
+.venv/bin/python graph/load_embeddings.py artifacts/meta/qwen_ads --dim 1024
+```
+
+`text_hash` to pierwsze 12 znaków SHA-1 treści reklamy (jak w `embsim.eda`); reklamy zdjęte przez Metę nie mają tekstu, więc nie mają też odcisku.
+
 ## Dane organizatora na serwerze
 
 Na serwerze są **teksty i cechy** wyciągnięte z danych organizatora (bez plików HTML/HAR/zrzutów). Zbiór służy tylko
@@ -197,10 +275,13 @@ graph LR
 | infra | `Registrar`, `IP`, `ASN`, `Certificate` | nazwa / adres / numer / serial | Dynadot, Cloudflare, wystawca certyfikatu |
 | wynik | `Campaign` | `id` | ten sam przekaz (duplikaty i warianty): K1 |
 | | `Network` | `id` | kampanie na wspólnej infrastrukturze = prawdopodobnie ten sam operator: S1 |
+| | `Creator` | `id` | twórca: strony, płatnicy i domeny jednego operatora w Mecie (`graph/creators.py`) |
+| | `Text` | `hash` | unikalny tekst reklamy z wektorem (`graph/load_embeddings.py`) |
 
 Każdy węzeł ma `name` (podpis w podglądzie). Ważniejsze właściwości: `Ad.meta_flag` (Meta usunęła reklamę albo
 zablokowała konto), `Ad.delivery_start/stop`, `Ad.eu_reach`, `Ad.library_url`, `Advertiser.mixed_script`,
-`Domain.registered`, `Material.observed_at`, `Material.dataset = 'nask'`.
+`Domain.registered`, `Material.observed_at`, `Material.dataset` (`nask` albo `synth`), `Material.truth_*` (prawda syntetyki),
+`Ad.text_hash` (odcisk tekstu), `Ad.label` / `Ad.label_source` i `Creator.label` (etykieta scam, patrz „Twórca”).
 
 ### Kreski liczone (a nie odczytane z plików)
 
