@@ -11,6 +11,8 @@ dependencies = [
 [project.optional-dependencies]
 # Część badawcza (embeddingi, LEACE, Leiden, eksperymenty na syntetyce).
 research = ["datasketch", "python-igraph", "leidenalg", "duckdb", "matplotlib", "sentence-transformers", "concept-erasure"]
+# Baza grafowa Neo4j (graph/load.py), zob. docs/13_BAZA_GRAFOWA.md.
+graph = ["neo4j>=5"]
 dev = ["pytest", "ruff"]
 [project.scripts]
 fejki = "fejki.cli:app"

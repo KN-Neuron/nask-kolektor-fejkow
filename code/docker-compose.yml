@@ -1,0 +1,20 @@
+# Baza grafowa Neo4j dla Kolekcjonera Fejków. Hasło w code/.env (NEO4J_PASSWORD), wzór w .env.example.
+# Start: docker compose up -d   |   przeglądarka bazy: http://localhost:7474   |   Bolt (z Pythona): bolt://localhost:7687
+services:
+  neo4j:
+    image: neo4j:5.26-community
+    container_name: fejki-neo4j
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?ustaw NEO4J_PASSWORD w code/.env}
+      NEO4J_server_memory_heap_max__size: 1G
+      NEO4J_server_memory_pagecache_size: 512M
+    volumes:
+      - ./artifacts/neo4j/data:/data   # dane bazy zostają lokalnie (artifacts/ jest w .gitignore)
+      - ./graph:/graph:ro              # schema.cypher, example.cypher
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
+      interval: 5s
+      retries: 30
