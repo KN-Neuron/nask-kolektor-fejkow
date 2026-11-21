@@ -38,3 +38,6 @@ data/*test*/
 
 # Syntetyczne przypadki (generowane lokalnie)
 data/synth/
+
+# Zbiory zewnętrzne do oceny (LIAR, BuzzFeed-Webis itd.): lokalnie, nie w repo
+data/zewnetrzne/

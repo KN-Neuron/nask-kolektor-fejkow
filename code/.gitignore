@@ -9,3 +9,4 @@ data/db.duckdb*
 artifacts/
 .pytest_cache/
 .ruff_cache/
+data/emb_mm/
