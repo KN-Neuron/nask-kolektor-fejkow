@@ -12,10 +12,13 @@ konfiguracji domyślnej `v3_mixed_pca` (`code/config/embsim/`), kod: `code/src/e
 | `text_lex` | TF-IDF n-gramów znaków (3–5) | leksykalny |
 | `kit` | prefiksy katalogów zasobów strony (z HAR) | ślady |
 | `scheme` | zestaw nazw parametrów adresu (z HAR) | ślady |
-| `host` | domeny rejestrowalne z ruchu (z HAR) | ślady |
+| `host` | domeny rejestrowalne z ruchu (z HAR), bez pospolitych usług (Google, Meta, CDN, czcionki) | ślady |
 | `pixel` | identyfikatory pikseli i tagów (z HTML) | ślady |
+| `img` | odcisk SHA-256 obrazów strony (z HAR i zasobów `*_files`, bez obrazów < 2 KB) | ślady, bez modelu |
 
 Wszystkie wagi są równe: `w_c = 1` (nie uczone). Kanał bez danych u którejkolwiek strony nie liczy się do wyniku.
+
+Kanał `img` i wycinanie pospolitych usług dotyczą ścieżki demonstratora (`Gallery`, `case_from_folder`); ewaluacja syntetyczna z §6 ich nie używa (syntetyka nie ma obrazów), więc jej liczby się nie zmieniają. Metadanych EXIF zrzutów nie używamy: opisują urządzenie osoby zgłaszającej, nie operatora oszustwa.
 
 ## 2. Wzór główny (poziom kampanii)
 
@@ -69,7 +72,7 @@ Decyzja: `S_op ≥ t_operatora` ⇒ ten sam operator.
 | wagi `w_c` | 1 | z góry, nie uczone |
 | `μ`, `μ_L`, `m`, `p`, `idf`, `N` | z korpusu | statystyki tekstów i śladów, **bez etykiet** |
 | `e_ref` | 0,67 | mediana dostępności dowodu na zbiorach dev (bez etykiet w definicji) |
-| `t_kampanii`, `t_operatora` | 0,95 i 0,25 | **jedyne liczby dobierane z etykietami**, na dev (plateau ARI) |
+| `t_kampanii`, `t_operatora` | 0,95 i 0,25 (w demonstratorze dla stron: 0,725 i 0,25) | **jedyne liczby dobierane z etykietami**; 0,95 z syntetyki v2, 0,725 zostaw-jeden na NASK-10 i syntetyce v1 (`config/embsim/demo_calibration.json`) |
 
 Decyzja trójstanowa dla nowego materiału: `S ≥ t_kampanii` → znana kampania; w przeciwnym razie `S_op ≥ t_operatora` → znany operator,
 nowa kampania; w przeciwnym razie nowy wzorzec.
@@ -100,3 +103,14 @@ Błędne łączenie nowych wzorców: 0,148 domyślnie wobec 0,326 (v1 z leksyką
 
 Nie trenujemy modelu ani nie stosujemy uczenia kontrastowego. Opcjonalna głowa kontrastowa (`embsim/metric.py`) jest pozostawiona jako
 dodatek na koniec prezentacji („można potrenować”), ale nie wchodzi do wyniku.
+
+## 8. Jak to ocenia organizator i co pokazujemy
+
+Opis wyzwania (pkt 6): organizator użyje **nieudostępnionego zbioru** z nowymi wariantami znanych kampanii i materiałami z innych kampanii
+i sprawdzi: skuteczność wskazywania podobnych materiałów i wariantów, poprawność przypisania do istniejących grup, zdolność niełączenia
+obcych, różnorodność cech, odporność na duplikaty, braki i format, interpretowalność oraz przebieg od wczytania do wyniku. Kryteria (pkt 9):
+metoda korelacji i grupowania 30%, trafność cech i źródeł 30%, demonstrator end-to-end 15%, czytelność powiązań 15%, wdrożenie 10%.
+Nie podano metryki, więc pokazujemy te, które wynikają z listy: precyzję i czułość decyzji „znana kampania”, odsetek obcych materiałów
+zostawionych jako „nowy wzorzec”, odsetek decyzji z podaną przesłanką i wyniki na wejściach niepełnych.
+
+Test, który to odtwarza (`code/scripts/test_jak_jury_embsim.py`, w interfejsie zakładka „Wzór i wyniki”), wyniki w `docs/WYNIKI.md` §5a.
