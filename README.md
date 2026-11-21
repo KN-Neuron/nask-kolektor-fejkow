@@ -19,6 +19,8 @@ Bezpieczeństwem Sztucznej Inteligencji NASK PIB.
 | [docs/05_PLAN_I_ZADANIA.md](docs/05_PLAN_I_ZADANIA.md) | **plan i podział pracy na 3–4 osoby** (zadania, pliki, kryteria ukończenia, zależności) |
 | [docs/06_DOSTEP_DO_REKLAM.md](docs/06_DOSTEP_DO_REKLAM.md) | biblioteki reklam (Meta, TikTok, Google, Snapchat): jak uzyskać dostęp, stan |
 | [docs/07_ZBIORY_DANYCH.md](docs/07_ZBIORY_DANYCH.md) | budowa zbiorów treningowych i testowych poza Metą (urlscan.io, listy ostrzeżeń, IoC, negatywy) i co trenować |
+| [docs/09_DZIENNIK_DECYZJI.md](docs/09_DZIENNIK_DECYZJI.md) | dziennik decyzji i procesu (na bieżąco) |
+| [docs/10_PODOBIENSTWO.md](docs/10_PODOBIENSTWO.md) | jak oceniamy podobieństwo i jak to mierzymy |
 | [DOKUMENT_ZBIORCZY.md](DOKUMENT_ZBIORCZY.md) | dziennik prac z pierwszego dnia (chronologicznie, z pomyłkami i korektami) |
 | [code/docs/PROGRESS.md](code/docs/PROGRESS.md) | wyniki części badawczej na danych syntetycznych (LEACE, eksperymenty E1–E8) |
 
