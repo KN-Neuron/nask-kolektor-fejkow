@@ -48,7 +48,7 @@ with st.sidebar:
     c1, c2, c3 = st.columns(3)
     c1.metric("materiały", s["materiałów"]); c2.metric("kampanie", s["kampanii"]); c3.metric("operatorzy", s["operatorów"])
     st.caption(f"Konfiguracja: `{DEFAULT_CONFIG}`.")
-    t_camp = st.slider("Próg: znana kampania", 0.30, 0.99, float(g.cfg.thresholds.get("campaign") or 0.95), 0.005,
+    t_camp = st.slider("Próg: znana kampania", 0.30, 0.99, float(g.cfg.thresholds.get("campaign") or 0.95), 0.005, format="%.3f",
                        help="Domyślny próg 0,725 jest skalibrowany na stronach (HTML, HAR, zrzuty) z NASK i syntetyki, zostaw-jeden "
                             "(config/embsim/demo_calibration.json). Na reklamach Meta optimum wyszło ok. 0,5. Niższy próg łączy "
                             "chętniej (więcej trafień, więcej błędnych połączeń).")
@@ -188,7 +188,9 @@ with tab_a:
         # --- krok 4: sieć i karta ------------------------------------------------------------------------------------------
         st.subheader("4. Sieć kampanii i operatorów")
         if d.matches:
-            st.plotly_chart(A.network_figure(case, d), use_container_width=True)
+            st.caption("Czerwona strzałka: znana kampania · pomarańczowa: ten sam operator · szara przerywana: za słabe, żeby łączyć. "
+                       "Na strzałce wynik i najmocniejszy powód.")
+            st.graphviz_chart(A.network_dot(case, d), use_container_width=False)
         c1, c2 = st.columns(2)
         c1.download_button("Pobierz kartę dla analityka (Markdown)", A.card_markdown(case, d), file_name=f"karta_{case.id}.md")
         if c2.button("Dodaj materiał do galerii"):
@@ -219,7 +221,12 @@ with tab_k:
             camps = idx[op]
             all_idx = [i for v in camps.values() for i in v]
             traces = A.shared_traces(g, all_idx)
-            st.graphviz_chart(A.cluster_dot(g, camps, f"operator {op}", traces), use_container_width=True)
+            st.markdown("**Co z tego wynika**")
+            for line in A.cluster_summary(g, camps, traces) or ["Brak wspólnych rzadkich śladów: grupowanie wynika z podobieństwa treści."]:
+                st.markdown(f"- {line}")
+            st.caption("Czerwona ramka: ślady jednej kampanii (w środku jej ramki) · niebieska: ślady łączące kampanie w operatora. "
+                       "Jedna ramka = jeden zbiór materiałów i wszystko, co go skleja.")
+            st.graphviz_chart(A.cluster_dot(g, camps, f"operator {op}", traces), use_container_width=False)
             st.markdown("**Co skleja ten klaster**")
             if traces:
                 st.dataframe(pd.DataFrame([{**t, "materiały": ", ".join(t["materiały"][:8]) + (f" (+{len(t['materiały']) - 8})" if len(t["materiały"]) > 8 else "")}

@@ -29,7 +29,7 @@ MODEL = os.environ.get("EMBSIM_VLM_MODEL", "qwen2.5vl:7b")
 HOST = os.environ.get("OLLAMA_HOST", "http://localhost:11434")
 if not HOST.startswith("http"):
     HOST = "http://" + HOST
-PROMPT_VERSION = "v1"
+PROMPT_VERSION = "v2"
 CACHE = Path(__file__).resolve().parents[2] / "artifacts" / "vlm_cache"
 
 PROMPT = (
@@ -39,10 +39,13 @@ PROMPT = (
     'kreacji), "podpis" (tekst pod reklamą), "przycisk" (tekst przycisku lub null), "logo_marki" (lista widocznych logotypów lub '
     'marek, np. stacji telewizyjnych), "osoby_z_napisow" (lista nazwisk napisanych na obrazie), "motyw" (jedno zdanie po polsku: '
     "co jest na zdjęciu), \"chwyty\" (lista z: 'na żywo', 'pilne', 'zaznaczona twarz', 'strzałka', 'pasek newsowy', 'obraz AI', "
-    "'czek lub pieniądze', 'luksusowy samochód lub dom')."
+    "'czek lub pieniądze', 'luksusowy samochód lub dom'); wpisz tylko te, które naprawdę widać, a jeśli żadnego, pustą listę []."
 )
 ALLOWED_TRICKS = {"na żywo", "pilne", "zaznaczona twarz", "strzałka", "pasek newsowy", "obraz AI", "czek lub pieniądze",
                   "luksusowy samochód lub dom"}
+# Małe modele często przepisują całą listę dozwolonych chwytów z promptu (qwen3.5:2b: 2 z 3 zrzutów NASK, w tym zdjęcie ulicy z „zaznaczoną
+# twarzą” i „obrazem AI”). Taka lista nie jest obserwacją, a skleiłaby wszystkie reklamy przez wspólny tekst, więc ją odrzucamy.
+COPIED_TRICKS = len(ALLOWED_TRICKS) - 2
 
 
 def available(timeout: float = 1.5) -> bool:
@@ -79,15 +82,19 @@ def clean(raw: dict) -> dict:
     button = raw.get("przycisk")
     button = button.strip()[:60] if isinstance(button, str) and len(button.strip()) >= 3 else None
     motif = raw.get("motyw")
+    tricks = [t for t in _strs(raw.get("chwyty")) if t in ALLOWED_TRICKS]
+    if len(tricks) >= COPIED_TRICKS:
+        tricks = []
     return {
         "reklamodawca": adv,
-        "tekst_na_obrazie": [t for t in _strs(raw.get("tekst_na_obrazie")) if t.lower() not in ("sponsorowane", "sponsored")],
+        "tekst_na_obrazie": [t for t in _strs(raw.get("tekst_na_obrazie"))
+                             if t.lower() not in ("sponsorowane", "sponsored", (button or "").lower())],
         "podpis": (raw.get("podpis").strip()[:300] if isinstance(raw.get("podpis"), str) else None),
         "przycisk": button,
         "logo_marki": [t for t in _strs(raw.get("logo_marki")) if t.lower() != same],
         "osoby_z_napisow": [t for t in _strs(raw.get("osoby_z_napisow")) if t.lower() != same],
         "motyw": motif.strip()[:300] if isinstance(motif, str) else None,
-        "chwyty": [t for t in _strs(raw.get("chwyty")) if t in ALLOWED_TRICKS],
+        "chwyty": tricks,
     }
 
 
