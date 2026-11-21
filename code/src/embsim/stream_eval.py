@@ -26,6 +26,7 @@ import copy
 import json
 import time
 from collections import defaultdict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
 import numpy as np
@@ -38,14 +39,30 @@ from .score import Corpus
 
 ROOT = Path(__file__).resolve().parents[3]
 MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
-ROTATING = {"host", "payer", "targeting"}                  # brak zgodności nie jest dowodem różnicy
+LIVE_LOG = ROOT / "code" / "artifacts" / "stream" / "live.log"
+LEX_MAX_CHARS = 2000                                       # TF-IDF liczy tylko pierwsze 2000 znaków (86% znaków to ogony długich tekstów)
+ROTATING = {"host", "payer", "targeting"}
+
+
+def log(msg: str) -> None:
+    """Log na żywo: konsola (z flush) i plik, żeby dało się śledzić `tail -f code/artifacts/stream/live.log`."""
+    line = f"{time.strftime('%H:%M:%S')} {msg}"
+    print(line, flush=True)
+    LIVE_LOG.parent.mkdir(parents=True, exist_ok=True)
+    with LIVE_LOG.open("a", encoding="utf-8") as f:
+        f.write(line + "\n")                  # brak zgodności nie jest dowodem różnicy
 CONTENT = {"text": 1.0, "text_lex": 1.0, "host": 1.0, "targeting": 1.0}
 PROFILES = {
     "tekst gęsty (PCA)": {"text": 1.0},
     "tekst leksykalny": {"text_lex": 1.0},
     "treść (tekst+leksyka+host+targetowanie)": CONTENT,
     "treść + płatnik": {**CONTENT, "payer": 1.0},
+    # warianty diagnostyczne (co psuje profil „treść”: targetowanie i host? PCA?)
+    "tekst gęsty (bez PCA)": {"text": 1.0},
+    "tekst gęsty + leksyka": {"text": 1.0, "text_lex": 1.0},
+    "tekst + leksyka + host": {"text": 1.0, "text_lex": 1.0, "host": 1.0},
 }
+NO_PCA = {"tekst gęsty (bez PCA)"}
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -85,12 +102,12 @@ def split_chronological(n: int, fracs=(0.5, 0.2)) -> tuple[range, range, range]:
 
 
 class Retriever:
-    def __init__(self, gallery: list[Case], weights: dict, k: int = 30, per_key: int = 40):
+    def __init__(self, gallery: list[Case], weights: dict, k: int = 30, per_key: int = 40, pca: bool = True):
         self.k, self.per_key = k, per_key
         self.gal = [copy.copy(c) for c in gallery]
         self.w = weights
         self.corpus = Corpus(self.gal, None, weights, rotating=ROTATING & set(weights), trace_mode="overlap", combine="mean",
-                             embed_fix="abtt1" if "text" in weights else "none")
+                             embed_fix="abtt1" if ("text" in weights and pca) else "none", lex_max_chars=LEX_MAX_CHARS)
         cp = self.corpus
         self.dense = None
         if "text" in weights:
@@ -128,12 +145,16 @@ class Retriever:
         return best_i, float(best_s), cand
 
 
-def run_queries(gallery: list[Case], queries: list[Case], weights: dict) -> list[dict]:
-    ret = Retriever(gallery, weights)
+def run_queries(gallery: list[Case], queries: list[Case], weights: dict, tag: str = "", every: int = 500, pca: bool = True) -> list[dict]:
+    t_fit = time.time()
+    ret = Retriever(gallery, weights, pca=pca)
+    log(f"[{tag}] korpus dopasowany ({len(gallery)} reklam w galerii) w {time.time() - t_fit:.0f}s; zapytań: {len(queries)}")
     pages = {c.meta["page_id"] for c in gallery}
     hashes = {h for c in gallery for h in c.sets.get("text_hash", ())}
     rows, t0 = [], time.time()
-    for q in queries:
+    for n_done, q in enumerate(queries, 1):
+        if n_done % every == 0:
+            log(f"[{tag}] zapytania {n_done}/{len(queries)}  ({1000 * (time.time() - t0) / n_done:.1f} ms/zapytanie)")
         i, s, cand = ret.best(q)
         page = q.meta["page_id"]
         rows.append({"page": page, "best_page": ret.gal[i].meta["page_id"] if i is not None else None, "score": s,
@@ -207,44 +228,70 @@ def slices(rows: list[dict]) -> dict[str, list[dict]]:
 # --------------------------------------------------------------------------------------------------------------------
 
 
+def format_profile(name: str, rep: dict, thr: float, n_test: int, n_known: int, ms: float, cand: float, elapsed: float) -> list[str]:
+    out = [f"\n### {name}  | próg z walidacji {thr:.2f} | {ms:.1f} ms/zapytanie | {elapsed:.0f}s",
+           f"  zapytań testowych: {n_test}, ze znanym twórcą: {n_known}, nowym: {n_test - n_known}; średnio kandydatów: {cand:.0f}",
+           f"  {'wycinek':<54}{'n zn/now':>10}{'top1':>9}{'przypięcie':>12}{'odrz. nowych':>14}{'AUROC':>8}{'pokrycie':>10}"]
+    keys = ("top1_znani", "przypięcie_znani", "odrzucenie_nowych", "AUROC_znany_vs_nowy")
+    for sl in ("wszystkie", "z treścią", "z treścią, tekst nowy (bez identycznego w galerii)"):
+        m = rep[sl]
+        fmt = lambda k: f"{m[k]:.3f}" if not np.isnan(m[k]) else "  -  "
+        out.append(f"  {sl:<54}{m['n_znanych']:>5}/{m['n_nowych']:<4}{fmt('top1_znani'):>9}{fmt('przypięcie_znani'):>12}"
+                   f"{fmt('odrzucenie_nowych'):>14}{fmt('AUROC_znany_vs_nowy'):>8}{fmt('pokrycie_kandydatów'):>10}")
+        out.append(f"{'':<54}{'95% CI':>10}" + "".join(f"  [{m['CI_' + k][0]:.2f},{m['CI_' + k][1]:.2f}]" for k in keys))
+    return out
+
+
+def run_profile(name: str, cases: list[Case]) -> tuple[str, dict, list[str]]:
+    """Jeden profil w osobnym procesie: walidacja (próg) i test; wynik zapisany na bieżąco (wznawianie)."""
+    w = PROFILES[name]
+    G, V, T = split_chronological(len(cases))
+    tag = name.split(" ")[0] + " " + name.split(" ")[1][:8] if " " in name else name
+    t1 = time.time()
+    log(f"[{tag}] start")
+    pca = name not in NO_PCA
+    val = run_queries([cases[i] for i in G], [cases[i] for i in V], w, f"{tag} walidacja", pca=pca)
+    thr = pick_threshold(val)
+    log(f"[{tag}] próg z walidacji: {thr:.2f}")
+    test = run_queries([cases[i] for i in list(G) + list(V)], [cases[i] for i in T], w, f"{tag} test", pca=pca)
+    keys = ("top1_znani", "przypięcie_znani", "odrzucenie_nowych", "AUROC_znany_vs_nowy")
+    rep = {"próg": thr}
+    for sl, rows in slices(test).items():
+        rep[sl] = {**metrics(rows, thr), **{f"CI_{k}": v for k, v in cluster_bootstrap(rows, thr, keys).items()}}
+    lines = format_profile(name, rep, thr, len(test), sum(r["known"] for r in test), test[0]["ms"],
+                           float(np.mean([r["n_cand"] for r in test])), time.time() - t1)
+    log(f"[{tag}] gotowe w {time.time() - t1:.0f}s")
+    return name, rep, lines
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--sample", type=Path, default=ROOT / "data" / "meta" / "sample_s1.jsonl")
     ap.add_argument("--limit", type=int, default=None, help="tylko N najstarszych reklam (próba dymna)")
-    ap.add_argument("--profiles", nargs="*", default=list(PROFILES))
+    ap.add_argument("--profiles", nargs="*", default=list(PROFILES)[:4], help="domyślnie cztery podstawowe; diagnostyczne podaj wprost")
+    ap.add_argument("--workers", type=int, default=4, help="profile liczone równolegle w osobnych procesach")
     a = ap.parse_args()
+    LIVE_LOG.parent.mkdir(parents=True, exist_ok=True)
+    LIVE_LOG.write_text("")
     t0 = time.time()
+    log("ładowanie próbki i liczenie wektorów tekstu...")
     cases = load_cases(a.sample, a.limit)
     G, V, T = split_chronological(len(cases))
-    print(f"reklam: {len(cases)} | galeria {len(G)}, walidacja {len(V)}, test {len(T)} | wektory tekstu: {time.time() - t0:.0f}s", flush=True)
     dates = [c.meta.get("ad_creation_time", "")[:10] for c in cases]
-    print(f"zakresy dat: galeria {dates[G[0]]}..{dates[G[-1]]}, walidacja {dates[V[0]]}..{dates[V[-1]]}, test {dates[T[0]]}..{dates[T[-1]]}")
+    log(f"reklam: {len(cases)} | galeria {len(G)}, walidacja {len(V)}, test {len(T)} | wektory tekstu: {time.time() - t0:.0f}s")
+    log(f"zakresy dat: galeria {dates[G[0]]}..{dates[G[-1]]}, walidacja {dates[V[0]]}..{dates[V[-1]]}, test {dates[T[0]]}..{dates[T[-1]]}")
+    log(f"profile: {len(a.profiles)}, procesów: {min(a.workers, len(a.profiles))}; log na żywo: {LIVE_LOG}")
     report = {}
-    keys = ("top1_znani", "przypięcie_znani", "odrzucenie_nowych", "AUROC_znany_vs_nowy")
-    for name in a.profiles:
-        w = PROFILES[name]
-        t1 = time.time()
-        val = run_queries([cases[i] for i in G], [cases[i] for i in V], w)
-        thr = pick_threshold([r for r in val if True])
-        test = run_queries([cases[i] for i in list(G) + list(V)], [cases[i] for i in T], w)
-        print(f"\n### {name}  | próg z walidacji {thr:.2f} | {test[0]['ms']:.0f} ms/zapytanie | {time.time() - t1:.0f}s", flush=True)
-        known = [r for r in test if r["known"]]
-        print(f"  zapytań testowych: {len(test)}, ze znanym twórcą: {len(known)}, nowym: {len(test) - len(known)}; średnio kandydatów: "
-              f"{np.mean([r['n_cand'] for r in test]):.0f}")
-        print(f"  {'wycinek':<54}{'n zn/now':>10}{'top1':>9}{'przypięcie':>12}{'odrz. nowych':>14}{'AUROC':>8}{'pokrycie':>10}")
-        report[name] = {"próg": thr}
-        for sl, rows in slices(test).items():
-            m = metrics(rows, thr)
-            ci = cluster_bootstrap(rows, thr, keys)
-            fmt = lambda k: f"{m[k]:.3f}" if not np.isnan(m[k]) else "  -  "
-            print(f"  {sl:<54}{m['n_znanych']:>5}/{m['n_nowych']:<4}{fmt('top1_znani'):>9}{fmt('przypięcie_znani'):>12}"
-                  f"{fmt('odrzucenie_nowych'):>14}{fmt('AUROC_znany_vs_nowy'):>8}{fmt('pokrycie_kandydatów'):>10}")
-            print(f"{'':<54}{'95% CI':>10}" + "".join(f"  [{ci[k][0]:.2f},{ci[k][1]:.2f}]" for k in keys))
-            report[name][sl] = {**m, **{f"CI_{k}": ci[k] for k in keys}}
-    out = ROOT / "code" / "artifacts" / "stream"
-    out.mkdir(parents=True, exist_ok=True)
-    (out / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=1, default=float))
-    print("\nzapisano:", out / "report.json")
+    report_name = "report.json" if set(a.profiles) == set(list(PROFILES)[:4]) else "report_diagnostyczne.json"
+    with ProcessPoolExecutor(max_workers=min(a.workers, len(a.profiles))) as ex:
+        futs = [ex.submit(run_profile, name, cases) for name in a.profiles]
+        for fut in as_completed(futs):
+            name, rep, lines = fut.result()
+            report[name] = rep
+            print("\n".join(lines), flush=True)
+            out = ROOT / "code" / "artifacts" / "stream"
+            (out / report_name).write_text(json.dumps(report, ensure_ascii=False, indent=1, default=float))   # zapis na bieżąco
+    log(f"koniec: {time.time() - t0:.0f}s; wynik: {ROOT / 'code' / 'artifacts' / 'stream' / report_name}")
 
 
 if __name__ == "__main__":

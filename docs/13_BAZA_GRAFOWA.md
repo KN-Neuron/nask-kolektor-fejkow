@@ -82,7 +82,7 @@ Są też płatnicy-śmieci („EU”, „1”, „Advertiser”), bo Meta pozwal
 
 ## Instrukcja 2: własna baza na laptopie
 
-Wymagania: Docker, Python 3.11+, dane w `data/` (zob. [02_DANE.md](02_DANE.md)).
+Wymagania: Docker, Python 3.11+, dane w `data/` (zob. [archiwum/02_DANE.md](archiwum/02_DANE.md)).
 
 ```bash
 cd code

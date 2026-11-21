@@ -46,8 +46,9 @@ class Score:
 class Corpus:
     def __init__(self, cases: list[Case], vecs: np.ndarray | None = None, weights: dict[str, float] | None = None,
                  rotating: set[str] | None = ROTATING, adjust_ref: float | None = None, trace_mode: str = "jaccard",
-                 combine: str = "mean", embed_fix: str = "none"):
+                 combine: str = "mean", embed_fix: str = "none", lex_max_chars: int | None = None):
         self.rotating = set(rotating or ())
+        self.lex_max_chars = lex_max_chars                # obcięcie tekstu tylko dla TF-IDF (przyspieszenie; embedding i tak widzi ~256 tokenów)
         self.adjust_ref = adjust_ref
         assert trace_mode in ("jaccard", "contain", "overlap") and combine in ("mean", "noisy_or")
         assert embed_fix in ("none", "center", "abtt1")
@@ -91,7 +92,7 @@ class Corpus:
         for min_df in (2, 1):                             # małe korpusy: bez progu częstości
             try:
                 vec = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=min_df, sublinear_tf=True)
-                X = vec.fit_transform([self.cases[i].text for i in idx])
+                X = vec.fit_transform([self.cases[i].text[: self.lex_max_chars] for i in idx])
                 break
             except ValueError:
                 continue
@@ -145,7 +146,7 @@ class Corpus:
     def prepare(self, q: Case) -> Case:
         """Przygotowuje materiał spoza korpusu do punktowania względem tego korpusu (wiersz TF-IDF z już dopasowanego słownika)."""
         if self._tfidf is not None and q.text.strip():
-            q.lex_vec = self._tfidf.transform([q.text])
+            q.lex_vec = self._tfidf.transform([q.text[: self.lex_max_chars]])
         if self._mean is not None and q.vec is not None:
             q.vec_t = self._fix(q.vec)
         return q
