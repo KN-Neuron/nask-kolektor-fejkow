@@ -31,3 +31,8 @@ Chronologicznie: co zrobiliśmy, **dlaczego**, co wyszło, co nie wyszło. Nowe 
 - etykiety słabe na reklamach Meta (usunięte + domeny z Listy CERT), negatywy = legalne reklamy;
 - model podobieństwa par uczony zamiast ręcznych wag (podział subject-based);
 - H2 na Mecie; kanał obrazu (CLIP) dla samych zrzutów.
+
+## 2026-11-21 (wieczór)
+
+11. **Dokument wejściowy** `docs/00_START_TUTAJ.md` dla nowych osób (słowniczek, zasady, uruchomienie, mapa, wyniki).
+12. **Plan syntetyki**: generator folderów przypadków w formacie organizatora (szablony z prawdziwych przypadków, operator = zestaw + TDS + piksel + styl domen, warianty z kontrolowaną zmiennością i brakami, trudne przypadki, domeny `.example`/`.test`), ocena z ablacją kanałów; wyniki raportowane osobno od danych prawdziwych.

@@ -9,6 +9,8 @@ Bezpieczeństwem Sztucznej Inteligencji NASK PIB.
 
 ## Spis dokumentów
 
+**Nowa osoba w projekcie? Zacznij od [docs/00_START_TUTAJ.md](docs/00_START_TUTAJ.md).**
+
 | Dokument | Co zawiera |
 |---|---|
 | [docs/01_ZADANIE.md](docs/01_ZADANIE.md) | wyzwanie, wymagania formalne i techniczne, kryteria oceny, sposób walidacji, harmonogram |
