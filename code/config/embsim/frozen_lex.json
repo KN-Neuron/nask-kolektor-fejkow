@@ -1,0 +1,49 @@
+{
+ "config": {
+  "model": "paraphrase-multilingual-MiniLM-L12-v2",
+  "weights_campaign": {
+   "text": 1.0,
+   "pixel": 1.0,
+   "kit": 1.0,
+   "scheme": 1.0,
+   "host": 1.0,
+   "text_lex": 1.0
+  },
+  "weights_operator": {
+   "text": 0.0,
+   "pixel": 1.0,
+   "kit": 1.0,
+   "scheme": 1.0,
+   "host": 1.0
+  },
+  "rotating": [
+   "host",
+   "pixel"
+  ],
+  "adjust_levels": [
+   "campaign"
+  ],
+  "lexical": true,
+  "thresholds": {
+   "campaign": 0.6,
+   "operator": 0.275
+  },
+  "e_ref": {
+   "campaign": 0.8333333333333334
+  }
+ },
+ "fingerprint": "71003ce692",
+ "dev": [
+  1,
+  2,
+  3,
+  4,
+  5,
+  6,
+  7,
+  8,
+  9,
+  10
+ ],
+ "at": "2026-11-21 21:29:10"
+}

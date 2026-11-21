@@ -205,8 +205,13 @@ def fmt(res: dict, ds: Dataset) -> str:
 # polecenia
 
 
+FROZEN_DIR = ROOT / "config" / "embsim"     # zamrożone konfiguracje ŚLEDZONE w repo (artifacts/ jest w .gitignore)
+
+
 def frozen_path(name: str) -> Path:
-    return ART / f"frozen_{name}.json"
+    """Lokalna (świeżo skalibrowana) konfiguracja ma pierwszeństwo; w czystym klonie czytamy tę z repo (config/embsim)."""
+    local = ART / f"frozen_{name}.json"
+    return local if local.exists() else FROZEN_DIR / f"frozen_{name}.json"
 
 
 def calibrate(name: str, adjust_levels: list, lexical: bool = False) -> None:
@@ -226,7 +231,8 @@ def calibrate(name: str, adjust_levels: list, lexical: bool = False) -> None:
         print(f"[{name}] {lv}: średnie ARI na dev={best:.3f}, plateau {plateau[0]}–{plateau[-1]} -> próg {cfg.thresholds[lv]}"
               + (f", e_ref={cfg.e_ref[lv]:.2f}" if lv in adjust_levels else ""))
     ART.mkdir(parents=True, exist_ok=True)
-    frozen_path(name).write_text(json.dumps({"config": asdict(cfg), "fingerprint": cfg.fingerprint(), "dev": list(DEV_SEEDS),
+    # zapis zawsze lokalnie; aby konfigurację udostępnić zespołowi, skopiuj plik do code/config/embsim/ i zacommituj
+    (ART / f"frozen_{name}.json").write_text(json.dumps({"config": asdict(cfg), "fingerprint": cfg.fingerprint(), "dev": list(DEV_SEEDS),
                                              "at": time.strftime("%F %T")}, ensure_ascii=False, indent=1))
     print(f"[{name}] zamrożono, odcisk {cfg.fingerprint()}")
 

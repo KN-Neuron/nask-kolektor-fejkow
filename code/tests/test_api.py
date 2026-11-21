@@ -101,3 +101,14 @@ def test_explain_is_readable_polish_with_evidence():
     assert "Znana kampania" in txt and "Najbliższy materiał: A" in txt and "/kita/landing" in txt
     new = g.query(case_from_text("X", "Ogłoszenie o otwarciu wystawy sztuki nowoczesnej w galerii miejskiej w sobotę o osiemnastej"))
     assert new.explain().startswith("Nowy wzorzec")
+
+
+def test_frozen_config_loads_from_tracked_dir_in_clean_clone(tmp_path, monkeypatch):
+    """Czysty klon nie ma artifacts/: Gallery('adj') i CLI muszą działać z konfiguracji śledzonej w repo."""
+    from embsim import bench
+
+    monkeypatch.setattr(bench, "ART", tmp_path)               # brak lokalnych plików
+    for name in ("adj", "lex"):
+        cfg, fr = bench.load_frozen(name)
+        assert cfg.thresholds["campaign"] > 0 and fr["fingerprint"]
+    assert bench.load_frozen("adj")[0].adjust_levels == ["campaign"]
