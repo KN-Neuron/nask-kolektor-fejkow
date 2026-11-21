@@ -7,6 +7,7 @@
     .venv/bin/python graph/load.py export                 # teksty z grafu dla embsim (ad_texts.jsonl, ad_meta.jsonl)
     .venv/bin/python graph/load.py nask                   # przypadki z indeksu `fejki demo build` + podobieństwa i kampanie
     .venv/bin/python graph/load.py synth                  # syntetyka z prawdą (generuje data/synth, jeśli nie ma)
+    .venv/bin/python graph/load.py traffic                # kanał ruchu dla embsim (docs/15): artifacts/traffic/traffic.jsonl
     .venv/bin/python graph/load.py all                    # schema + meta + nask
 
 Połączenie: NEO4J_URI / NEO4J_USER / NEO4J_PASSWORD z code/.env (albo ze zmiennych środowiska; środowisko ma pierwszeństwo).
@@ -192,18 +193,59 @@ def tracker(t: str) -> dict:
     return {"id": t, "kind": kind}
 
 
-def case_record(m, base: Path) -> dict:
+def traffic(folder: Path | None) -> dict:
+    """Kanał ruchu dla grafu, liczony TAK SAMO jak w embsim (docs/15_FORMAT_KANALU_RUCHU.md):
+    zbiory host / kit / scheme / pixel z `embsim.features.load_case`, a do tego (wersja 2 kanału) kolejne kroki przekierowań z HAR
+    (hop, domena źródłowa i docelowa, kod odpowiedzi) i liczba żądań."""
+    from urllib.parse import urljoin
+
+    from embsim.features import host_of, load_case, registered
+
+    if not folder or not Path(folder).is_dir():
+        return {"sets": {}, "redirects": [], "n_requests": None}
+    sets = {k: sorted(v) for k, v in load_case(Path(folder)).sets.items()}
+    entries = []
+    for har in sorted(Path(folder).rglob("*.har")):
+        try:
+            entries += json.loads(har.read_text(encoding="utf-8", errors="ignore"))["log"]["entries"]
+        except (ValueError, KeyError):
+            continue
+    entries.sort(key=lambda e: e.get("startedDateTime") or "")
+    hops = []
+    for e in entries:
+        st, url = (e.get("response") or {}).get("status"), (e.get("request") or {}).get("url", "")
+        if not isinstance(st, int) or not 300 <= st < 400:
+            continue
+        loc = (e["response"].get("redirectURL") or
+               next((h.get("value", "") for h in e["response"].get("headers", []) if h.get("name", "").lower() == "location"), ""))
+        dst = host_of(urljoin(url, loc)) if loc else ""
+        if host_of(url) and dst:
+            hops.append({"hop": len(hops) + 1, "src": registered(host_of(url)), "dst": registered(dst), "status": st})
+    return {"sets": sets, "redirects": hops, "n_requests": len(entries) or None}
+
+
+def case_record(m, base: Path, folder: Path | None = None) -> dict:
+    folder = folder or ((base / m.base_dir) if m.base_dir else None)
+    tr = traffic(folder)
     files = []
     for f in m.files:
         p = (base / m.base_dir / f) if m.base_dir else None
         if p and p.is_file():
             files.append({"sha": sha256(p), "name": f, "kind": KIND.get(p.suffix.lower(), "inny"), "size": p.stat().st_size})
     dates = sorted(o["date"] for o in m.observed if o.get("date"))
-    redirects = []
-    for r in m.redirects:  # "a.host → b.host (302)"
-        mm = re.match(r"(\S+)\s*→\s*(\S+)", r)
-        if mm:
-            redirects.append({"src": reg_domain(mm.group(1)), "dst": reg_domain(mm.group(2))})
+    redirects = tr["redirects"]
+    if not redirects:  # brak HAR: kroki odczytane przez stary ekstraktor (bez kolejności i kodu)
+        for r in m.redirects:  # "a.host → b.host (302)"
+            mm = re.match(r"(\S+)\s*→\s*(\S+)", r)
+            if mm:
+                redirects.append({"hop": None, "src": reg_domain(mm.group(1)), "dst": reg_domain(mm.group(2)), "status": None})
+    sets = tr["sets"]
+    pixels = {f"meta:{p}" if p.isdigit() else p for p in sets.get("pixel", [])}
+    trackers = [{"id": f"meta:{p}", "kind": "meta_pixel"} for p in m.pixel_ids] + [tracker(t) for t in m.tracker_ids]
+    trackers += [{"id": p, "kind": "meta_pixel"} if p.startswith("meta:") else tracker(p)
+                 for p in sorted(pixels - {t["id"] for t in trackers})]
+    landing = list(m.landing_domains)
+    calls = sorted(set(sets.get("host", [])) - set(landing)) if sets else sorted({reg_domain(h) for h in m.third_party_hosts} - set(landing))
     return {
         "id": m.id, "name": m.label, "source": m.source, "title": (m.titles or [""])[0], "titles": m.titles,
         "text": m.text[:20000], "ocr_text": m.ocr_text[:20000], "keywords": m.keywords, "missing": m.missing,
@@ -215,9 +257,9 @@ def case_record(m, base: Path) -> dict:
         "topics": [{"name": k, "w": v} for k, v in m.topics.items()],
         "ads": m.ad_ids, "accounts": m.ad_accounts,
         "advertisers": [{"name": a, "norm": norm_name(a)} for a in m.advertisers],
-        "trackers": [{"id": f"meta:{p}", "kind": "meta_pixel"} for p in m.pixel_ids] + [tracker(t) for t in m.tracker_ids],
-        "landing": m.landing_domains, "calls": sorted({reg_domain(h) for h in m.third_party_hosts} - set(m.landing_domains)),
-        "redirects": redirects, "kits": m.path_prefixes, "schemes": m.url_schemes,
+        "trackers": trackers, "landing": landing, "calls": calls, "redirects": redirects, "n_requests": tr["n_requests"],
+        # zestaw strony i schemat adresu: definicje z embsim, żeby graf pokazywał to samo, co liczy wynik podobieństwa
+        "kits": sets.get("kit", []) if sets else m.path_prefixes, "schemes": sets.get("scheme", []) if sets else m.url_schemes,
         "images": [{"phash": i.phash, "file": i.file, "role": i.role} for i in m.images],
     }
 
@@ -230,7 +272,11 @@ MERGE (m:Material {id: r.id})
       m.observed_at = CASE WHEN r.observed_at IS NULL THEN null ELSE localdatetime(r.observed_at) END,
       m.observed_last = CASE WHEN r.observed_last IS NULL THEN null ELSE localdatetime(r.observed_last) END,
       m.dataset = r.dataset, m.truth_campaign = r.truth_campaign, m.truth_operator = r.truth_operator,
-      m.truth_kind = r.truth_kind
+      m.truth_kind = r.truth_kind, m.n_requests = r.n_requests
+WITH m, r
+OPTIONAL MATCH (m)-[old:USES_KIT|USES_URL_SCHEME|CALLS|REDIRECTS_THROUGH|USES_TRACKER]->()  // ponowne ładowanie: bez starych kresek
+DELETE old
+WITH DISTINCT m, r
 FOREACH (f IN r.files | MERGE (a:Artifact {sha256: f.sha}) SET a.name = f.name, a.kind = f.kind, a.size = f.size
                         MERGE (m)-[:HAS_ARTIFACT]->(a))
 FOREACH (i IN r.images | MERGE (h:ImageHash {phash: i.phash}) SET h.name = i.phash MERGE (m)-[x:HAS_IMAGE]->(h) SET x.file = i.file, x.role = i.role)
@@ -246,9 +292,11 @@ FOREACH (t IN r.trackers | MERGE (tr:Tracker {id: t.id}) SET tr.kind = t.kind, t
 FOREACH (d IN r.landing | MERGE (dm:Domain {name: d}) MERGE (m)-[:LANDS_ON]->(dm))
 FOREACH (d IN r.calls | MERGE (dm:Domain {name: d}) MERGE (m)-[:CALLS]->(dm))
 FOREACH (x IN r.redirects | MERGE (s:Domain {name: x.src}) MERGE (t:Domain {name: x.dst}) MERGE (s)-[:REDIRECTS_TO]->(t)
-                           MERGE (m)-[:REDIRECTS_THROUGH]->(t))
+                           CREATE (m)-[:REDIRECTS_THROUGH {hop: x.hop, src: x.src, status: x.status}]->(t))
 FOREACH (k IN r.kits | MERGE (pk:PageKit {prefix: k}) SET pk.name = k MERGE (m)-[:USES_KIT]->(pk))
-FOREACH (s IN r.schemes | MERGE (us:UrlScheme {fingerprint: s}) SET us.name = s MERGE (m)-[:USES_URL_SCHEME]->(us))
+FOREACH (s IN r.schemes | MERGE (us:UrlScheme {fingerprint: s})
+                          SET us.name = CASE WHEN size(s) > 60 THEN left(s, 57) + '…' ELSE s END
+                          MERGE (m)-[:USES_URL_SCHEME]->(us))
 WITH m, r
 UNWIND (CASE WHEN size(r.advertisers) = 0 THEN [null] ELSE r.advertisers END) AS adv
 WITH m, r, adv WHERE adv IS NOT NULL
@@ -373,9 +421,67 @@ def load_cases(session, idx, dataset: str, min_score: float, truth: dict | None 
                         "domains": c.domains, "dataset": dataset} for c in cs]
     run_batches(session, GROUP_CYPHER, dump(camps), "kampanie")
     run_batches(session, NET_CYPHER, dump(nets), "sieci")
+    session.run("MATCH (x) WHERE (x:PageKit OR x:UrlScheme) AND NOT (x)--() DELETE x").consume()  # osierocone po zmianie definicji
+    mark_hubs(session)
 
 
 # --------------------------------------------------------------------------------------------------------------------
+
+
+HUB_SHARE, HUB_MIN_SET, HUB_ADS = 0.3, 30, 100
+TRACES = {"Domain": "LANDS_ON|CALLS", "PageKit": "USES_KIT", "UrlScheme": "USES_URL_SCHEME", "Tracker": "USES_TRACKER"}
+
+
+def mark_hubs(session) -> None:
+    """Ślady pospolite (trackery, CDN, facebook.net): `hub = true`, gdy
+    - są w > 100 reklamach Mety, albo
+    - występują w dwóch niezależnych zbiorach (np. NASK i syntetyka), albo
+    - są w >= 30% materiałów zbioru, który ma co najmniej 30 materiałów.
+    Przy 10 przypadkach NASK sam udział nic nie mówi: zestaw strony wspólny dla sieci S1 to dowód, nie hub.
+    Nie kasujemy hubów: wynik embsim i tak daje im wagę ~0, a w grafie mają być widoczne."""
+    total = {r["ds"]: r["n"] for r in session.run("MATCH (m:Material) RETURN m.dataset AS ds, count(*) AS n")}
+    for label, rels in TRACES.items():
+        rows = [dict(r) for r in session.run(
+            f"MATCH (x:{label}) OPTIONAL MATCH (x)<-[:{rels}]-(m:Material) "
+            "WITH x, m.dataset AS ds, count(DISTINCT m) AS k WITH x, collect({ds: ds, k: k}) AS per "
+            + ("OPTIONAL MATCH (x)<-[:LINKS_TO]-(a:Ad) WITH x, per, count(a) AS na " if label == "Domain" else "WITH x, per, 0 AS na ")
+            + "RETURN elementId(x) AS eid, per, na")]
+        upd = []
+        for r in rows:
+            nm = sum(p["k"] for p in r["per"] if p["ds"])
+            sets = {p["ds"] for p in r["per"] if p["ds"] and p["k"]}
+            hub = (r["na"] > HUB_ADS or len(sets & {"nask", "synth"}) > 1
+                   or any(p["ds"] and total.get(p["ds"], 0) >= HUB_MIN_SET and p["k"] >= HUB_SHARE * total[p["ds"]] for p in r["per"]))
+            upd.append({"eid": r["eid"], "nm": nm, "hub": hub})
+        run_batches(session, "UNWIND $rows AS r MATCH (x) WHERE elementId(x) = r.eid SET x.n_materials = r.nm, x.hub = r.hub",
+                    upd, f"huby {label}")
+    print("huby:", {r["l"]: r["n"] for r in session.run(
+        "MATCH (x) WHERE x.hub RETURN labels(x)[0] AS l, count(*) AS n")})
+
+
+def export_traffic(session, out: Path) -> None:
+    """Kanał ruchu w formacie z docs/15 (pkt 3 i 5) dla embsim: zbiory + landing/calls + kroki przekierowań + liczba żądań."""
+    q = """
+    MATCH (m:Material)
+    RETURN m.id AS id, m.dataset AS dataset, m.n_requests AS n_requests,
+      [(m)-[:LANDS_ON]->(d) | d.name] AS landing, [(m)-[:CALLS]->(d) | d.name] AS calls,
+      [(m)-[r:REDIRECTS_THROUGH]->(d) | {hop: r.hop, src: r.src, dst: d.name, status: r.status}] AS redirects,
+      [(m)-[:USES_KIT]->(k) | k.prefix] AS kit, [(m)-[:USES_URL_SCHEME]->(u) | u.fingerprint] AS scheme,
+      [(m)-[:USES_TRACKER]->(t) | replace(t.id, 'meta:', '')] AS pixel,
+      [(m)-[:LANDS_ON|CALLS]->(d) WHERE d.hub | d.name] AS hubs
+    ORDER BY m.dataset, m.id
+    """
+    out.mkdir(parents=True, exist_ok=True)
+    n = 0
+    with (out / "traffic.jsonl").open("w", encoding="utf-8") as f:
+        for r in session.run(q):
+            d = dict(r)
+            d["redirects"] = sorted(d["redirects"], key=lambda x: (x["hop"] is None, x["hop"] or 0))
+            d["sets"] = {"host": sorted(set(d["landing"]) | set(d["calls"])), "kit": sorted(d.pop("kit")),
+                         "scheme": sorted(d.pop("scheme")), "pixel": sorted(d.pop("pixel"))}
+            f.write(json.dumps(d, ensure_ascii=False) + "\n")
+            n += 1
+    print(f"kanał ruchu: {n} materiałów -> {out / 'traffic.jsonl'}")
 
 
 def export_texts(session, out: Path) -> None:
@@ -398,7 +504,7 @@ def export_texts(session, out: Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("what", choices=["schema", "meta", "nask", "synth", "all", "export"])
+    ap.add_argument("what", choices=["schema", "meta", "nask", "synth", "all", "export", "traffic"])
     ap.add_argument("--payer", action="append", help="meta: tylko reklamy tych płatników (próbka)")
     ap.add_argument("--limit", type=int, help="meta: maks. reklam na płatnika")
     ap.add_argument("--file", type=Path, default=ADS, help="meta: inny plik JSONL, np. próbka z graph/sample.py")
@@ -415,6 +521,8 @@ def main() -> None:
             load_nask(s, args.min_score)
         if args.what == "synth":
             load_synth(s, args.min_score)
+        if args.what == "traffic":
+            export_traffic(session=s, out=ROOT / "artifacts" / "traffic")
         if args.what == "export":
             export_texts(s, args.out)
         print("w bazie:", {r["l"]: r["n"] for r in s.run("MATCH (n) RETURN labels(n)[0] AS l, count(*) AS n ORDER BY n DESC")})

@@ -19,7 +19,7 @@ from fejki.config import ROOT
 from fejki.demo import store
 from fejki.demo.cards import all_markdown, build_cards, card_markdown, domains_csv
 from fejki.demo.material import Material, material_from_inputs
-from fejki.demo.similar import CHANNELS, CONTENT_RELATIONS, W, all_pairs, campaigns, confidence_label, match
+from fejki.demo.similar import CHANNELS, W, all_pairs, campaigns, confidence_label, match
 
 DEFAULT_DATA = Path(os.environ.get("FEJKI_DATA") or ROOT.parent / "data" / "dane" / "do_udostępnienia")
 
@@ -179,59 +179,18 @@ def show_material(m: Material, compact: bool = False):
             st.write(m.ocr_text[:3000])
 
 
-def graph_html(node_ids: list[str], edges: list, highlight: str | None = None, height: int = 560) -> str:
-    from pyvis.network import Network
+def short_label(nid: str) -> str:
+    m = by_id.get(nid)
+    if m is None:
+        return ""
+    return (m.products or m.titles or m.landing_domains or [f"reklama Meta {x}" for x in m.ad_ids] or m.files or [""])[0][:40]
 
-    palette = ["#e15759", "#4e79a7", "#f28e2b", "#76b7b2", "#59a14f", "#edc948", "#b07aa1", "#ff9da7", "#9c755f", "#bab0ac"]
-    net_color = {n.id: palette[k % len(palette)] for k, n in enumerate(nets)}
-    g = Network(height=f"{height}px", width="100%", bgcolor="#ffffff", font_color="#222222", directed=False)
-    g.set_options(json.dumps({
-        "physics": {"enabled": False},
-        "edges": {"smooth": False, "font": {"size": 11, "align": "middle"}},
-        "nodes": {"font": {"size": 13}},
-        "interaction": {"hover": True, "tooltipDelay": 120, "navigationButtons": True},
-    }))
-    import networkx as nx
 
-    G = nx.Graph()
-    G.add_nodes_from(node_ids)
-    G.add_weighted_edges_from([(p.a, p.b, p.score) for p in edges if p.a in G and p.b in G])
-    # układ po składowych: każda grupa na własnym okręgu, pojedyncze materiały w siatce pod spodem
-    import math
+def link_chart(node_ids: list[str], edges: list, net_list, camp_list, highlight: str | None = None) -> None:
+    from fejki.demo import linkgraph
 
-    pos, x0 = {}, 0.0
-    comps = sorted((sorted(c) for c in nx.connected_components(G)), key=lambda c: (-len(c), c))
-    groups, singles = [c for c in comps if len(c) > 1], [c[0] for c in comps if len(c) == 1]
-    for comp in groups:
-        r = 110 + 45 * len(comp)
-        for k, nid in enumerate(comp):
-            a = 2 * math.pi * k / len(comp) - math.pi / 2
-            pos[nid] = (x0 + r + r * math.cos(a), r * math.sin(a))
-        x0 += 2 * r + 160
-    cols = max(3, math.ceil(math.sqrt(len(singles) * 2)))
-    width = max(x0 - 160, 600)
-    for k, nid in enumerate(singles):
-        pos[nid] = (k % cols * width / max(1, cols - 1) if cols > 1 else 0, 420 + 170 * (k // cols))
-    for nid in node_ids:
-        m = by_id.get(nid)
-        desc = (m.products or m.titles or m.landing_domains or [f"reklama Meta {x}" for x in m.ad_ids] or m.files or [""])[0] if m else ""
-        label = nid if m is None else f"{nid}: {desc[:26]}"
-        title = "" if m is None else f"{m.label}\n{'; '.join(m.landing_domains)}\n{camp_of.get(nid, '')} / {net_of.get(nid, '')}"
-        color = "#111111" if nid == highlight else net_color.get(net_of.get(nid), "#999999")
-        x, y = pos[nid]
-        g.add_node(nid, label=label, title=title, color=color, shape="dot", size=28 if nid == highlight else 18,
-                   x=float(x), y=float(y), physics=False)
-    for p in edges:
-        content = p.relation in CONTENT_RELATIONS
-        g.add_edge(p.a, p.b, width=1 + 4 * p.score, title=f"{p.score:.2f} · {p.relation}\n" + "\n".join("• " + e.reason for e in p.evidence[:6]),
-                   color="#d62728" if content else "#1f77b4", dashes=not content, label=f"{p.score:.2f}")
-    html = g.generate_html()
-    # dopasuj widok do wszystkich węzłów po narysowaniu (bez fizyki vis-network nie robi tego sam w ramce iframe)
-    # (graf w nieaktywnej zakładce ma przy ładowaniu zerową szerokość, więc dopasowujemy też przy każdej zmianie rozmiaru)
-    fit = ("<script>function _fit(){try{network.redraw();network.fit({animation:false});}catch(e){}}"
-           "setTimeout(_fit,250);window.addEventListener('resize',function(){setTimeout(_fit,60);});"
-           "new ResizeObserver(function(){setTimeout(_fit,60);}).observe(document.body);</script></body>")
-    return html.replace("</body>", fit)
+    st.graphviz_chart(linkgraph.dot(node_ids, net_list, camp_list, edges, {n: short_label(n) for n in node_ids}, highlight),
+                      use_container_width=False)  # naturalny rozmiar: rozciągnięty na całą szerokość robi się za wysoki
 
 
 def evidence_table(p) -> pd.DataFrame:
@@ -240,9 +199,14 @@ def evidence_table(p) -> pd.DataFrame:
 
 # --- zakładki ------------------------------------------------------------------------------------------------------
 
-tab_new, tab_batch, tab_camp, tab_graph, tab_tmpl, tab_mat, tab_method = st.tabs(
-    ["🔎 Analiza nowego materiału", "📥 Nowy zbiór (folder / zip)", "📦 Kampanie i sieci", "🕸️ Graf powiązań", "🧬 Schemat perswazji",
-     "📄 Materiały", "📐 Metodyka i testy"])
+tab_new, tab_batch, tab_camp, tab_clusters, tab_graph, tab_tmpl, tab_mat, tab_method = st.tabs(
+    ["🔎 Analiza nowego materiału", "📥 Nowy zbiór (folder / zip)", "📦 Kampanie i sieci", "🧩 Klastry w grafie", "🕸️ Graf powiązań",
+     "🧬 Schemat perswazji", "📄 Materiały", "📐 Metodyka i testy"])
+
+with tab_clusters:
+    from fejki.app.graph_tab import render as render_clusters
+
+    render_clusters()
 
 with tab_new:
     st.header("Analiza nowego materiału")
@@ -345,8 +309,11 @@ with tab_new:
                     st.dataframe(evidence_table(p), use_container_width=True, hide_index=True)
             near = [p for p in r.pairs if p.score >= maybe][:12]
             if near:
+                from fejki.demo.similar import Campaign
+
                 nodes = [new.id] + [p.b for p in near]
-                st.components.v1.html(graph_html(nodes, near, highlight=new.id, height=420), height=440)
+                one = [Campaign(id="najbliższe", name="", members=nodes, strength=0.0)]
+                link_chart(nodes, near, one, [Campaign(id=n, name="", members=[n], strength=0.0) for n in nodes], highlight=new.id)
         if not new.id.endswith("*") and st.button("Dodaj ten materiał do zbioru"):
             idx.materials.append(new.model_copy(update={"id": f"n{len(idx.materials) + 1}", "label": "dodany ręcznie"}))
             store.save(idx)
@@ -441,16 +408,37 @@ with tab_camp:
         st.caption("Daty rejestracji domen pojawią się po „Zbierz dane infrastruktury (bierne)” w panelu bocznym.")
 
 with tab_graph:
+    from fejki.demo import linkgraph
     from fejki.demo.export import build_graph as exp_graph
     from fejki.demo.export import csvs as exp_csvs
     from fejki.demo.export import cypher as exp_cypher
     from fejki.demo.export import graphml as exp_graphml
 
     st.header("Graf powiązań")
-    st.caption("Węzeł = materiał (kolor = sieć). Czerwona linia ciągła = ten sam przekaz; niebieska przerywana = wspólna infrastruktura. "
-               "Najedź na krawędź, żeby zobaczyć przesłanki.")
+    st.caption("Karteczka = materiał. Ramka obok = co dokładnie łączy materiały, do których prowadzą linie: czerwona kropka = ten sam "
+               "przekaz (tekst, obrazy, tytuł, osoba), niebieska = to samo zaplecze (domena, piksel, ścieżka zestawu, schemat adresu). "
+               "Przerywana czerwona ramka = kampania, szare tło = sieć jednego operatora. Pospolite przesłanki (tematyka) są pominięte.")
     shown = [p for p in pairs if p.score >= min(thr, maybe)]
-    st.components.v1.html(graph_html([m.id for m in idx.materials], shown), height=600)
+    ts = linkgraph.traces(shown)
+    multi = [n for n in nets if len(n.members) > 1]
+    if not multi:
+        st.info("Przy obecnych progach nie ma żadnej sieci. Obniż „Próg powiązania” w panelu bocznym.")
+    else:
+        pick = st.selectbox("Sieć", ["wszystkie"] + [n.id for n in multi],
+                            format_func=lambda i: "wszystkie sieci" if i == "wszystkie" else
+                            f"{i}: {', '.join(next(n.members for n in multi if n.id == i))}")
+        sel = multi if pick == "wszystkie" else [n for n in multi if n.id == pick]
+        ids = [m for n in sel for m in n.members]
+        link_chart(ids, [p for p in shown if p.a in ids and p.b in ids], sel, camps)
+        st.subheader("Co z tego wynika")
+        cols = st.columns(min(len(sel), 3))
+        for k, n in enumerate(sel):
+            with cols[k % len(cols)]:
+                st.markdown(f"**Sieć {n.id}** ({len(n.members)} materiałów)")
+                st.markdown("\n".join(f"- {line}" for line in linkgraph.summary(n, camps, ts, {})))
+        alone = linkgraph.lonely([m.id for m in idx.materials], shown)
+        if alone:
+            st.caption("Bez powiązań przy tych progach (nie rysowane): " + "; ".join(f"{m} ({short_label(m)})" for m in alone))
     g_exp = exp_graph(idx.materials, pairs, camps, nets, min(thr, maybe))
     e1, e2, e3 = st.columns(3)
     e1.download_button("Graf (GraphML)", exp_graphml(g_exp).encode("utf-8"), "graf.graphml")

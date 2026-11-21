@@ -241,6 +241,51 @@ Ograniczenia:
 - silnik liczy pospolite domeny (np. instagram.com) jako mocny wspólny ślad; to do poprawy w `embsim` (lista hubów);
 - progi są dobrane na syntetyce; na prawdziwych danych decyzja silnika jest orientacyjna, dokładne zgodności z grafu nie.
 
+## Ruch sieciowy (przekierowania, hosty trzecie)
+
+Graf liczy kanał ruchu **tak samo jak silnik `embsim`** (format: [15_FORMAT_KANALU_RUCHU.md](15_FORMAT_KANALU_RUCHU.md)),
+więc pokazuje dokładnie to, co widzi wynik podobieństwa:
+
+| w grafie | skąd | przykład |
+|---|---|---|
+| `(:Material)-[:CALLS]->(:Domain)` | domeny z HAR (dwa ostatnie człony), bez domen lądowania | `jsdelivr.net` |
+| `(:Material)-[:USES_KIT]->(:PageKit)` | katalog zasobu: pierwsze dwa segmenty ścieżki | `/_cdn/production` |
+| `(:Material)-[:USES_URL_SCHEME]->(:UrlScheme)` | posortowane nazwy parametrów adresu | `utm_campaign,utm_content,…` |
+| `(:Material)-[:USES_TRACKER]->(:Tracker)` | piksele i tagi z HTML (+ te, które znalazł stary ekstraktor) | `meta:1330594163214458` |
+| `(:Material)-[:REDIRECTS_THROUGH {hop, src, status}]->(:Domain)` | kolejne przekierowania z HAR (3xx, w kolejności czasu) | `1: google.com → google.com (302)` |
+| `Material.n_requests` | liczba żądań w HAR | `71` |
+
+**Huby:** ślady pospolite (CDN, trackery, google.com) dostają `hub = true`: są w ponad 100 reklamach Mety, w obu zbiorach
+(NASK i syntetyka) albo w co najmniej 30% materiałów dużego zbioru. Nie są kasowane. Zestaw strony i schemat adresu
+sieci S1 hubami **nie** są: to dowód, a nie szum.
+
+**Zabezpieczenie w `add`:** jeśli silnik łączy nowy materiał ze znanym tylko przez huby (np. NASK 61 dostał „znana kampania”
+z wynikiem 0,95 za samo wspólne `google.com`), graf tego nie przyjmuje: materiał dostaje „nowy wzorzec” z wyjaśnieniem.
+
+Eksport dla silnika (wersja 2 kanału, z krokami przekierowań i liczbą żądań):
+
+```bash
+.venv/bin/python graph/load.py traffic     # -> code/artifacts/traffic/traffic.jsonl
+```
+
+## Widok w demo: zakładka „🧩 Klastry w grafie”
+
+```bash
+cd code && .venv/bin/fejki demo app        # http://localhost:8501, zakładka „Klastry w grafie”
+```
+
+Zakładka czyta Neo4j z `code/.env` (lokalna baza albo serwer zespołu: ustaw `NEO4J_URI` i `NEO4J_PASSWORD`).
+Bez bazy pokazuje komunikat, a reszta demo działa dalej. Zasada: **jeden klaster naraz i tylko to, co go skleja**;
+huby (google.com, CDN) są pominięte. Rysunek ma stały układ (bez „pływających kulek”), każdy owal mówi, czym jest ślad.
+
+| widok | co widać |
+|---|---|
+| Twórcy (Meta) | filtr etykiety i wyszukiwarka → karta: liczby (reklamy, zdjęte, strony, płatnicy, okres), rysunek „strony ↔ płatnik / domena / identyczny tekst”, tabela przesłanek, przypadki NASK tego twórcy, reklamy z linkiem do Ad Library, karta do pobrania (Markdown) i zapytanie do Neo4j Browser |
+| Sieci i kampanie (NASK, syntetyka, nowe) | lista sieci → rysunek „materiały ↔ wspólne ślady” (ślady tego samego rodzaju łączące te same materiały są jednym owalem, np. „11 × ten sam obraz”), tabela wspólnych śladów, pary z wynikiem i przesłankami |
+| Nowe materiały (add / scraper) | co dodano, jaka decyzja, do którego twórcy i dlaczego, pełne wyjaśnienie po polsku |
+
+To samo z wiersza poleceń (np. do prezentacji): `graph/clusters.py creator "Sharon Coleman"`, `graph/clusters.py group S1`.
+
 ## Wektory tekstów reklam (kolejność kroków)
 
 ```bash
