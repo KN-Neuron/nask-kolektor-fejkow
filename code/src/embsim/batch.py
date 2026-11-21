@@ -1,6 +1,9 @@
 """Wsadowe kodowanie unikalnych tekstów (np. z grafu) z wznawianiem. Wyjście: <out>/vectors.npy (float16) + hashes.json.
 
-    python -m embsim.batch ad_texts.jsonl OUT_DIR [--limit N] [--max-len 192] [--batch 16]
+    python -m embsim.batch ad_texts.jsonl OUT_DIR [--model M] [--limit N] [--max-len 192] [--batch 16]
+
+Domyślnie Qwen3-VL-Embedding (wolny: ~3-4 teksty/s na Macu); dowolny model sentence-transformers (np. lekki
+paraphrase-multilingual-MiniLM-L12-v2) dostaje zwykłe napisy zamiast słowników i nie dostaje instrukcji.
 """
 from __future__ import annotations
 
@@ -11,7 +14,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .embed import Embedder
+from .embed import DEFAULT_MODEL, Embedder
 
 CHUNK = 512
 
@@ -20,6 +23,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("src", type=Path)
     ap.add_argument("out", type=Path)
+    ap.add_argument("--model", default=DEFAULT_MODEL)
     ap.add_argument("--limit", type=int)
     ap.add_argument("--max-len", type=int, default=192)
     ap.add_argument("--batch", type=int, default=16)
@@ -33,14 +37,16 @@ def main() -> None:
         hashes = hashes[-a.limit:]
     a.out.mkdir(parents=True, exist_ok=True)
     (a.out / "hashes.json").write_text(json.dumps(hashes))
-    emb = Embedder()
+    qwen = "Qwen3-VL" in a.model
+    emb = Embedder(a.model)
     emb.model.max_seq_length = a.max_len
     t0, done = time.time(), 0
     for k in range(0, len(hashes), CHUNK):
         f = a.out / f"chunk_{k // CHUNK:04d}.npy"
         part = hashes[k:k + CHUNK]
         if not f.exists():
-            v = emb.model.encode([{"text": uniq[h]} for h in part], prompt=emb.prompt, batch_size=a.batch,
+            inp = [{"text": uniq[h]} if qwen else uniq[h] for h in part]
+            v = emb.model.encode(inp, prompt=emb.prompt if qwen else None, batch_size=a.batch,
                                  normalize_embeddings=True, show_progress_bar=False)
             np.save(f, np.asarray(v, dtype=np.float16))
         done += len(part)

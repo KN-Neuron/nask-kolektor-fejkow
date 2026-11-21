@@ -23,6 +23,7 @@ class Case:
     text: str = ""
     sets: dict[str, set[str]] = field(default_factory=dict)  # kanał -> zbiór śladów
     vec: object = None                                         # wektor tekstu (uzupełnia score.Corpus)
+    lex_i: int | None = None                                   # wiersz w macierzy TF-IDF korpusu (uzupełnia score.Corpus)
 
 
 def host_of(url: str) -> str:

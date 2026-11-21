@@ -6,6 +6,7 @@
         dla kanałów „rotujących” (host, piksel) m_c = 1 tylko, gdy istnieje wspólny ślad: brak wspólnej domeny nie jest
         dowodem różnicy, bo kampanie je wymieniają; kanały trwałe (zestaw strony, schemat adresu) liczą też brak zgodności,
   s_c ∈ [0, 1]:
+    - kanał leksykalny `text_lex` (opcjonalny, wagi LEX_WEIGHTS): to samo dla kosinusa TF-IDF znaków (bez modelu);
     - kanał semantyczny (tekst, w przyszłości obraz): (cos − μ) / (1 − μ), obcięte do [0, 1],
       gdzie μ = mediana kosinusów w korpusie (rozkład zerowy liczony z danych, bez etykiet);
     - kanały śladów (piksel, zestaw strony, schemat adresu, host): ważony Jaccard (waga śladu = idf w korpusie) razy
@@ -28,6 +29,7 @@ import numpy as np
 from .features import Case
 
 DEFAULT_WEIGHTS = {"text": 1.0, "pixel": 1.0, "kit": 1.0, "scheme": 1.0, "host": 1.0}
+LEX_WEIGHTS = {**DEFAULT_WEIGHTS, "text_lex": 1.0}   # + kanał leksykalny: TF-IDF znaków (bez modelu), obok semantycznego `text`
 SEMANTIC = {"text", "image"}
 ROTATING = {"host", "pixel"}   # ślady, które kampanie wymieniają (krótko żyjące domeny, piksele): brak zgodności to nie dowód
 
@@ -57,15 +59,46 @@ class Corpus:
                 d = self.df.setdefault(ch, {})
                 for x in s:
                     d[x] = d.get(x, 0) + 1
+        self.lex = None                                   # macierz kosinusów TF-IDF (n×n) albo None
+        self.mu_lex = 0.0
+        if self.w.get("text_lex", 0) > 0:
+            self._fit_lexical()
         self.mu = 0.0
         if vecs is not None and len(vecs) > 1:
             S = np.asarray(vecs) @ np.asarray(vecs).T
             self.mu = float(np.median(S[np.triu_indices(len(vecs), 1)]))
 
+    def _fit_lexical(self) -> None:
+        """TF-IDF n-gramów znaków (3–5) na tekstach korpusu, bez etykiet i bez modelu. Wynik: kosinus znormalizowany jak kanał tekstowy."""
+        from sklearn.feature_extraction.text import TfidfVectorizer
+
+        idx = [i for i, c in enumerate(self.cases) if c.text.strip()]
+        if len(idx) < 2:
+            return
+        X = None
+        for min_df in (2, 1):                             # małe korpusy: bez progu częstości
+            try:
+                X = TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), min_df=min_df, sublinear_tf=True).fit_transform(
+                    [self.cases[i].text for i in idx])
+                break
+            except ValueError:
+                continue
+        if X is None:
+            return
+        for r, i in enumerate(idx):
+            self.cases[i].lex_i = r
+        self.lex = (X @ X.T).toarray()
+        iu = np.triu_indices(self.lex.shape[0], 1)
+        self.mu_lex = float(np.median(self.lex[iu])) if len(iu[0]) else 0.0
+
     def idf(self, ch: str, x: str) -> float:
         return math.log((self.n + 1) / (self.df[ch].get(x, 0) + 0.5))
 
     def channel(self, a: Case, b: Case, ch: str) -> tuple[float | None, list[str]]:
+        if ch == "text_lex":
+            if self.lex is None or a.lex_i is None or b.lex_i is None:
+                return None, []
+            return float(np.clip((self.lex[a.lex_i, b.lex_i] - self.mu_lex) / (1 - self.mu_lex), 0, 1)), []
         if ch in SEMANTIC:
             if a.vec is None or b.vec is None:
                 return None, []
@@ -83,6 +116,8 @@ class Corpus:
 
     def has(self, a: Case, b: Case, ch: str) -> bool:
         """Czy OBA materiały mają dane w kanale (niezależnie od tego, czy cokolwiek się pokrywa)."""
+        if ch == "text_lex":
+            return a.lex_i is not None and b.lex_i is not None
         if ch in SEMANTIC:
             return a.vec is not None and b.vec is not None
         return bool(a.sets.get(ch)) and bool(b.sets.get(ch))

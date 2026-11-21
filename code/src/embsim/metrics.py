@@ -5,10 +5,14 @@ Etykieta `None` oznacza materiał bez grupy (negatyw, solo): nigdy nie jest pozy
 """
 from __future__ import annotations
 
+import warnings
 from collections import Counter, defaultdict
 
 import numpy as np
 from sklearn.metrics import adjusted_rand_score, average_precision_score, normalized_mutual_info_score, roc_auc_score
+
+# sklearn ostrzega, gdy etykiet jest >50% liczby próbek (u nas: wielu twórców z jednym tekstem), co jest zamierzone
+warnings.filterwarnings("ignore", message=".*unique classes is greater.*")
 
 
 def _unique_labels(labels: list) -> list:
