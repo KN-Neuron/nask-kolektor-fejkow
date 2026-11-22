@@ -1,6 +1,6 @@
 """Kolekcjoner Fejków: demonstrator, jedna ścieżka. Uruchomienie: `make demo` albo `streamlit run src/embsim/app.py`.
 
-Wejście (zrzut, HTML, HAR, reklama Meta w JSON/JSONL, tekst, adres URL; adresów nie odwiedzamy) -> cechy -> dopasowanie do galerii z
+Wejście (zrzut, HTML, HAR, reklama Meta w JSON/JSONL, tekst, adres URL; stronę spod adresu pobiera embsim/fetch.py, można wyłączyć) -> cechy -> dopasowanie do galerii z
 przesłankami (wzór: docs/14, bez uczenia) -> sieć kampanii i operatorów -> karta dla analityka. Działa offline po pobraniu modelu
 (w obrazie Dockera jest już w środku); `EMBSIM_EMBED=hash` włącza zamiennik bez modelu.
 """
@@ -94,7 +94,7 @@ with st.sidebar:
 
 st.title("Kolekcjoner Fejków")
 st.caption("Łączy podejrzane reklamy i strony w kampanie i operatorów oraz pokazuje, dlaczego. Jedno wyrażenie z wagami ustalonymi z góry, "
-           "bez uczenia. Strony oszustów nie są odwiedzane.")
+           "bez uczenia. Stronę spod podanego adresu pobieramy bez JavaScriptu (można to wyłączyć przy polu adresu).")
 
 
 def load_example(key: str) -> None:
@@ -227,10 +227,11 @@ with tab_a:
         for k in ("źródło", "url"):
             if k in info:
                 st.caption(info[k])
-        cols = st.columns(5)
+        cols = st.columns(6)
         cols[0].metric("znaków tekstu", len(case.text))
-        for col, ch in zip(cols[1:], ("host", "kit", "scheme", "pixel")):
-            col.metric({"host": "domeny", "kit": "zestawy zasobów", "scheme": "schematy adresu", "pixel": "piksele"}[ch], len(case.sets.get(ch, ())))
+        for col, ch in zip(cols[1:], ("host", "kit", "scheme", "pixel", "infra")):
+            col.metric({"host": "domeny", "kit": "zestawy zasobów", "scheme": "schematy adresu", "pixel": "piksele",
+                        "infra": "ślady infrastruktury"}[ch], len(case.sets.get(ch, ())))
         if info.get("ocr_język"):
             st.caption(f"OCR: język {info['ocr_język']}, odczytano {info['ocr_znaków']} znaków.")
         with st.expander("Tekst i ślady"):
@@ -327,6 +328,8 @@ CHANNELS = [
     ("host", "domeny rejestrowalne z ruchu, bez Google/Meta/CDN", "wspólne ślady ważone rzadkością"),
     ("pixel", "identyfikatory pikseli i tagów (z HTML)", "wspólne ślady ważone rzadkością"),
     ("img", "identyczne obrazy strony (SHA-256 z HAR i `*_files`), bez modelu", "wspólne ślady ważone rzadkością"),
+    ("infra", "metadane domen: serwery nazw, adresy IP i ASN (DNS), rejestrator i godzina rejestracji (RDAP); bez wielkich dostawców",
+     "wspólne ślady ważone rzadkością"),
 ]
 
 with tab_w:

@@ -230,7 +230,12 @@ class Decision:
             lines.append(f"Wspólne ślady, {_CHANNEL_PL.get(k, k)}: " + ", ".join(v[:3]) + ("…" if len(v) > 3 else "") + ".")
         for k, v in m.extra_shared.items():
             lines.append(f"Dokładna zgodność poza wynikiem ({_EXTRA_PL.get(k, k)}): " + ", ".join(v[:3]) + ".")
-        lines.append(f"Porównano {m.evidence:.0%} kanałów wyniku; brakujące dane obniżają pewność, nie wynik.")
+        if m.evidence < 0.999:
+            lines.append(f"Porównano {m.evidence:.0%} kanałów wyniku. Gdy porównano mniej kanałów niż typowo, wynik jest korygowany w dół "
+                         "(korekta o dostępność dowodu, docs/14), więc np. sam tekst bez śladów strony rzadko wystarcza do połączenia, "
+                         "nawet przy podobnej treści.")
+        else:
+            lines.append("Porównano wszystkie kanały wyniku.")
         return "\n".join(lines)
 
 

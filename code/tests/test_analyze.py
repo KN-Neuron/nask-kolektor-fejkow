@@ -137,3 +137,26 @@ def test_regroup_removes_order_dependence():
     grp = {it["case"].id: it["group"] for it in g.items}
     assert grp["a"] == grp["c"]
     assert len({grp[f"bg{i}"] for i in range(4)} | {grp["a"]}) == 5
+
+
+def test_batch_screenshot_only_hits_exact_rule(tmp_path):
+    """Sam zrzut w ocenie wsadowej (i w planiście) identyczny ze zrzutem z galerii: znana kampania jak przy pojedynczym wgraniu."""
+    import numpy as np
+    from PIL import Image
+    from embsim import analyze as A
+    from embsim.api import Gallery
+
+    rng = np.random.default_rng(0)
+    gal, new = tmp_path / "galeria", tmp_path / "nowe"
+    for i in range(4):
+        d = gal / f"c{i}"
+        d.mkdir(parents=True)
+        Image.fromarray(rng.integers(0, 255, (80, 80, 3), dtype=np.uint8)).save(d / f"zrzut{i}.png")
+        (d / "strona.html").write_text(f"<html><body>Tekst strony numer {i} o zupełnie innym temacie {i * 7}</body></html>", encoding="utf-8")
+    (new / "sam_zrzut").mkdir(parents=True)
+    (new / "sam_zrzut" / "kopia.png").write_bytes((gal / "c2" / "zrzut2.png").read_bytes())
+    g = Gallery(embed_fn=A.hash_embed, profile="strony")
+    A.build_from_folders(g, gal)
+    rows, _ = A.assess_folder(g, new)
+    want = next(it["group"] for it in g.items if it["case"].id == "c2")
+    assert rows[0]["kampania"] == want and rows[0]["werdykt"].startswith("Znana kampania"), rows[0]

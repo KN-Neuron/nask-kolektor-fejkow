@@ -9,11 +9,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-# Zależności w osobnej warstwie (cache). torch w wersji CPU: obraz kilka razy mniejszy.
+# Zależności w osobnych warstwach (cache). torch w wersji CPU: obraz kilka razy mniejszy. Osobna warstwa torcha: gdy pobieranie reszty
+# zależności przerwie się (np. przekroczony czas odczytu z PyPI), ponowna budowa nie pobiera torcha od nowa.
+RUN pip install --no-cache-dir --default-timeout=300 --retries 10 torch --index-url https://download.pytorch.org/whl/cpu
 COPY pyproject.toml ./
 RUN mkdir -p src/embsim src/fejki && touch src/embsim/__init__.py src/fejki/__init__.py \
-    && pip install --no-cache-dir --default-timeout=120 --retries 10 torch --index-url https://download.pytorch.org/whl/cpu \
-    && pip install --no-cache-dir --default-timeout=120 --retries 10 -e .
+    && pip install --no-cache-dir --default-timeout=300 --retries 10 -e .
 # Model tekstu pobrany na etapie budowy (potem HF_HUB_OFFLINE=1).
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')"
 COPY src ./src

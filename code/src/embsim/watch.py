@@ -47,6 +47,8 @@ def from_inbox(inbox: Path):
         stamp = max((p.stat().st_mtime for p in d.rglob("*") if p.is_file()), default=0)
         c = A.case_from_folder(d)
         c.id = d.name
+        if c.sets.get("img") and not c.text.strip() and not any(v for k, v in c.sets.items() if k not in ("img", "page", "payer", "text_hash")):
+            c.meta["screenshot_only"] = True          # sam zrzut: identyczny obraz = ta sama kampania (reguła dokładna)
         yield f"dir:{d.name}:{stamp:.0f}", f"folder {d.name}", c
     for f in sorted(inbox.glob("*.jsonl")):
         for line in f.read_text(encoding="utf-8").splitlines():

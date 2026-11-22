@@ -6,11 +6,13 @@ Jedna metoda, od materiału do decyzji. Wzór podobieństwa ze wszystkimi skład
 
 ```
 wejście (zrzut | HTML | HAR | reklama Meta JSON/JSONL | tekst | URL)
-   │   adresów URL nie odwiedzamy: używamy tylko domeny jako śladu
+   │   URL: strona pobierana bez JavaScriptu (embsim/fetch.py) do HTML + HAR, dalej jak pliki;
+   │   gdy nie działa albo pobieranie wyłączone: domena i schemat parametrów adresu jako ślady
    ▼
 cechy materiału (embsim/features.py, embsim/analyze.py)
    │   tekst: HTML, info.json, OCR zrzutu, wpis użytkownika
-   │   ślady: host, kit (zasoby), scheme (parametry adresu), pixel
+   │   ślady: host, kit (zasoby), scheme (parametry adresu), pixel, img (identyczne obrazy),
+   │   infra (DNS i RDAP: serwer nazw, IP/ASN, rejestrator i godzina rejestracji; embsim/infra.py, bez wizyty na stronie)
    ▼
 wynik podobieństwa do każdego materiału z galerii (embsim/score.py; wzór w docs/14, bez uczenia)
    ▼
@@ -51,7 +53,7 @@ Wyniki i ograniczenia: [WYNIKI.md](WYNIKI.md).
 | wymaganie | stan | gdzie |
 |---|---|---|
 | przyjmować zrzut, HAR, HTML, tekst, URL, dane z udostępnionego zbioru | tak (nagrania wideo: tylko metadane z `info.json`) | `analyze.py`, `app.py` |
-| tekst, domeny, przekierowania, linki, struktura stron, metadane infrastruktury | częściowo: tekst, domeny, zasoby, parametry, piksele; przekierowania w wersji 2 | `features.py`, `15_FORMAT_KANALU_RUCHU.md` |
+| tekst, domeny, przekierowania, linki, struktura stron, metadane infrastruktury | tak: tekst, domeny, zasoby, parametry, piksele, przekierowania (pobranie strony z URL, łańcuch w HAR), metadane domen z DNS i RDAP (kanał `infra`, domyślnie z zapisanego pliku, bez sieci) | `features.py`, `fetch.py`, `infra.py` |
 | wizerunki osób, logotypy, cechy wizualne | częściowo: ta sama twarz w dwóch materiałach (SFace) i bliskie duplikaty obrazów (dHash) jako przesłanki; bez nazw osób i bez wykrywania logotypów w zrzucie | `faces.py`, `imghash.py` |
 | duplikaty i warianty | tak | `score.py` (kanały tekstowe) |
 | metoda podobieństwa i grupowania | tak, jedno wyrażenie | `14_WZOR_PODOBIENSTWA.md` |

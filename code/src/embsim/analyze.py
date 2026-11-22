@@ -455,6 +455,8 @@ def assess_folder(g: Gallery, root: Path, keep: bool = False, ocr: bool = False,
     for i, d in enumerate(dirs):
         c = case_from_folder(d)
         c.id = d.name if d.name not in gg._ids else f"{d.name} (nowy)"
+        if c.sets.get("img") and not c.text.strip() and not any(v for k, v in c.sets.items() if k not in ("img", "page", "payer", "text_hash")):
+            c.meta["screenshot_only"] = True                  # jak przy pojedynczym wgraniu: ten sam zrzut = ta sama kampania (reguła dokładna)
         if ocr and not c.text.strip():
             c.text = "\n".join(t for t in (ocr_image(p)[0] for p in material(d).images[:3]) if t)
         if not (c.text.strip() or c.sets):
@@ -462,9 +464,10 @@ def assess_folder(g: Gallery, root: Path, keep: bool = False, ocr: bool = False,
             continue
         dec = gg.add(c)
         m = dec.key_match()
+        why = ([f"identyczne obrazy jak w {dec.exact_of} (reguła dokładna, decyduje mimo niskiego wyniku)"] if dec.exact_of else []) + (top_reasons(m) if m else [])
         rows.append({"materiał": c.id, "werdykt": verdict_style(dec)[1], "kampania": dec.group, "operator": dec.operator,
                      "najbliższy": m.id if m else "", "wynik kampanii": round(dec.campaign_score, 3),
-                     "wynik operatora": round(dec.operator_score, 3), "powody": "; ".join(top_reasons(m)) if m else ""})
+                     "wynik operatora": round(dec.operator_score, 3), "powody": "; ".join(why)})
         if progress:
             progress((i + 1) / len(dirs), d.name)
     return rows, gg

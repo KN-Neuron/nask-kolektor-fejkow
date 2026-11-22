@@ -12,7 +12,7 @@ i kto za nią stoi?* Narzędzie porównuje nowy materiał ze zbiorem znanych inc
 | krok | co robisz | co dostajesz |
 |---|---|---|
 | **1. Galeria** | w pasku bocznym wczytujesz znane materiały (foldery z HTML/HAR/zrzutami albo plik reklam Meta) | grupy: **kampanie** (ta sama akcja oszustów) i **operatorzy** (ta sama ekipa, kilka kampanii) |
-| **2. Nowy materiał** | w zakładce *Analiza* wgrywasz zrzut, HAR, HTML, reklamę Meta, tekst albo adres (adresów nie odwiedzamy) | cechy materiału: tekst i ślady infrastruktury |
+| **2. Nowy materiał** | w zakładce *Analiza* wgrywasz zrzut, HAR, HTML, reklamę Meta, tekst albo adres (stronę pobieramy bez JavaScriptu; gdy nie działa, zostaje domena i parametry adresu) | cechy materiału: tekst i ślady infrastruktury |
 | **3. Werdykt** | czytasz wynik | jedna z trzech decyzji (niżej), trzy najsilniejsze powody i rysunek powiązań |
 | **4. Decyzja analityka** | dodajesz materiał do galerii albo pobierasz kartę | galeria rośnie; zakładka *Klastry* pokazuje strukturę i to, co skleja grupy |
 
@@ -45,7 +45,8 @@ digraph G {
 
 GRAPH_TEXT = """
 1. **Węzły to materiały** (reklama, strona) oraz **ślady**, które da się z nich wyciągnąć: domena, zestaw zasobów strony, schemat parametrów
-   adresu, piksel śledzący, identyczny obraz, a w reklamach Meta także płatnik i strona twórcy.
+   adresu, piksel śledzący, identyczny obraz, wspólna infrastruktura domen (serwer nazw, adres IP, rejestracja tej samej godziny
+   u tego samego rejestratora), a w reklamach Meta także płatnik i strona twórcy.
 2. **Dla każdej pary materiałów liczymy jedną liczbę S od 0 do 1** (wzór poniżej). Składają się na nią: podobieństwo tekstu (embedding oraz
    n-gramy znaków) i **wspólne ślady, ważone rzadkością**: ślad spotykany w każdym materiale (Facebook, Google, CDN) nie znaczy nic, ślad
    spotkany tylko u dwóch materiałów znaczy dużo.
