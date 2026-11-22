@@ -118,7 +118,9 @@ def main() -> None:
     sel = load(Path(a.sample), a.creators, a.seed)
     log(f"próbka: {len(sel)} reklam z treścią od {len({c.meta['page_id'] for c in sel})} twórców; start od pustej galerii")
     rows = replay(sel)
-    (ROOT / "code" / "artifacts" / "online_eval.json").write_text(json.dumps(rows), encoding="utf-8")
+    from .runinfo import provenance
+
+    (ROOT / "code" / "artifacts" / "online_eval.json").write_text(json.dumps({"pochodzenie": provenance("meta", [a.sample]), "wiersze": rows}), encoding="utf-8")
     print("\nPRÓG KAMPANII (profil meta = 0,5 domyślnie); metryki całości, w nawiasie 95% CI po twórcach")
     for t in (0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9):
         m = metrics(rows, t)

@@ -44,6 +44,9 @@ def run(items, label):
           f"trafność przy 0,62: {np.mean((sc>=0.62)==y):.3f}")
 
 def main() -> None:
+    from .runinfo import provenance
+
+    print("pochodzenie:", provenance("strony"))
     items = collect()
     run(items, "wszystko")
     run([i for i in items if i[0] != "B-zrzut"], "bez zrzutów bez tekstu (B)")

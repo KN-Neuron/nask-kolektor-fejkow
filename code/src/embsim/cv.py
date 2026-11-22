@@ -317,7 +317,9 @@ def main() -> None:
     summarize(res, REFERENCE)
     out = ART.parent / "cv"
     out.mkdir(parents=True, exist_ok=True)
-    (out / "report.json").write_text(json.dumps({"worlds": a.worlds, "e_ref": {f"{k[0]}|{k[1]}": v for k, v in e_ref.items()},
+    from .runinfo import provenance
+
+    (out / "report.json").write_text(json.dumps({"pochodzenie": provenance(), "worlds": a.worlds, "e_ref": {f"{k[0]}|{k[1]}": v for k, v in e_ref.items()},
                                                  "e_ref_wrażliwość": {f"{k[0]}|{k[1]}": v for k, v in sens.items()},
                                                  "per_world": {m: {k: v.tolist() for k, v in d.items()} for m, d in res["per_world"].items()},
                                                  "chosen": res["chosen"]}, ensure_ascii=False))

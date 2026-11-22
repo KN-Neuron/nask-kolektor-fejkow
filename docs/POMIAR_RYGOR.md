@@ -100,3 +100,21 @@ Wniosek: **porównanie z treścią kreacji nie rozwiąże problemu, bo w kampani
 Jedyny ślad, który zrzut niesie, to wizerunek: ta sama twarz łączy 1 z 2 (kosinus 1,00) i 48 z 61 (0,52). Twarz jest już pokazywana jako przesłanka w wyjaśnieniu (`Match.extra_shared`, „wizerunek”),
 więc analityk widzi kandydata, mimo że werdykt dla samego zrzutu pozostaje „nowy wzorzec”: za mało dowodów, żeby przypisać kampanię. Włączenie twarzy do wyniku dla samych zrzutów
 dało wynik 0,23–0,38 przy progu 0,62, czyli nie wystarcza. Zostawiamy to jako znane ograniczenie: sam zrzut reklamy bez strony docelowej nie wystarcza do przypisania kampanii.
+
+## 8. Ponowny przebieg online po zmianie wariantów reklam (0838cbf)
+
+Zmiana tekstu reklam wielowariantowych (do 5 wariantów treści) mogła przesunąć wyniki. Ponowny `python -m embsim.online_eval` (ta sama próbka, 795 reklam, 120 twórców, próg 0,5):
+precyzja 0,82 [0,75; 0,90], czułość 0,72 [0,65; 0,79], odrzucenie nowych 0,87 [0,81; 0,92] (poprzednio 0,82 / 0,71 / 0,87). Różnica mieści się w przedziałach ufności; wyniki z pkt 5 pozostają aktualne.
+
+## 9. Cechy HTML: linki i host formularza (audyt, pkt 16)
+
+Sprawdzenie na HTML-ach NASK-10: hosty linków wychodzących i hosty akcji formularzy. Hosty linków to w praktyce domena docelowa danego przypadku (np. `civicdaybook.live`,
+`healthlinkq.pro`), jednorazowa i już widoczna jako `host` z HAR; formularze mają tylko 3 przypadki, każdy z innym hostem. **Żadna para przypadków nie ma wspólnego hosta linku ani formularza**,
+więc te cechy nie dodają dowodu na tych danych i nie zostały dodane do silnika. Do ponownego sprawdzenia na większym zbiorze stron.
+
+## 10. Pochodzenie wyniku (audyt, pkt 22–23)
+
+Zestawienie kosztu błędów według kryteriów (precyzja i czułość decyzji „znana kampania”, odsetek obcych materiałów zostawionych jako nowy wzorzec, decyzje z przesłanką, wejścia niepełne)
+liczy `embsim/jury.py` (`summary()`), wyniki w `config/embsim/wyniki_jury.json`. Dla własnych raportów `embsim/runinfo.py` dopisuje pochodzenie: commit, czy są niezacommitowane zmiany w silniku,
+konfigurację i jej odcisk, progi profilu oraz odcisk danych. `online_eval.py` i `cv.py` zapisują je w JSON-ie raportu (`pochodzenie`), `threshold_stability.py` wypisuje je na początku;
+`runinfo.differs(zapisane)` wskazuje, czym obecna wersja różni się od zapisanej (inny commit, konfiguracja lub próg).
