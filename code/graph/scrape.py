@@ -46,7 +46,7 @@ def seed(session, path: Path) -> None:
     """Galeria startowa: reklamy z pliku (domyślnie próbka S1), grupa = ich twórca w grafie. Wektory liczone wsadowo."""
     from embsim.api import Gallery, case_from_meta_ad, case_to_dict
 
-    g = Gallery()
+    g = Gallery(profile="meta")                       # reklamy Meta: próg kampanii 0,5
     rows = [json.loads(line) for line in path.open(encoding="utf-8")]
     creator = {r["a"]: r["c"] for r in session.run(
         "UNWIND $ids AS i MATCH (a:Ad {id: i})-[:CREATED_BY]->(c:Creator) RETURN a.id AS a, c.id AS c", ids=[r["id"] for r in rows])}
@@ -74,7 +74,7 @@ def open_gallery():
 
     if not GALLERY.exists():
         sys.exit("brak galerii: najpierw `graph/scrape.py seed`")
-    return Gallery.load(GALLERY)
+    return Gallery.load(GALLERY, profile="meta")
 
 
 def append_gallery(c, group: str) -> None:

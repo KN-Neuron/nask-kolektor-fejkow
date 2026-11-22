@@ -217,9 +217,13 @@ Naprawione i objęte testami (`code/tests/test_api.py`, `test_exact_img.py`); wy
 - **Domeny:** `registered()` zna najczęstsze sufiksy wieloczłonowe (`com.pl`, `co.uk` i inne) i zostawia adresy IPv4 w całości. To podzbiór Public Suffix List,
   nie cała lista.
 
+- **Profile progów (pkt 12):** `Gallery(profile="strony" | "meta")` ustawia progi dla rodzaju źródła (strony: kampania 0,725; reklamy Meta: 0,5), te same w interfejsie,
+  CLI (`--profile`), scraperze i teście; nazwa profilu trafia do `Decision.profile`.
+- **Niejednoznaczność (pkt 13):** gdy druga kampania ma wynik różniący się o mniej niż 0,05 i też przekracza próg, wyjaśnienie pokazuje obie hipotezy
+  (`Decision.alternative`); werdykt się nie zmienia.
+
 Z audytu zostaje do zrobienia: rozdzielenie tożsamości materiału, odcisku zawartości i statusu importu (pkt 6), spójny zapis kampanii, operatora i konta w grafie
-oraz transakcyjność liczników w `graph/scrape.py` (pkt 7–8, część koleżanki), wersjonowany trwały zapis galerii (24), profile progów wspólne dla UI/CLI/scrapera (12),
-niejednoznaczność dwóch najlepszych kampanii (13), niezależny zbiór relacji kampanijnych (21) i pozostałe rekomendacje P1/P2.
+oraz transakcyjność liczników w `graph/scrape.py` (pkt 7–8, część koleżanki), wersjonowany trwały zapis galerii (24), niezależny zbiór relacji kampanijnych (21) i pozostałe rekomendacje P1/P2.
 
 ## 8. Pochodzenie danych
 

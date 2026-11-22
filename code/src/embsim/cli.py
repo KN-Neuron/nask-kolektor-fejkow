@@ -67,11 +67,12 @@ def _cases_from(item: str, text: bool, id: str | None):
 
 @app.command()
 def add(item: str, gallery: Path = Path("artifacts/gallery.jsonl"), config: str = DEFAULT_CONFIG, text: bool = False,
-        id: str = typer.Option(None, "--id", help="id dla trybu --text")):
+        id: str = typer.Option(None, "--id", help="id dla trybu --text"),
+        profile: str = typer.Option("strony", help="profil progów: strony (HTML, HAR, zrzuty) albo meta (reklamy Meta)")):
     """Dodaje materiał do galerii i wypisuje decyzję (JSON). `item` = folder przypadku, plik .json/.jsonl z reklamami Meta albo tekst (--text)."""
     from .api import Gallery
 
-    g = Gallery.load(gallery, config) if gallery.exists() else Gallery(config)
+    g = Gallery.load(gallery, config, profile=profile) if gallery.exists() else Gallery(config, profile=profile)
     for c in _cases_from(item, text, id):
         typer.echo(json.dumps({"id": c.id, **g.add(c).to_dict()}, ensure_ascii=False, default=float))
     gallery.parent.mkdir(parents=True, exist_ok=True)
@@ -80,11 +81,12 @@ def add(item: str, gallery: Path = Path("artifacts/gallery.jsonl"), config: str 
 
 
 @app.command()
-def query(item: str, gallery: Path = Path("artifacts/gallery.jsonl"), config: str = DEFAULT_CONFIG, text: bool = False, top: int = 5):
+def query(item: str, gallery: Path = Path("artifacts/gallery.jsonl"), config: str = DEFAULT_CONFIG, text: bool = False, top: int = 5,
+          profile: str = typer.Option("strony", help="profil progów: strony albo meta")):
     """Jak `add`, ale bez dodawania do galerii."""
     from .api import Gallery
 
-    g = Gallery.load(gallery, config)
+    g = Gallery.load(gallery, config, profile=profile)
     for c in _cases_from(item, text, None):
         typer.echo(json.dumps({"id": c.id, **g.query(c, top).to_dict()}, ensure_ascii=False, default=float))
 

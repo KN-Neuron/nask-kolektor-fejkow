@@ -58,6 +58,7 @@ HOST = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}$")
 # Kanały dokładnych zgodności dokładane do zamrożonej konfiguracji (nie było ich w kalibracji na syntetyce, która nie ma obrazów):
 # waga jak pozostałych śladów, „rotujący” (brak wspólnego obrazu nie jest dowodem różnicy, bo często po prostu brak danych).
 EXACT_CHANNELS = {"img": 1.0}
+AMBIGUITY_MARGIN = 0.05                                          # różnica wyniku do drugiej kampanii, poniżej której pokazujemy obie hipotezy
 EVIDENCE_SETS = ("host", "kit", "scheme", "pixel", "img")      # ślady, które mogą być podstawą decyzji (page, payer, text_hash są metadanymi)
 
 
@@ -176,6 +177,8 @@ class Decision:
     matches: list[Match]
     duplicate_of: str | None = None                   # id już obecne w galerii (nic nie dodano)
     exact_of: str | None = None                       # wszystkie obrazy materiału są w tym materiale galerii (reguła dokładna)
+    profile: str | None = None                        # profil progów galerii ("strony", "meta"), z którym wydano werdykt
+    alternative: tuple | None = None                  # (kampania, wynik) drugiej kampanii o zbliżonym wyniku (różnica < AMBIGUITY_MARGIN)
 
     def to_dict(self) -> dict:
         from dataclasses import asdict
@@ -204,6 +207,9 @@ class Decision:
         elif self.verdict == "znana_kampania":
             head = (f"Znana kampania {self.group} (operator {self.operator}): wynik {self.campaign_score:.2f}"
                     f" przy progu {t.get('campaign'):.2f}.")
+            if self.alternative:
+                head += (f" Uwaga, niejednoznaczne: kampania {self.alternative[0]} ma zbliżony wynik {self.alternative[1]:.2f}; "
+                         "sprawdź obie hipotezy.")
         elif self.verdict == "znany_operator_nowa_kampania":
             head = (f"Ten sam operator co {self.operator}, ale treść nie pasuje do znanej kampanii: wynik kampanii {self.campaign_score:.2f}"
                     f" (próg {t.get('campaign'):.2f}), wynik operatora {self.operator_score:.2f} (próg {t.get('operator'):.2f}).")
@@ -233,11 +239,21 @@ def _default_embed(model: str):
     return lambda texts: text_vectors(model, list(texts))
 
 
+PROFILES = {
+    "strony": lambda: demo_thresholds(),                                  # HTML, HAR, zrzuty (NASK i syntetyka): próg kampanii 0,725
+    "meta": lambda: {"campaign": META_CAMPAIGN_THRESHOLD},                # reklamy z Meta Ad Library: próg kampanii 0,5
+}
+
+
 class Gallery:
+    """`profile` ("strony" albo "meta") ustawia progi decyzji dla rodzaju źródła; ten sam profil daje ten sam werdykt w UI, CLI i scraperze,
+    a jego nazwa trafia do `Decision.profile`. Jawne `thresholds` mają pierwszeństwo."""
+
     def __init__(self, config: str | Config = DEFAULT_CONFIG, embed_fn=None, refit_below: int = 200, refit_fraction: float = 0.10,
-                 min_refit: int = 25, thresholds: dict | None = None):
+                 min_refit: int = 25, thresholds: dict | None = None, profile: str | None = None):
         self.cfg = with_exact_channels(config if isinstance(config, Config) else load_frozen(config)[0])
-        self.cfg.thresholds.update(thresholds or {})
+        self.profile = profile
+        self.cfg.thresholds.update({**(PROFILES[profile]() if profile else {}), **(thresholds or {})})
         self.embed_fn = embed_fn if embed_fn is not None else _default_embed(self.cfg.model)
         # pełne dopasowanie przy KAŻDYM dodaniu, dopóki galeria ma ≤ refit_below materiałów (mały korpus: słownik i idf z kilku
         # dokumentów byłyby bezwartościowe); potem późne dodawanie i dopasowanie po urośnięciu o refit_fraction (min. min_refit)
@@ -271,6 +287,11 @@ class Gallery:
 
     # ---- zapytanie
     def query(self, case: Case, k: int = 5, exclude_id: str | None = None) -> Decision:
+        d = self._query(case, k, exclude_id)
+        d.profile = self.profile
+        return d
+
+    def _query(self, case: Case, k: int, exclude_id: str | None) -> Decision:
         self._ensure()
         thr = {lv: self.cfg.thresholds.get(lv) for lv in ("campaign", "operator")}
         if not self.items:
@@ -325,7 +346,9 @@ class Gallery:
             return Decision("znana_kampania", bc[2]["group"], bc[2]["operator"], bc[0].value, bo[1].value, thr, top,
                             exact_of=bc[2]["case"].id)
         if thr["campaign"] is not None and bc[0].value >= thr["campaign"]:
-            return Decision("znana_kampania", bc[2]["group"], bc[2]["operator"], bc[0].value, bo[1].value, thr, top)
+            alt = next((t for t in rows if t[2]["group"] != bc[2]["group"]), None)       # druga kampania o zbliżonym wyniku: niejednoznaczność
+            ambiguous = (alt[2]["group"], round(alt[0].value, 3)) if alt and alt[0].value >= thr["campaign"] and bc[0].value - alt[0].value < AMBIGUITY_MARGIN else None
+            return Decision("znana_kampania", bc[2]["group"], bc[2]["operator"], bc[0].value, bo[1].value, thr, top, alternative=ambiguous)
         if thr["operator"] is not None and bo[1].value >= thr["operator"]:
             return Decision("znany_operator_nowa_kampania", None, bo[2]["operator"], bc[0].value, bo[1].value, thr, top)
         return Decision("nowy_wzorzec", None, None, bc[0].value, bo[1].value, thr, top)

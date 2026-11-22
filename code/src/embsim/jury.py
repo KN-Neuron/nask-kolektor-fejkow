@@ -42,7 +42,7 @@ def uploaded(case_dir: Path, pick=lambda f: True) -> list[tuple[str, bytes]]:
 
 
 def build(dirs: list[Path], cfg_thr: float | None = None) -> Gallery:
-    g = Gallery(thresholds=demo_thresholds())       # jak w interfejsie
+    g = Gallery(profile="strony")                       # jak w interfejsie
     if cfg_thr is not None:
         g.cfg.thresholds["campaign"] = cfg_thr
     with tempfile.TemporaryDirectory() as td:
@@ -212,7 +212,7 @@ def run_all(thr=None, nask: Path = NASK, synth: Path = SYNTH) -> dict:
     rb = test_b(thr, nask) if nask.is_dir() else None
     rc = test_c(thr, synth) if (synth / "prawda.json").is_file() else None
     return {"A": ra, "B": rb, "C": rc, "podsumowanie": summary(ra, rb, rc),
-            "próg": thr if thr is not None else Gallery(thresholds=demo_thresholds()).cfg.thresholds.get("campaign")}
+            "próg": thr if thr is not None else Gallery(profile="strony").cfg.thresholds.get("campaign")}
 
 
 # --------------------------------------------------------------------------------------------------------------------

@@ -35,9 +35,8 @@ def embed_fn():
 def gallery() -> Gallery:
     if "gallery" not in st.session_state:
         fn = embed_fn()
-        thr = demo_thresholds()
-        st.session_state.gallery = (Gallery.load(GALLERY_FILE, embed_fn=fn, thresholds=thr) if GALLERY_FILE.exists()
-                                    else Gallery(embed_fn=fn, thresholds=thr))
+        st.session_state.gallery = (Gallery.load(GALLERY_FILE, embed_fn=fn, profile="strony") if GALLERY_FILE.exists()
+                                    else Gallery(embed_fn=fn, profile="strony"))
     return st.session_state.gallery
 
 
@@ -104,7 +103,7 @@ def load_example(key: str) -> None:
     if ex is None or not Path(ex["galeria"]).exists():
         ex = st.session_state.example = E.prepare(Path(tempfile.mkdtemp(prefix="embsim_przyklad_")))
     if st.session_state.get("example_gallery") is not st.session_state.get("gallery"):
-        gal = Gallery(embed_fn=embed_fn(), thresholds=demo_thresholds())
+        gal = Gallery(embed_fn=embed_fn(), profile="strony")
         with st.spinner("Buduję galerię przykładu…"):
             A.build_from_folders(gal, ex["galeria"])
         st.session_state.gallery = st.session_state.example_gallery = gal

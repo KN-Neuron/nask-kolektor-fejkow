@@ -179,3 +179,23 @@ def test_decision_is_same_before_and_after_restart_with_late_added_materials(tmp
     g.save(tmp_path / "g.jsonl")
     after = Gallery.load(tmp_path / "g.jsonl", embed_fn=fake_embed).query(q)
     assert before.verdict == after.verdict
+
+
+def test_profiles_give_same_thresholds_everywhere_and_are_recorded_in_decision():
+    from embsim.api import META_CAMPAIGN_THRESHOLD
+
+    gm, gs = Gallery(embed_fn=fake_embed, profile="meta"), Gallery(embed_fn=fake_embed, profile="strony")
+    assert gm.cfg.thresholds["campaign"] == META_CAMPAIGN_THRESHOLD and gs.cfg.thresholds["campaign"] == 0.725
+    gm.add(case_from_text("a", "Pierwsza oferta numer jeden o ogrodach"))
+    assert gm.query(case_from_text("q", "Pierwsza oferta numer jeden o ogrodach")).profile == "meta"
+    assert Gallery(embed_fn=fake_embed, profile="meta", thresholds={"campaign": 0.9}).cfg.thresholds["campaign"] == 0.9   # jawny próg wygrywa
+
+
+def test_close_second_campaign_is_flagged_as_ambiguous():
+    g = build()                                                                         # tło: 3 kampanie po 3 warianty
+    base = "Rafał Brzoska ujawnia platforma zarobki wpłać zł obserwuj zysk już dziś zostało tylko miejsc"
+    g.add(case_from_text("k1", base + " alfa", kit={"/k/one"}), group="K1", operator="O1")
+    g.add(case_from_text("k2", base + " beta", kit={"/k/two"}), group="K2", operator="O2")
+    d = g.query(case_from_text("q", base + " gamma"))
+    assert d.verdict == "znana_kampania" and d.alternative and d.alternative[0] in ("K1", "K2")
+    assert "niejednoznaczne" in d.explain()
