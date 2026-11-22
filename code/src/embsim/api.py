@@ -51,7 +51,7 @@ _CHANNEL_PL = {"text": "podobieństwo treści", "text_lex": "podobne brzmienie t
 _EXTRA_PL = {"payer": "ten sam płatnik", "page": "ta sama strona reklamodawcy", "text_hash": "identyczny tekst"}
 # Konfiguracja domyślna (progi z kalibracji na syntetyce v2 z szumem jak w HAR): kampania = nakładanie śladów, operator = zawieranie,
 # kanał leksykalny, korekta PCA embeddingów, korekta o dostępność dowodu. Starsze: "adj", "lex" (syntetyka v1, gorzej przenoszą się).
-DEFAULT_CONFIG = "v4_rare2"
+DEFAULT_CONFIG = "v4_rare4"
 HOST = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}$")
 # Kanały dokładnych zgodności dokładane do zamrożonej konfiguracji (nie było ich w kalibracji na syntetyce, która nie ma obrazów):
 # waga jak pozostałych śladów, „rotujący” (brak wspólnego obrazu nie jest dowodem różnicy, bo często po prostu brak danych).

@@ -104,13 +104,13 @@ Błędne łączenie nowych wzorców: 0,148 domyślnie wobec 0,326 (v1 z leksyką
 Nie trenujemy modelu ani nie stosujemy uczenia kontrastowego. Opcjonalna głowa kontrastowa (`embsim/metric.py`) jest pozostawiona jako
 dodatek na koniec prezentacji („można potrenować”), ale nie wchodzi do wyniku.
 
-## 8. Jak to ocenia organizator i co pokazujemy
+## 8. Kryteria walidacji i co pokazujemy
 
-Opis wyzwania (pkt 6): organizator użyje **nieudostępnionego zbioru** z nowymi wariantami znanych kampanii i materiałami z innych kampanii
-i sprawdzi: skuteczność wskazywania podobnych materiałów i wariantów, poprawność przypisania do istniejących grup, zdolność niełączenia
+Opis wyzwania (pkt 6): walidacja odbywa się na **nieudostępnionym zbiorze** z nowymi wariantami znanych kampanii i materiałami z innych kampanii
+i obejmuje: skuteczność wskazywania podobnych materiałów i wariantów, poprawność przypisania do istniejących grup, zdolność niełączenia
 obcych, różnorodność cech, odporność na duplikaty, braki i format, interpretowalność oraz przebieg od wczytania do wyniku. Kryteria (pkt 9):
 metoda korelacji i grupowania 30%, trafność cech i źródeł 30%, demonstrator end-to-end 15%, czytelność powiązań 15%, wdrożenie 10%.
 Nie podano metryki, więc pokazujemy te, które wynikają z listy: precyzję i czułość decyzji „znana kampania”, odsetek obcych materiałów
 zostawionych jako „nowy wzorzec”, odsetek decyzji z podaną przesłanką i wyniki na wejściach niepełnych.
 
-Test, który to odtwarza (`code/scripts/test_jak_jury_embsim.py`, w interfejsie zakładka „Wzór i wyniki”), wyniki w `docs/WYNIKI.md` §5a.
+Test odtwarzający tę walidację (`code/scripts/test_jak_jury_embsim.py`, w interfejsie zakładka „Wzór i wyniki”), wyniki w `docs/WYNIKI.md` §5a.

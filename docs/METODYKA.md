@@ -34,7 +34,7 @@ przesłanki (trzy najsilniejsze powody, wspólne ślady, pewność dowodu) + sie
 - **Niekompletne dane.** Wynik uwzględnia, ile kanałów da się w ogóle porównać (λ w docs/14): im mniej dowodu, tym wyższy wynik jest potrzebny.
 - **Twórca jako węzeł główny (graf).** Reklamy łączy strona, płatnik, domena lub identyczny tekst; etykieta „scam” wynika ze zdjęcia reklam
   przez Metę i przechodzi z twórcy na jego reklamy. To sygnał egzekwowania, nie dowód.
-- **Nowy wzorzec jest pełnoprawną decyzją.** Organizator oceni zdolność do niełączenia tego, czego łączyć nie wolno.
+- **Nowy wzorzec jest pełnoprawną decyzją.** Zdolność niełączenia tego, czego łączyć nie wolno, jest mierzona osobno (odsetek obcych materiałów zostawionych jako nowy wzorzec).
 
 ## 3. Ewaluacja
 

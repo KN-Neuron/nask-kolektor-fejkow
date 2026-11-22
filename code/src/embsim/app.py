@@ -284,12 +284,12 @@ with tab_w:
     else:
         st.caption("Przeanalizuj materiał w pierwszej zakładce, a tu pojawi się rozbicie jego wyniku na kanały.")
 
-    st.subheader("Jak to ocenia jury: test na ukrytych przypadkach")
+    st.subheader("Walidacja na zbiorze, którego system nie widział")
     st.markdown(
-        "Organizator sprawdzi: skuteczność wskazywania podobnych materiałów i wariantów, poprawność przypisania do istniejących grup, "
+        "Mierzone: skuteczność wskazywania podobnych materiałów i wariantów, poprawność przypisania do istniejących grup, "
         "**niełączenie obcych**, odporność na duplikaty i braki danych, interpretowalność i pełny przebieg od wczytania do wyniku. "
-        "Odtwarzamy to na zbiorze, którego system nie widział: każdy przypadek NASK ukryty po kolei (A), ten sam materiał w innych "
-        "formatach (B), syntetyka z ukrytymi wariantami, nową kampanią operatora i negatywami (C).")
+        "A: każdy przypadek NASK ukryty po kolei. B: ten sam materiał w innych formatach (sam HTML, sam HAR, sam zrzut, duplikat). "
+        "C: syntetyka z ukrytymi wariantami, nową kampanią znanego operatora i negatywami.")
     stored = J.load_stored()
     can_run = Path(DEFAULT_FOLDERS).is_dir()
     if can_run and st.button("Uruchom test na danych z tego komputera", key="jury_run"):

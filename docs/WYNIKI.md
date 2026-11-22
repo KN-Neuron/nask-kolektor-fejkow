@@ -75,9 +75,9 @@ Cztery znane pary oglądaliśmy przy poprawianiu metody, więc nie służą już
 (0,97 przy progu 0,95) i nie łączy wariantu 48≈61 (0,72). Konfiguracja z miarą „zawierania” (próg 0,57) łączyła obie pary. To cztery
 pary, więc to anegdota, nie dowód.
 
-## 5a. Demonstrator na stronach: test „jak jury” i dokładne obrazy  [NASK-10 + syntetyka v1, zostaw-jeden]
+## 5a. Demonstrator na stronach: test na zbiorze ukrytym i dokładne obrazy  [NASK-10 + syntetyka v1, zostaw-jeden]
 
-`code/scripts/test_jak_jury_embsim.py` odtwarza to, co jury zrobi w interfejsie (pkt 6 opisu wyzwania): galeria z folderów, nowy materiał
+`code/scripts/test_jak_jury_embsim.py` odtwarza przebieg użytkownika w interfejsie (walidacja z pkt 6 opisu wyzwania): galeria z folderów, nowy materiał
 wgrany jako pliki. A: każdy przypadek NASK ukryty raz; B: sam HTML / sam HAR / sam zrzut / ten sam materiał drugi raz; C: syntetyka v1 jako
 ukryty zbiór (nowe warianty, nowa kampania znanego operatora, 6 negatywów). Raport: `code/artifacts/jury/raport_embsim.md`.
 
@@ -98,9 +98,9 @@ ukryty zbiór (nowe warianty, nowa kampania znanego operatora, 6 negatywów). Ra
   z §1 (`bench`, `cv`) czyta materiały bez tego filtra, więc jej liczby się nie zmieniają.
 - **Próg 0,725** (`config/embsim/demo_calibration.json`): zostaw-jeden na NASK-10 i syntetyce v1, maksimum zrównoważonej trafności
   (0,875 przypiętych dobrze, 0,833 bez pary osobno; przy 0,95: 2/40 przypiętych). Na NASK każdy próg z (0,53; 0,82) daje 10/10. To kalibracja
-  na naszych zbiorach dev, nie na ukrytym zbiorze jury. Kanał `img` jest dokładany w `Gallery` (wagi jak inne ślady, rotujący); `e_ref`
+  na naszych zbiorach dev, nie na zbiorze ukrytym. Kanał `img` jest dokładany w `Gallery` (wagi jak inne ślady, rotujący); `e_ref`
   przeskalowane tak, że materiały bez obrazów dostają dokładnie ten sam wynik co przed zmianą.
-- **Wg kryteriów walidacji organizatora** (test jak jury, 15 nowych wariantów i przypadków kampanii, 11 negatywów, 13 wejść niepełnych):
+- **Wg kryteriów walidacji z opisu wyzwania** (test na zbiorze ukrytym, 15 nowych wariantów i przypadków kampanii, 11 negatywów, 13 wejść niepełnych):
   precyzja decyzji „znana kampania” 8/8, czułość 8/15 (pozostałe 7 trafia w dobrą grupę, ale na poziomie sieci, bo wynik jest tuż pod
   progiem 0,725), obce materiały zostawione osobno 11/11, nowa kampania znanego operatora rozpoznana 4/4, decyzje z podaną przesłanką 18/18,
   wejścia niepełne trafione dokładnie 8/13 i w dobrą grupę 11/13. Wyniki zapisane w `code/config/embsim/wyniki_jury.json`.
@@ -166,7 +166,7 @@ obecny w co najwyżej `op_rare_df` materiałach galerii (`Config.op_rare_df`, ty
 | **2** | **0,705** | **7** | **76** |
 
 Potwierdzenie na świeżych światach testowych v2 (30–35, użyte raz, tylko dla wartości 2 i bez): ARI operatora **0,415 → 0,599**, legalne w operatorze
-**30 → 9 z 43**, grup 44 → 78 przy 86 prawdziwych; ARI kampanii bez zmian (0,583). Zamrożona konfiguracja `v4_rare2`, jest teraz domyślna.
+**30 → 9 z 43**, grup 44 → 78 przy 86 prawdziwych; ARI kampanii bez zmian (0,583). Zamrożona konfiguracja `v4_rare2`. **Poprawka po teście na zbiorze ukrytym (`embsim/jury.py`):** limit 2 pogarsza jego wynik (B: 3 → 5 błędów, C: 2 → 4 błędy, bo w małej galerii kampania z 3 wariantami ma ślad w 3 materiałach i przestaje być „rzadki”); limity 4, 6 i 10 nie pogarszają niczego (B 8/2/3, C 13/5/2 jak bez reguły). Domyślny jest więc `v4_rare4` (na dev v2: ARI operatora 0,621 zamiast 0,705 dla 2, legalne w operatorze 10 z 42 zamiast 7; na Mecie 0,633/0,656, bez gorszego wyniku niż dla 2). Uwaga: tę wartość wybrano po obejrzeniu tego testu, więc jej wynik w tym teście nie jest już niezależny.
 **Sprawdzenie na prawdziwych reklamach Meta** (`embsim/meta_incremental.py`: 665 reklam z treścią od 100 losowych twórców, min. 3 reklamy, do 10 na twórcę,
 dodawane chronologicznie przez `Gallery.add`; prawdy o operatorach brak, przybliżeniem jest twórca `page_id`, więc jeden operator z kilkoma stronami
 liczy się jako błąd; operator ma tu tylko kanał domeny):

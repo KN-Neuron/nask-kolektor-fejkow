@@ -1,0 +1,55 @@
+{
+ "config": {
+  "model": "paraphrase-multilingual-MiniLM-L12-v2",
+  "weights_campaign": {
+   "text": 1.0,
+   "pixel": 1.0,
+   "kit": 1.0,
+   "scheme": 1.0,
+   "host": 1.0,
+   "text_lex": 1.0
+  },
+  "weights_operator": {
+   "text": 0.0,
+   "pixel": 1.0,
+   "kit": 1.0,
+   "scheme": 1.0,
+   "host": 1.0
+  },
+  "rotating": [
+   "host",
+   "pixel"
+  ],
+  "adjust_levels": [
+   "campaign"
+  ],
+  "lexical": true,
+  "trace_mode": "overlap",
+  "combine": "mean",
+  "embed_fix": "abtt1",
+  "trace_mode_operator": "contain",
+  "thresholds": {
+   "campaign": 0.95,
+   "operator": 0.25
+  },
+  "e_ref": {
+   "campaign": 0.6666666666666666
+  },
+  "op_rare_df": 4
+ },
+ "fingerprint": "9ec6e9c664",
+ "family": 2,
+ "dev": [
+  21,
+  22,
+  23,
+  24,
+  25,
+  26,
+  27,
+  28,
+  29
+ ],
+ "at": "2026-11-21 22:47:41",
+ "note": "v3_mixed_pca + operator tylko przy wspólnym śladzie obecnym w <=4 materiałach galerii; 2 pogarszało test na zbiorze ukrytym (B, C), 4 nie pogarsza"
+}

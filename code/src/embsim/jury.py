@@ -1,6 +1,6 @@
-"""Test „jak jury” (opis wyzwania, pkt 6) jako moduł: ten sam kod uruchamia skrypt i zakładka „Wzór i wyniki” w interfejsie.
+"""Test na zbiorze ukrytym (walidacja z opisu wyzwania, pkt 6) jako moduł: ten sam kod uruchamia skrypt i zakładka „Wzór i wyniki” w interfejsie.
 
-Odtwarza to, co jury zrobi w interfejsie: buduje galerię z folderów przypadków, potem każdy nowy materiał wgrywa jako pliki (HTML, HAR,
+Odtwarza przebieg użytkownika w interfejsie: buduje galerię z folderów przypadków, potem każdy nowy materiał wgrywa jako pliki (HTML, HAR,
 zrzuty; bez folderów zasobów `_files`, bo uploader przyjmuje tylko pliki) i czyta werdykt: znana kampania / znany operator, nowa
 kampania / nowy wzorzec.
 

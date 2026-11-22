@@ -313,7 +313,7 @@ usunąć z tego pliku adresy serwera, a po hackathonie usunąć projekt na Railw
 Każdy ślad, który dwie reklamy mogą mieć **wspólny**, jest osobną kropką (węzłem): domena, piksel Facebooka, osoba,
 zestaw strony, schemat adresów… Reklama to kropka połączona kreskami ze swoimi śladami. Jeśli dwie reklamy dotykają
 tej samej kropki, mają wspólny ślad, a **ta kropka jest od razu przesłanką** („obie mają piksel 1111…”).
-Jury wymaga właśnie tego: powiązania z uzasadnieniem (pkt 3 i 6 opisu wyzwania). Kropka, do której podpięte są setki
+Opis wyzwania wymaga właśnie tego: powiązań z uzasadnieniem (pkt 3 i 6 opisu wyzwania). Kropka, do której podpięte są setki
 reklam (np. popularny polityk), mało mówi; widać to po liczbie jej kresek.
 
 ```mermaid
