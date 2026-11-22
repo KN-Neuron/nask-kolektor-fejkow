@@ -196,6 +196,90 @@ def added(session, limit: int = 100) -> list[dict]:
         ORDER BY n.added_at DESC LIMIT $limit""", limit=limit)]
 
 
+VERDICT_PL = {"znana_kampania": "znana kampania", "znany_operator_nowa_kampania": "znany operator, nowa kampania", "nowy_wzorzec": "nowy wzorzec"}
+
+
+def _common(host: str) -> bool:
+    """Pospolita usługa (instagram.com, google.com...): wspólna niczego nie dowodzi. Ta sama lista co w silniku, gdy jest dostępny."""
+    try:
+        from embsim.features import is_common
+    except ImportError:
+        return host.split(":")[0].removeprefix("www.") in {"instagram.com", "facebook.com", "google.com", "youtube.com", "linktr.ee"}
+    return is_common(host)
+
+
+def added_card(session, nid: str) -> dict:
+    """Nowy materiał (add / scraper): decyzja, najbliższe materiały z silnika (krawędzie SIMILAR_TO) i ślady, które z nimi dzieli."""
+    head = session.run("""
+        MATCH (n {id: $id}) WHERE n:Ad OR n:Material
+        OPTIONAL MATCH (n)-[:CREATED_BY]->(c:Creator)
+        RETURN n.id AS id, labels(n)[0] AS typ, n.verdict AS verdict, n.verdict_text AS text, n.added_at AS added,
+               left(coalesce(n.title, n.body, n.name, ''), 80) AS snippet, c.id AS creator_id, c.name AS creator, c.label AS label
+        LIMIT 1""", id=nid).single()
+    if head is None:
+        return {}
+    matches = [dict(r) for r in session.run("""
+        MATCH ({id: $id})-[s:SIMILAR_TO]->(o)
+        OPTIONAL MATCH (o)-[:CREATED_BY]->(c:Creator)
+        RETURN o.id AS id, labels(o)[0] AS typ, left(coalesce(o.title, o.body, o.name, ''), 60) AS snippet, s.score AS score,
+               s.operator_score AS operator_score, coalesce(s.reasons, []) AS reasons, c.id AS creator_id, c.name AS creator,
+               c.label AS label
+        ORDER BY s.score DESC, s.operator_score DESC""", id=nid)]
+    traces = [dict(r) for r in session.run("""
+        MATCH (n {id: $id})-[r:BY|PAID_BY|LINKS_TO|ADVERTISED_BY|LANDS_ON]->(x)
+        OPTIONAL MATCH (n)-[:SIMILAR_TO]->(o)-[r2]->(x) WHERE type(r2) = type(r)
+        RETURN labels(x)[0] AS kind, type(r) AS rel, coalesce(x.name, x.id) AS name, collect(DISTINCT o.id) AS shared""", id=nid)]
+    for t in traces:
+        t["common"] = t["kind"] == "Domain" and _common(t["name"])
+    return {**dict(head), "matches": matches, "traces": traces}
+
+
+def added_dot(card: dict) -> str:
+    """Rysunek nowego materiału: on w środku, najbliższe materiały pogrupowane po twórcy, ślady wspólne z nimi. Strzałka do materiału,
+    który rozstrzygnął decyzję, ma kolor werdyktu (czerwona: kampania, pomarańczowa: operator); reszta szara przerywana."""
+    if not card:
+        return ""
+    esc = lambda s: str(s).replace('"', "'").replace("\n", " ")
+    v = card["verdict"]
+    fill = {"znana_kampania": "#fecaca", "znany_operator_nowa_kampania": "#fed7aa"}.get(v, "#e5e7eb")
+    lines = ['digraph G {', 'rankdir=LR; bgcolor="transparent"; node [fontname="Helvetica", fontsize=10]; edge [fontname="Helvetica", fontsize=9];',
+             f'"n" [label="nowy materiał {esc(card["id"])}\\n{esc(card["snippet"])[:40]}\\n{VERDICT_PL.get(v, v)}", shape=note, style=filled, '
+             f'fillcolor="{fill}", penwidth=2];']
+    ms = card["matches"]
+    key = None
+    if ms and v == "znana_kampania":
+        key, kcol = max(ms, key=lambda m: m["score"] or 0)["id"], "#dc2626"
+    elif ms and v == "znany_operator_nowa_kampania":
+        key, kcol = max(ms, key=lambda m: m["operator_score"] or 0)["id"], "#ea580c"
+    by_creator: dict[str, list[dict]] = {}
+    for m in ms:
+        by_creator.setdefault(m["creator"] or "(bez twórcy)", []).append(m)
+    for i, (cname, group) in enumerate(by_creator.items()):
+        lines.append(f'subgraph cluster_{i} {{ label="twórca: {esc(cname)[:40]}"; style="rounded"; color="#9ca3af"; fontsize=10;')
+        for m in group:
+            lines.append(f'"m:{esc(m["id"])}" [label="{esc(m["id"])}\\n{esc(m["snippet"])[:34]}", shape=box, style="rounded,filled", '
+                         f'fillcolor="#f3f4f6"];')
+        lines.append("}")
+    for m in ms:
+        why = esc((m["reasons"] or [""])[0])[:42]
+        lab = f'kampania {m["score"] or 0:.2f} · operator {m["operator_score"] or 0:.2f}' + (f"\\n{why}" if why else "")
+        if m["id"] == key:
+            lines.append(f'"n" -> "m:{esc(m["id"])}" [label="{lab}", color="{kcol}", fontcolor="{kcol}", penwidth=2.5];')
+        else:
+            lines.append(f'"n" -> "m:{esc(m["id"])}" [label="{lab}", color="#9ca3af", fontcolor="#6b7280", style=dashed];')
+    color = {"Payer": "#7c3aed", "Domain": "#2563eb", "Advertiser": "#059669"}
+    for j, t in enumerate(card["traces"]):
+        c = "#9ca3af" if t["common"] else color.get(t["kind"], "#6b7280")
+        extra = "\\n(pospolita usługa: nie dowodzi)" if t["common"] else ""
+        lines.append(f'"t{j}" [label="{KIND_PL.get(t["kind"], t["kind"])}:\\n{esc(t["name"])[:36]}{extra}", shape=ellipse, color="{c}", '
+                     f'fontcolor="{c}"{", style=dotted" if t["common"] else ""}];')
+        lines.append(f'"n" -> "t{j}" [dir=none, color="{c}"];')
+        for o in t["shared"]:
+            lines.append(f'"t{j}" -> "m:{esc(o)}" [dir=none, color="{c}"{", style=dotted" if t["common"] else ""}];')
+    lines.append("}")
+    return "\n".join(lines)
+
+
 # --------------------------------------------------------------------------------------------------------------------
 # Markdown (CLI, eksport)
 
