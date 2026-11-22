@@ -170,11 +170,12 @@ def precompute(worlds: list[Dataset], cfgs: dict[str, Config], workers: int) -> 
         results = list(ex.map(_world_task, [(w, cfgs) for w in worlds], chunksize=1))
     print(f"wstępne liczenie macierzy: {time.time() - t0:.0f}s", flush=True)
     # stała e_ref (kampania, dla konfiguracji z korektą): mediana po światach z mediany dostępności par; statystyka bez etykiet
-    e_ref = {}
+    e_ref, world_meds = {}, {}
     for name, cfg in cfgs.items():
         for lv in cfg.adjust_levels:
             meds = [float(np.median(r[(name, lv, "baza")][1][np.triu_indices(len(w.cases), 1)])) for r, w in zip(results, worlds)]
             e_ref[(name, lv)] = float(np.median(meds))
+            world_meds[(name, lv)] = np.array(meds)
     pre = {}
     for wi, (r, w) in enumerate(zip(results, worlds)):
         n = len(w.cases)
@@ -189,7 +190,19 @@ def precompute(worlds: list[Dataset], cfgs: dict[str, Config], workers: int) -> 
             Sh = adjust(r[(name, "campaign", "bez_HAR")][0], r[(name, "campaign", "bez_HAR")][1], e_ref.get((name, "campaign")))
             np.fill_diagonal(Sh, 1.0)
             pre[(wi, name, "campaign_bezHAR")] = {"S": Sh, "Z": linkage(squareform(1 - Sh, checks=False), method="average")}
-    return pre, e_ref
+    return pre, e_ref, world_meds
+
+
+def e_ref_sensitivity(world_meds: dict, n: int) -> dict:
+    """Czy wspólne e_ref (liczone po wszystkich światach, bez etykiet) zmieniłoby się, gdyby liczyć je tylko na światach treningowych każdego
+    foldu zewnętrznego? Zwraca maksymalne odchylenie i liczbę foldów, w których e_ref różni się od wspólnego (dla każdej konfiguracji i poziomu)."""
+    out = {}
+    for key, meds in world_meds.items():
+        glob = float(np.median(meds))
+        devs = [abs(float(np.median(meds[np.setdiff1d(np.arange(n), test)])) - glob)
+                for part in range(N_PARTITIONS) for test in outer_folds(n, seed=part)]
+        out[key] = {"e_ref": glob, "max_odchylenie": max(devs), "foldów_z_różnicą": int(sum(d > 1e-9 for d in devs)), "foldów": len(devs)}
+    return out
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -295,12 +308,17 @@ def main() -> None:
     cfgs = candidates()
     worlds = make_worlds(a.worlds)
     print(f"światów: {len(worlds)}, przypadków łącznie: {sum(len(w.cases) for w in worlds)}, kandydatów: {len(cfgs)}", flush=True)
-    pre, e_ref = precompute(worlds, cfgs, a.workers)
+    pre, e_ref, world_meds = precompute(worlds, cfgs, a.workers)
+    sens = e_ref_sensitivity(world_meds, len(worlds))
+    worst = max(v["max_odchylenie"] for v in sens.values())
+    print(f"\nwrażliwość e_ref na podział (liczone tylko na światach treningowych foldu): maksymalne odchylenie {worst:.4f}; "
+          f"foldów z różnicą: {sum(v['foldów_z_różnicą'] for v in sens.values())} z {sum(v['foldów'] for v in sens.values())}", flush=True)
     res = run_cv(worlds, pre, list(cfgs))
     summarize(res, REFERENCE)
     out = ART.parent / "cv"
     out.mkdir(parents=True, exist_ok=True)
     (out / "report.json").write_text(json.dumps({"worlds": a.worlds, "e_ref": {f"{k[0]}|{k[1]}": v for k, v in e_ref.items()},
+                                                 "e_ref_wrażliwość": {f"{k[0]}|{k[1]}": v for k, v in sens.items()},
                                                  "per_world": {m: {k: v.tolist() for k, v in d.items()} for m, d in res["per_world"].items()},
                                                  "chosen": res["chosen"]}, ensure_ascii=False))
     print("\nzapisano:", out / "report.json")
