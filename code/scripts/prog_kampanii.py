@@ -6,7 +6,7 @@ Uruchomienie (z katalogu code/, ok. 10 min; infra tylko z pamięci podręcznej, 
 
 Trzy układy galerii (rozkład wyniku zależy od składu galerii: idf śladów, tło tekstu), w każdym pytanie = najlepsze dopasowanie:
   * „jury”: galeria jak w teście jury (A: NASK ukryty po kolei, C: zbiór ukryty syntetyki);
-  * „pełna”: zostaw-jeden-materiał, galeria = cała reszta (NASK + syntetyka);
+  * „pełna”: zostaw-jeden-materiał, galeria = reszta tego samego zbioru (NASK albo syntetyka);
   * „mieszane”: losowe galerie (każdy materiał z prawdopodobieństwem U(0,4; 0,95)), pytania o materiały spoza galerii w losowym formacie
     (komplet / sam HTML / sam HAR). HAR-y syntetyki to atrapy (ok. 600 B, same adresy), więc pytania samym HAR-em syntetyki pomijamy.
 Pozytyw = w galerii jest materiał tej samej kampanii; poprawnie, gdy wynik >= próg i najbliższy jest z tej kampanii. Negatyw: poprawnie, gdy < próg.
@@ -57,8 +57,8 @@ def collect(trials: int = 105, per_trial: int = 8, seed: int = 0) -> None:
             rows.append(("jury", "nask", str(x["przypadek"]), "komplet", x["oczekiwane"] == "kampania", bool(x["_grupa"]), float(x["wynik kampanii"])))
         for _, x in r["C"].iterrows():
             rows.append(("jury", "synth", str(x["materiał"]), "komplet", x["oczekiwane"] == "kampania", bool(x["_grupa"]), float(x["wynik kampanii"])))
-        for it in items:
-            gal = [x for x in items if x is not it]
+        for it in items:                      # galeria = reszta TEGO SAMEGO zbioru (wspólna galeria NASK+syntetyka podnosi wszystkie wyniki o ok. 0,05)
+            gal = [x for x in items if x is not it and x[1] == it[1]]
             ask("pełna", J.build([x for x, _, _ in gal]), gal, *it)
         rnd = random.Random(seed)
         for _ in range(trials):

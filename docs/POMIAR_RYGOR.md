@@ -46,24 +46,26 @@ zbiera najlepsze dopasowanie w trzech układach i dobiera próg **z podziałem p
 - **podmiot** = operator syntetyki z `prawda.json` (O1–O6, każdy negatyw osobno); w NASK sieć {1, 2, 3, 48, 61} (wspólna infrastruktura) jako jeden
   podmiot, pozostałe przypadki osobno; razem 18 podmiotów. Wszystkie pytania o materiały jednego podmiotu idą razem do doboru albo do oceny;
 - układy: **jury** (jak test jury, A+C, 30 pytań), **pełna** (zostaw-jeden-materiał, galeria = reszta, 52 pytania), **mieszane** (105 losowych galerii
-  NASK + syntetyka, każdy materiał z prawdopodobieństwem U(0,4; 0,95), pytania o materiały spoza galerii jako komplet, sam HTML albo sam HAR; 593 pytania;
-  pytania samym HAR-em syntetyki pominięte, bo to atrapy ok. 600 B z samymi adresami);
+  NASK + syntetyka, każdy materiał z prawdopodobieństwem U(0,4; 0,95), pytania o materiały spoza galerii jako komplet, sam HTML albo sam HAR;
+  581 pytań; pytania samym HAR-em syntetyki pominięte, bo to atrapy ok. 600 B z samymi adresami);
 - dobór zagnieżdżony: próg z podmiotów treningowych (środek przedziału z maksymalną zrównoważoną trafnością), ocena na odłożonych.
 
-Zrównoważona trafność na odłożonych podmiotach:
+Zrównoważona trafność (`scripts/prog_kampanii.py zbierz`, potem `dobierz`; wyniki w `code/artifacts/prog/wyniki.json`):
 
 | układ | próg wybierany bez podmiotu | 0,62 | 0,665 | **0,70** | 0,725 | 0,745 |
 |---|---|---|---|---|---|---|
 | jury | 0,615–0,635 | 1,000 | 1,000 | **0,967** | 0,767 | 0,667 |
 | pełna | 0,685–0,690 | 0,779 | 0,904 | **0,904** | 0,854 | 0,792 |
-| mieszane | 0,730–0,745 | 0,772 | 0,788 | **0,819** | 0,833 | 0,839 |
+| mieszane | 0,755 | 0,736 | 0,755 | **0,774** | 0,801 | 0,841 |
 
-- **Wybór wewnątrz układu jest stabilny względem podmiotów** (rozrzut 0,005–0,015): żaden operator ani przypadek NASK nie przesuwa progu sam,
-  więc dzielenie po materiale zamiast po podmiocie (pkt 3) nie zawyżało wyniku. **Optima układów się różnią** (0,62 / 0,685 / 0,74) z powodu składu galerii.
-- **0,70 ma najmniejszą maksymalną stratę** do najlepszego progu w danym układzie: 0,033 (0,665: 0,051; 0,62: 0,125; 0,725: 0,233). Nie znamy
+- **Wybór wewnątrz układu jest stabilny względem podmiotów** (rozrzut do 0,02): żaden operator ani przypadek NASK nie przesuwa progu sam,
+  więc dzielenie po materiale zamiast po podmiocie (pkt 3) nie zawyżało wyniku. **Optima układów się różnią** (0,62 / 0,685 / 0,755) z powodu składu galerii. Efekt jest duży: gdy w trybie „pełna” NASK i syntetyka
+  tworzą JEDNĄ galerię, wszystkie wyniki rosną o ok. 0,05 (przypadek NASK 3, obcy dla kampanii, z 0,53 do 0,73), dlatego „pełna” to galeria z reszty
+  tego samego zbioru. Optimum mieszanych zależy od losowania galerii (inne ziarno dało 0,74).
+- **0,70 ma najmniejszą maksymalną stratę** do najlepszego z progów porównywanych w danym układzie: 0,067 (0,665: 0,086; 0,62: 0,125; 0,725: 0,233). Nie znamy
   składu galerii przy ocenie jury, więc wybieramy próg najbezpieczniejszy dla wszystkich trzech.
 - Koszt względem 0,62 w teście jury: B 10/13 → 8/13 (przypadki 48 i 61 jako sam HTML, wynik 0,64 i 0,65, dostają „sieć” z właściwą grupą), C 20/20 → 19/20
-  (s012, 0,674). Zysk: pełna galeria 5 → 2 fałszywe połączenia; galerie mieszane 17,0 → 13,5 fałszywych połączeń na 100 pytań.
+  (s012, 0,674). Zysk: pełna galeria 5 → 2 fałszywe połączenia; galerie mieszane 16,7 → 14,3 fałszywych połączeń na 100 pytań.
 - Progi nie naprawią: pytań samym HAR-em w NASK (przypadki 1, 2, 48, 61 dostają 0,98–1,0 do dowolnego materiału sieci, bo HAR niesie głównie
   infrastrukturę, a przypadek 14 dokleja się z ok. 0,88).
 - Zastrzeżenia: 18 podmiotów, wszystkie pozytywy NASK to jeden podmiot (sieć), większość pozytywów to 6 operatorów z naszego generatora.
