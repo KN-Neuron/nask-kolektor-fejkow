@@ -1,7 +1,7 @@
 """Logika demonstratora bez zależności od Streamlita (testowalna): wejście -> cechy -> dopasowanie z przesłankami -> sieć.
 
 Jedna ścieżka: dowolne z wejść (zrzut, HTML, HAR, JSON/JSONL z reklamami Meta, tekst, adres URL) składa się w jeden materiał (`Case`),
-który idzie do `Gallery.query/add` (wzór podobieństwa: docs/14). Adresów URL NIE odwiedzamy: bierzemy tylko domenę jako ślad.
+który idzie do `Gallery.query/add` (wzór podobieństwa: docs/14). Adres URL: domyślnie tylko domena jako ślad; z `fetch=True` pobieramy stronę (embsim/fetch.py) do HTML i HAR i dalej jak pliki.
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from urllib.parse import urlsplit
 import numpy as np
 
 from .api import Decision, Gallery, has_evidence, Match, case_from_folder, case_from_meta_ad, case_from_text
-from .features import Case, registered
+from .features import Case, registered, scheme_fp
 
 IMG_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 _CHANNEL_PL = {"text": "podobna treść", "text_lex": "podobne brzmienie tekstu", "kit": "ten sam zestaw zasobów strony",
@@ -58,7 +58,7 @@ def ocr_image(path: Path) -> tuple[str, str | None]:
 
 
 def case_from_inputs(files: list[tuple[str, bytes]], text: str = "", url: str = "", ocr: bool = True, case_id: str | None = None,
-                     vlm: bool = False) -> tuple[Case, dict]:
+                     vlm: bool = False, fetch: bool = False) -> tuple[Case, dict]:
     """Składa jeden materiał z przesłanych plików (nazwa, bajty), tekstu i adresu. Zwraca (materiał, informacje o przetwarzaniu).
 
     `vlm=True`: dodatkowo opis kreacji zrzutu modelem wizyjnym (embsim/vlm.py, Ollama); bez modelu pomijany z ostrzeżeniem.
@@ -83,7 +83,17 @@ def case_from_inputs(files: list[tuple[str, bytes]], text: str = "", url: str = 
             (root / Path(name).name).write_bytes(data)
             if Path(name).suffix.lower() in IMG_EXT:
                 images.append(root / Path(name).name)
-        case = case_from_folder(root) if any(p.is_file() for p in root.iterdir()) else Case(id="")
+        if fetch and url.strip():
+            from .fetch import FetchError, fetch_to_folder
+
+            try:
+                fi = fetch_to_folder(url, root / "_pobrane")
+                info["pobranie"] = fi
+                info["url"] = (f"pobrano stronę {fi['adres_końcowy']} (status {fi['status']}, przekierowań {len(fi['przekierowania'])}, "
+                               f"zasobów {fi['zasobów']}, obrazów {fi['obrazów']})")
+            except FetchError as e:
+                info["ostrzeżenia"].append(f"Nie udało się pobrać strony: {e}. Używam tylko domeny.")
+        case = case_from_folder(root) if any(p.is_file() for p in root.rglob("*")) else Case(id="")
         texts = [case.text] if case.text else []
         if images and not case.text and not any(v for k, v in case.sets.items() if k not in ("img", "page", "payer", "text_hash")):
             case.meta["screenshot_only"] = True               # sam zrzut: identyczny obraz to ten sam artefakt (reguła dokładna), także po OCR
@@ -120,8 +130,10 @@ def case_from_inputs(files: list[tuple[str, bytes]], text: str = "", url: str = 
         host = (urlsplit(u).hostname or "").lower()
         if host:
             case.sets.setdefault("host", set()).add(registered(host))
+            if sch := scheme_fp(u):                       # schemat parametrów adresu (np. utm_visit, cuuid) bez odwiedzania strony
+                case.sets.setdefault("scheme", set()).add(sch)
             case.meta["url"] = url.strip()
-            info["url"] = f"użyto tylko domeny {registered(host)} (adresu nie odwiedzamy)"
+            info.setdefault("url", f"użyto tylko domeny {registered(host)} (adresu nie odwiedzamy)")
     case.id = case_id or "nowy_" + hashlib.sha1((case.text + json.dumps({k: sorted(v) for k, v in case.sets.items()})).encode()).hexdigest()[:8]
     return case, info
 
@@ -168,7 +180,7 @@ def gallery_summary(g: Gallery) -> dict:
 # budowa galerii
 
 
-def build_from_folders(g: Gallery, root: Path, ocr: bool = False, progress=None) -> int:
+def build_from_folders(g: Gallery, root: Path, ocr: bool = False, progress=None, regroup: bool = True) -> int:
     """Galeria z folderów przypadków (HTML, HAR, zrzuty). OCR tylko dla przypadków bez tekstu (sam zrzut), żeby było szybko."""
     from .material import load_case as material
 
@@ -182,6 +194,8 @@ def build_from_folders(g: Gallery, root: Path, ocr: bool = False, progress=None)
             g.add(c)
         if progress:
             progress((i + 1) / len(dirs), d.name)
+    if regroup:
+        g.regroup()                                   # kampanie od nowa na pełnej galerii (bez zależności od kolejności)
     return len(dirs)
 
 

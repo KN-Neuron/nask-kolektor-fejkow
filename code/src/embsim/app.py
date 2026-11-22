@@ -137,8 +137,12 @@ with tab_a:
         files = st.file_uploader("Pliki: zrzut ekranu, HTML, HAR, reklama Meta (JSON/JSONL), info.json", accept_multiple_files=True,
                                  type=["png", "jpg", "jpeg", "webp", "html", "htm", "har", "json", "jsonl"])
         text = st.text_area("Tekst reklamy albo nazwa produktu", height=90)
-        url = st.text_input("Adres URL (użyjemy tylko domeny)")
-        ocr = st.checkbox("Odczytaj tekst ze zrzutu (OCR)", value=True)
+        url = st.text_input("Adres URL reklamy albo strony")
+        c_ocr, c_fetch = st.columns(2)
+        ocr = c_ocr.checkbox("Odczytaj tekst ze zrzutu (OCR)", value=True)
+        fetch = c_fetch.checkbox("Pobierz stronę spod adresu", value=True,
+                                 help="HTML, przekierowania, adresy zasobów i obrazy (bez JavaScriptu). Gdy strona nie działa albo ukrywa "
+                                      "treść przed botami, zostaje sama domena. Odznacz, jeśli nie chcesz odwiedzać adresu.")
         go = st.form_submit_button("Analizuj", type="primary")
 
     with st.expander("Wiele materiałów naraz (zbiór testowy: ZIP albo folder, podfolder = jeden materiał)"):
@@ -171,12 +175,41 @@ with tab_a:
             st.caption(" · ".join(f"{k}: {v}" for k, v in bdf["werdykt"].value_counts().items()))
             st.download_button("Pobierz wyniki (CSV)", bdf.to_csv(index=False).encode("utf-8"), "wyniki.csv", key="batch_csv")
 
+    with st.expander("Planista: automatyczny skan nowych materiałów (skrzynka, lista adresów, Meta Ad Library)"):
+        from embsim import watch as W
+
+        st.caption("Ten sam mechanizm działa w tle z wiersza poleceń: `make watch INBOX=folder EVERY=60` (co godzinę). Każdy przebieg bierze "
+                   "tylko materiały, których jeszcze nie widział, ocenia je względem galerii, dopisuje do niej i zapisuje alerty "
+                   f"(`{W.OUT.relative_to(ROOT)}/alerty.csv`). Meta Ad Library wymaga `META_ACCESS_TOKEN` w `code/.env`.")
+        wc1, wc2 = st.columns(2)
+        w_inbox = wc1.text_input("Skrzynka (folder: podfoldery przypadków, pliki JSONL z reklamami)", "", key="w_inbox")
+        w_urls = wc2.text_area("Adresy URL (jeden na linię)", "", key="w_urls", height=80)
+        w_fetch = st.checkbox("Pobieraj strony spod adresów", value=False, key="w_fetch")
+        if st.button("Uruchom przebieg teraz", key="w_go"):
+            srcs = []
+            if w_inbox.strip() and Path(w_inbox).is_dir():
+                srcs.append(W.from_inbox(Path(w_inbox)))
+            if w_urls.strip():
+                up = W.OUT / "adresy_z_interfejsu.txt"
+                W.OUT.mkdir(parents=True, exist_ok=True)
+                up.write_text(w_urls, encoding="utf-8")
+                srcs.append(W.from_urls(up, w_fetch))
+            if not srcs:
+                st.warning("Podaj istniejący folder albo adresy.")
+            else:
+                with st.spinner("Przebieg planisty…"):
+                    new_rows = W.run_once(g, srcs, log=lambda *a: None)
+                st.success(f"Nowych materiałów: {len(new_rows)} (już widziane są pomijane).")
+        alerts = W.read_alerts()
+        if alerts:
+            st.dataframe(pd.DataFrame(alerts[::-1]), width="stretch", hide_index=True)
+
     if go:
         if not (files or text.strip() or url.strip()):
             st.warning("Podaj plik, tekst albo adres.")
         else:
             with st.spinner("Wyciągam cechy i porównuję z galerią…"):
-                case, info = A.case_from_inputs([(f.name, f.getvalue()) for f in (files or [])], text, url, ocr)
+                case, info = A.case_from_inputs([(f.name, f.getvalue()) for f in (files or [])], text, url, ocr, fetch=fetch)
                 st.session_state.result = (case, info, g.query(case, 5))
                 st.session_state.result_example = None
 

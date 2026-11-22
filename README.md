@@ -27,6 +27,32 @@ Galerię znanych materiałów buduje się w pasku bocznym interfejsu z folderu p
 Zrzut bez tekstu przechodzi przez OCR (do dobrego wyniku potrzebny jest język polski `tesseract-ocr-pol`; kontener go zawiera).
 CLI bez interfejsu: `python -m embsim.cli add <folder | plik.jsonl | --text "...">`.
 
+Po wczytaniu folderów grupy są liczone drugi raz na pełnej galerii, więc wynik nie zależy od kolejności przypadków (docs/WYNIKI.md §5a).
+
+**Adres URL:** w polu adresu w interfejsie domyślnie pobieramy stronę (HTML, łańcuch przekierowań, adresy zasobów, obrazy; bez
+JavaScriptu, bez adresów prywatnych, z limitem czasu). Gdy strona nie działa albo ukrywa treść przed botami, zostaje domena i schemat
+parametrów adresu. Odznacz „Pobierz stronę spod adresu”, jeśli nie chcesz odwiedzać adresu.
+
+**Planista (automatyczny skan):** co N minut bierze nowe materiały, ocenia je względem galerii, dopisuje do niej i zapisuje alerty do
+`code/artifacts/watch/alerty.csv`. Ten sam przebieg można uruchomić w interfejsie (zakładka analizy, sekcja „Planista”).
+
+```bash
+make watch INBOX=/ścieżka/do/skrzynki EVERY=60     # podfoldery przypadków i pliki JSONL z reklamami wrzucane do folderu
+make watch URLS=adresy.txt                         # lista adresów, jeden przebieg
+make watch KEYWORDS=code/config/meta_keywords.txt EVERY=60   # Meta Ad Library (wymaga META_ACCESS_TOKEN)
+```
+
+### Klucze API: niepotrzebne do oceny
+
+Demonstrator, testy, `make watch` ze skrzynką lub adresami i obraz Dockera działają **bez żadnych kluczy** (model tekstu jest lokalny).
+Plik `code/.env` (wzór: `code/.env.example`) jest potrzebny tylko do dodatków:
+
+| zmienna | do czego | bez niej |
+|---|---|---|
+| `META_ACCESS_TOKEN` | wyszukiwanie w Meta Ad Library (planista, scraper) | reklamy Meta wczytuje się z pliku JSONL |
+| `NEO4J_PASSWORD`, `NEO4J_URI` | zakładka grafu w Neo4j (`docker compose up -d`) | zakładka pokazuje ostrzeżenie, reszta działa |
+| `URLSCAN_API_KEY`, `LLM_*`, `YOUTUBE_API_KEY` | tylko poprzedni silnik i eksperymenty | nieużywane w demonstratorze |
+
 ## Wyniki (uczciwie)
 
 Pełna tabela z danymi, podziałem i ograniczeniami: [docs/WYNIKI.md](docs/WYNIKI.md). Skrót:

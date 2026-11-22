@@ -85,7 +85,19 @@ ukryty zbiór (nowe warianty, nowa kampania znanego operatora, 6 negatywów). Ra
 |---|---|---|---|
 | przed (próg 0,95, ślady jak w kalibracji) | 7/10 | 3/13 | 6/20 |
 | + obrazy i bez pospolitych usług, próg 0,95 | 8/10, 0 błędów | 6/13 | 9/20 |
-| + próg 0,725 (kalibracja niżej) | **10/10** | **8/13** | **13/20** |
+| + próg 0,725 (kalibracja niżej) | 10/10 | 8/13 | 13/20 |
+| + próg 0,62 i drugi przebieg grupowania (obecnie) | **10/10** | **10/13** | **20/20** |
+
+- **Próg 0,62** (obecny, `config/embsim/demo_calibration.json`). Przegląd na tym samym teście: 0,60 i 0,62 dają warianty 15/15 i C 20/20,
+  0,65 daje B 9/13, 0,69 daje C 19/20; 0,725 dawało czułość „znanej kampanii” 8/15, bo 7 wariantów miało wynik 0,70–0,72 (dobra grupa,
+  zły poziom). Najmocniejszy negatyw ma 0,56, więc zapas jest mały, a próg dobrany na zbiorach, na których go mierzymy.
+- **Drugi przebieg grupowania** (`Gallery.regroup`, wywoływany po wczytaniu folderów i po każdym przebiegu planisty): każdy materiał
+  porównany z resztą PEŁNEJ galerii, kampanie i operatorzy jako spójne składowe krawędzi powyżej progów. Wcześniej galeria zależała od
+  kolejności: przy galerii z 1 materiału przypadek 3 dostawał 0,856 z samego tekstu (brak tła do centrowania) i doklejał się do kampanii 1,
+  a za nim 48. Budowa galerii z całej syntetyki v1 (42 materiały, prawda z generatora): ARI kampanii 0,596 → **0,956**, ARI operatora
+  0,560 → 0,723. NASK-10: kampanie {1,2} i {48,61}, operator {1,2,3,48,61}, reszta osobno, czyli dokładnie nasz odczyt. Ryzyko: spójne
+  składowe mogą łączyć łańcuchem; na bardzo małej galerii (3 materiały) przeliczenie bywa błędne, więc planista zapisuje je obok decyzji
+  podjętej w chwili napływu, a nie zamiast niej.
 
 - **Obrazy bez modelu** (`img`): odcisk SHA-256 bajtów obrazów strony z HAR i z zasobów `*_files`; pomijamy obrazy < 2 KB (ikonki,
   reakcje widżetów komentarzy, które krążą między zestawami). Na NASK łączy 1↔2 (11 obrazów), 48↔61 (6), 2↔3 (3) i jedną ikoną z CDN
@@ -96,16 +108,17 @@ ukryty zbiór (nowe warianty, nowa kampania znanego operatora, 6 negatywów). Ra
 - **Pospolite usługi** (Google, Meta, CDN, czcionki) nie dają śladów hosta, zestawu ani schematu w ścieżce demonstratora. Wcześniej w galerii
   z 9 przypadków google.com u dwóch z nich wyglądał na rzadki wspólny ślad (61 z samym HAR „znaną kampanią” 10, wynik 0,98). Ewaluacja
   z §1 (`bench`, `cv`) czyta materiały bez tego filtra, więc jej liczby się nie zmieniają.
-- **Próg 0,725** (`config/embsim/demo_calibration.json`): zostaw-jeden na NASK-10 i syntetyce v1, maksimum zrównoważonej trafności
+- **Próg 0,725** (poprzedni, pierwotna kalibracja): zostaw-jeden na NASK-10 i syntetyce v1, maksimum zrównoważonej trafności
   (0,875 przypiętych dobrze, 0,833 bez pary osobno; przy 0,95: 2/40 przypiętych). Na NASK każdy próg z (0,53; 0,82) daje 10/10. To kalibracja
   na naszych zbiorach dev, nie na zbiorze ukrytym. Kanał `img` jest dokładany w `Gallery` (wagi jak inne ślady, rotujący); `e_ref`
   przeskalowane tak, że materiały bez obrazów dostają dokładnie ten sam wynik co przed zmianą.
 - **Wg kryteriów walidacji z opisu wyzwania** (test na zbiorze ukrytym, 15 nowych wariantów i przypadków kampanii, 11 negatywów, 13 wejść niepełnych):
-  precyzja decyzji „znana kampania” 8/8, czułość 8/15 (pozostałe 7 trafia w dobrą grupę, ale na poziomie sieci, bo wynik jest tuż pod
-  progiem 0,725), obce materiały zostawione osobno 11/11, nowa kampania znanego operatora rozpoznana 4/4, decyzje z podaną przesłanką 18/18,
-  wejścia niepełne trafione dokładnie 8/13 i w dobrą grupę 11/13. Wyniki zapisane w `code/config/embsim/wyniki_jury.json`.
-- **Słabe nadal**: zrzut samej reklamy nie trafia w stronę docelową innego materiału (B, 3 błędy: tekst kreacji ≠ tekst strony);
-  ocena wsadowa od pustej galerii (syntetyka v1, 42 materiały po kolei): kampanie precyzja 0,80, czułość 0,33, negatywy osobno 3/6.
+  obecnie (0,62 + drugi przebieg): precyzja decyzji „znana kampania” 15/15, czułość 15/15, obce materiały zostawione osobno 11/11, nowa
+  kampania znanego operatora rozpoznana 4/4, wejścia niepełne trafione dokładnie 10/13. Przy 0,725 było: precyzja 8/8, czułość 8/15,
+  wejścia niepełne 8/13. Wyniki zapisane w `code/config/embsim/wyniki_jury.json`.
+- **Słabe nadal**: zrzut samej reklamy nie trafia w stronę docelową innego materiału (B, 3 błędy). OCR działa (tesseract z językiem
+  polskim), ale kreacja ma kilkanaście ogólnych słów („Wydarzenie, które wstrząsnęło całą Polską”) bez wspólnego tekstu z artykułem;
+  to granica danych, nie błąd. Ocena wsadowa od pustej galerii (syntetyka v1, 42 materiały po kolei): kampanie precyzja 0,80, czułość 0,33, negatywy osobno 3/6.
   Pierwsze decyzje zapadają na galerii z 1–2 materiałów, gdzie rzadkość śladu nic nie znaczy.
 
 ## 6. Zbiory zewnętrzne  [prawdziwe, tylko tekst]

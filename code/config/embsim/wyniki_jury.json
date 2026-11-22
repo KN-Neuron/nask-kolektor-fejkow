@@ -1,29 +1,29 @@
 {
- "próg": 0.725,
+ "próg": 0.62,
  "data": "2026-11-22",
  "podsumowanie": [
   {
    "kryterium": "Skuteczność: podobne materiały i warianty tych samych kampanii",
    "miara": "trafione na poziomie kampanii",
-   "wynik": "8/15 (53%)",
+   "wynik": "15/15 (100%)",
    "jak liczone": "nowy wariant znanej kampanii rozpoznany jako ta sama kampania, wskazany właściwy materiał"
   },
   {
    "kryterium": "",
    "miara": "wskazana właściwa grupa (kampania lub sieć)",
-   "wynik": "14/15 (93%)",
+   "wynik": "15/15 (100%)",
    "jak liczone": "najbliższy materiał jest z tej samej kampanii"
   },
   {
    "kryterium": "Poprawność przypisywania do istniejących grup",
    "miara": "precyzja decyzji „znana kampania”",
-   "wynik": "8/8 (100%)",
+   "wynik": "15/15 (100%)",
    "jak liczone": "z decyzji „znana kampania” ile wskazało właściwą grupę"
   },
   {
    "kryterium": "",
    "miara": "czułość decyzji „znana kampania”",
-   "wynik": "8/15 (53%)",
+   "wynik": "15/15 (100%)",
    "jak liczone": "z nowych wariantów ile dostało decyzję „znana kampania” z właściwą grupą"
   },
   {
@@ -41,13 +41,13 @@
   {
    "kryterium": "Interpretowalność",
    "miara": "decyzje połączeniowe z podanymi przesłankami",
-   "wynik": "18/18 (100%)",
+   "wynik": "19/19 (100%)",
    "jak liczone": "każda decyzja „kampania”/„sieć” ma co najmniej jeden wskazany powód (wspólne ślady, kanały)"
   },
   {
    "kryterium": "Odporność: duplikaty, niekompletne dane, format",
    "miara": "dobra decyzja (dokładnie)",
-   "wynik": "8/13 (62%)",
+   "wynik": "10/13 (77%)",
    "jak liczone": "sam HTML, sam HAR, sam zrzut, ten sam materiał drugi raz"
   },
   {
@@ -177,10 +177,10 @@
   {
    "przypadek": "48",
    "wejście": "sam HTML",
-   "wynik": "sieć",
+   "wynik": "kampania",
    "najbliższy": "61",
    "wynik kampanii": 0.64,
-   "ocena": "częściowo (dobra grupa, inny poziom)"
+   "ocena": "OK"
   },
   {
    "przypadek": "48",
@@ -201,10 +201,10 @@
   {
    "przypadek": "61",
    "wejście": "sam HTML",
-   "wynik": "sieć",
+   "wynik": "kampania",
    "najbliższy": "48",
    "wynik kampanii": 0.653,
-   "ocena": "częściowo (dobra grupa, inny poziom)"
+   "ocena": "OK"
   },
   {
    "przypadek": "61",
@@ -235,7 +235,7 @@
    "wejście": "zrzut znanej reklamy (OCR)",
    "wynik": "kampania",
    "najbliższy": "1",
-   "wynik kampanii": 0.111,
+   "wynik kampanii": 0.108,
    "ocena": "OK"
   },
   {
@@ -251,7 +251,7 @@
    "wejście": "zrzut znanej reklamy (OCR)",
    "wynik": "kampania",
    "najbliższy": "48",
-   "wynik kampanii": 0.052,
+   "wynik kampanii": 0.051,
    "ocena": "OK"
   }
  ],
@@ -261,60 +261,60 @@
    "typ": "nowy wariant znanej kampanii",
    "prawda": "O1-K1",
    "oczekiwane": "kampania",
-   "wynik": "sieć",
+   "wynik": "kampania",
    "najbliższy": "s001",
    "prawda najbliższego": "O1-K1",
    "wynik kampanii": 0.709,
    "wynik operatora": 0.514,
-   "ocena": "częściowo (dobra grupa, inny poziom)"
+   "ocena": "OK"
   },
   {
    "materiał": "s006",
    "typ": "nowy wariant znanej kampanii",
    "prawda": "O1-K2",
    "oczekiwane": "kampania",
-   "wynik": "sieć",
+   "wynik": "kampania",
    "najbliższy": "s004",
    "prawda najbliższego": "O1-K2",
    "wynik kampanii": 0.709,
    "wynik operatora": 0.514,
-   "ocena": "częściowo (dobra grupa, inny poziom)"
+   "ocena": "OK"
   },
   {
    "materiał": "s009",
    "typ": "nowy wariant znanej kampanii",
    "prawda": "O2-K1",
    "oczekiwane": "kampania",
-   "wynik": "sieć",
+   "wynik": "kampania",
    "najbliższy": "s007",
    "prawda najbliższego": "O2-K1",
    "wynik kampanii": 0.708,
    "wynik operatora": 0.514,
-   "ocena": "częściowo (dobra grupa, inny poziom)"
+   "ocena": "OK"
   },
   {
    "materiał": "s012",
    "typ": "nowy wariant znanej kampanii",
    "prawda": "O2-K2",
    "oczekiwane": "kampania",
-   "wynik": "nowy",
+   "wynik": "kampania",
    "najbliższy": "s010",
    "prawda najbliższego": "O2-K2",
    "wynik kampanii": 0.674,
-   "wynik operatora": 0.022,
-   "ocena": "BŁĄD: nie rozpoznano"
+   "wynik operatora": 0.0,
+   "ocena": "OK"
   },
   {
    "materiał": "s015",
    "typ": "nowy wariant znanej kampanii",
    "prawda": "O3-K1",
    "oczekiwane": "kampania",
-   "wynik": "sieć",
+   "wynik": "kampania",
    "najbliższy": "s013",
    "prawda najbliższego": "O3-K1",
    "wynik kampanii": 0.717,
    "wynik operatora": 0.435,
-   "ocena": "częściowo (dobra grupa, inny poziom)"
+   "ocena": "OK"
   },
   {
    "materiał": "s018",
@@ -336,7 +336,7 @@
    "wynik": "kampania",
    "najbliższy": "s020",
    "prawda najbliższego": "O4-K1",
-   "wynik kampanii": 0.733,
+   "wynik kampanii": 0.728,
    "wynik operatora": 0.587,
    "ocena": "OK"
   },
@@ -348,7 +348,7 @@
    "wynik": "kampania",
    "najbliższy": "s023",
    "prawda najbliższego": "O4-K2",
-   "wynik kampanii": 0.748,
+   "wynik kampanii": 0.746,
    "wynik operatora": 0.587,
    "ocena": "OK"
   },
@@ -357,24 +357,24 @@
    "typ": "nowy wariant znanej kampanii",
    "prawda": "O5-K1",
    "oczekiwane": "kampania",
-   "wynik": "sieć",
+   "wynik": "kampania",
    "najbliższy": "s025",
    "prawda najbliższego": "O5-K1",
    "wynik kampanii": 0.707,
    "wynik operatora": 0.413,
-   "ocena": "częściowo (dobra grupa, inny poziom)"
+   "ocena": "OK"
   },
   {
    "materiał": "s030",
    "typ": "nowy wariant znanej kampanii",
    "prawda": "O5-K2",
    "oczekiwane": "kampania",
-   "wynik": "sieć",
-   "najbliższy": "s025",
-   "prawda najbliższego": "O5-K1",
-   "wynik kampanii": 0.703,
+   "wynik": "kampania",
+   "najbliższy": "s029",
+   "prawda najbliższego": "O5-K2",
+   "wynik kampanii": 0.701,
    "wynik operatora": 0.572,
-   "ocena": "BŁĄD: zła grupa"
+   "ocena": "OK"
   },
   {
    "materiał": "s033",
@@ -396,7 +396,7 @@
    "wynik": "sieć",
    "najbliższy": "s031",
    "prawda najbliższego": "O6-K1",
-   "wynik kampanii": 0.459,
+   "wynik kampanii": 0.43,
    "wynik operatora": 0.63,
    "ocena": "OK"
   },
@@ -408,7 +408,7 @@
    "wynik": "sieć",
    "najbliższy": "s031",
    "prawda najbliższego": "O6-K1",
-   "wynik kampanii": 0.457,
+   "wynik kampanii": 0.428,
    "wynik operatora": 0.478,
    "ocena": "OK"
   },
@@ -420,7 +420,7 @@
    "wynik": "sieć",
    "najbliższy": "s031",
    "prawda najbliższego": "O6-K1",
-   "wynik kampanii": 0.459,
+   "wynik kampanii": 0.43,
    "wynik operatora": 0.63,
    "ocena": "OK"
   },
@@ -432,7 +432,7 @@
    "wynik": "nowy",
    "najbliższy": "s001",
    "prawda najbliższego": "O1-K1",
-   "wynik kampanii": 0.502,
+   "wynik kampanii": 0.417,
    "wynik operatora": 0.0,
    "ocena": "OK"
   },
@@ -442,9 +442,9 @@
    "prawda": "neg:s038",
    "oczekiwane": "nowy",
    "wynik": "nowy",
-   "najbliższy": "s004",
-   "prawda najbliższego": "O1-K2",
-   "wynik kampanii": 0.238,
+   "najbliższy": "s023",
+   "prawda najbliższego": "O4-K2",
+   "wynik kampanii": 0.223,
    "wynik operatora": 0.0,
    "ocena": "OK"
   },
@@ -456,7 +456,7 @@
    "wynik": "nowy",
    "najbliższy": "s025",
    "prawda najbliższego": "O5-K1",
-   "wynik kampanii": 0.53,
+   "wynik kampanii": 0.486,
    "wynik operatora": 0.0,
    "ocena": "OK"
   },
@@ -468,7 +468,7 @@
    "wynik": "nowy",
    "najbliższy": "s010",
    "prawda najbliższego": "O2-K2",
-   "wynik kampanii": 0.528,
+   "wynik kampanii": 0.492,
    "wynik operatora": 0.0,
    "ocena": "OK"
   },
@@ -480,7 +480,7 @@
    "wynik": "nowy",
    "najbliższy": "s013",
    "prawda najbliższego": "O3-K1",
-   "wynik kampanii": 0.574,
+   "wynik kampanii": 0.561,
    "wynik operatora": 0.0,
    "ocena": "OK"
   },
@@ -492,14 +492,14 @@
    "wynik": "nowy",
    "najbliższy": "s017",
    "prawda najbliższego": "O3-K2",
-   "wynik kampanii": 0.603,
+   "wynik kampanii": 0.55,
    "wynik operatora": 0.0,
    "ocena": "OK"
   }
  ],
  "wyniki": {
   "A": "10/10 OK, 0 częściowo, 0 błędów",
-  "B": "8/13 OK, 2 częściowo, 3 błędów",
-  "C": "13/20 OK, 5 częściowo, 2 błędów"
+  "B": "10/13 OK, 0 częściowo, 3 błędów",
+  "C": "20/20 OK, 0 częściowo, 0 błędów"
  }
 }

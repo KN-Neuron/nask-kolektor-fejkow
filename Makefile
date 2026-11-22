@@ -4,7 +4,7 @@ UNIT = tests/test_api.py tests/test_analyze.py tests/test_app.py tests/test_scor
        tests/test_ext.py tests/test_subjects.py tests/test_synth2.py tests/test_cv.py tests/test_stream_eval.py \
        tests/test_exact_img.py
 
-.PHONY: install test test-legacy demo smoke eval docker-build docker-run
+.PHONY: install test test-legacy demo smoke eval watch docker-build docker-run
 
 install:            ## venv i zależności (ok. 2 min)
 	cd code && python3 -m venv .venv && .venv/bin/pip install -q -e ".[dev]"
@@ -22,6 +22,10 @@ smoke:              ## dymny test CLI: dwa podobne teksty, drugi powinien dosta�
 	cd code && rm -f /tmp/embsim_smoke.jsonl && \
 	PYTHONPATH=src ../$(PY) -m embsim.cli add "Szokujące: prezes zdradził sposób na zysk. Wpłać 500 zł i obserwuj." --text --id a --gallery /tmp/embsim_smoke.jsonl 2>/dev/null && \
 	PYTHONPATH=src ../$(PY) -m embsim.cli add "Szokujące: prezes zdradził sposób na zysk. Wpłać 700 zł i obserwuj." --text --id b --gallery /tmp/embsim_smoke.jsonl 2>/dev/null
+
+watch:              ## planista: INBOX=folder (podfoldery przypadków, JSONL reklam), URLS=plik z adresami, EVERY=minuty (0 = raz)
+	cd code && PYTHONPATH=src ../$(PY) -m embsim.watch $(if $(INBOX),--inbox "$(INBOX)") $(if $(URLS),--urls "$(URLS)") \
+	  $(if $(KEYWORDS),--meta-keywords "$(KEYWORDS)") --every-min $(or $(EVERY),0)
 
 eval:               ## pełna ewaluacja: N-LNSO na światach syntetycznych i strumień po czasie na Mecie (log: code/artifacts/stream/live.log)
 	cd code && PYTHONUNBUFFERED=1 PYTHONPATH=src ../$(PY) -u -m embsim.cv --worlds 80 && PYTHONUNBUFFERED=1 PYTHONPATH=src ../$(PY) -u -m embsim.stream_eval

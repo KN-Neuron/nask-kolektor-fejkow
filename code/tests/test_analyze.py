@@ -83,3 +83,57 @@ def test_gallery_clusters_traces_without_hubs_and_dot(tmp_path):
     assert isinstance(A.cluster_summary(g, camps, traces), list)
     md = A.cluster_markdown(f"operator {op}", [{"materiał": "a", "kampania": "K1", "operator": op, "tekst": "x"}], traces)
     assert md.startswith("# Klaster: operator") and "## Materiały" in md
+
+
+def test_url_passive_scheme_and_blocked_private_fetch():
+    from embsim import analyze as A
+    c, info = A.case_from_inputs([], "", "https://x-scam.xyz/?utm_id=1&utm_visit=2", fetch=False)
+    assert c.sets["host"] == {"x-scam.xyz"} and c.sets["scheme"] == {"utm_id,utm_visit"}
+    c, info = A.case_from_inputs([], "", "http://127.0.0.1:9/", fetch=True)
+    assert any("prywatn" in w for w in info["ostrzeżenia"]) and "img" not in c.sets
+
+
+def test_fetch_builds_html_and_har(tmp_path, monkeypatch):
+    import json
+    from embsim import fetch as F
+
+    class R:
+        def __init__(self, url, body, ct, status=200, loc=None):
+            self.status_code, self._b, self.encoding = status, body, "utf-8"
+            self.headers = {"content-type": ct, **({"location": loc} if loc else {})}
+            self.is_redirect = loc is not None
+        def iter_content(self, n): yield self._b
+        def close(self): pass
+
+    pages = {"http://scam.test/": R("", b"", "", 302, "http://scam.test/lp"),
+             "http://scam.test/lp": R("", b'<html><body>Zarabiaj z AI<img src="/a.png"><script src="https://cdn.kit.test/x/y/app.js"></script></body></html>', "text/html"),
+             "http://scam.test/a.png": R("", b"\x89PNG" + b"0" * 4000, "image/png")}
+
+    class S:
+        headers = {}
+        def get(self, url, **kw): return pages[url]
+
+    monkeypatch.setattr(F, "_safe", lambda url: None)
+    monkeypatch.setattr("requests.Session", lambda: S())
+    info = F.fetch_to_folder("http://scam.test/", tmp_path)
+    assert info["adres_końcowy"] == "http://scam.test/lp" and info["przekierowania"] == ["http://scam.test/"] and info["obrazów"] == 1
+    har = json.loads((tmp_path / "strona.har").read_text())
+    assert any("cdn.kit.test" in e["request"]["url"] for e in har["log"]["entries"])
+    assert "Zarabiaj" in (tmp_path / "strona.html").read_text()
+
+
+def test_regroup_removes_order_dependence():
+    from embsim import analyze as A
+    from embsim.api import Gallery, Case
+    g = Gallery(embed_fn=A.hash_embed, profile="strony")
+    scam = "Prezes ujawnił sekret: wpłać 1000 zł na platformę AI i zarabiaj codziennie bez wysiłku. Zarejestruj się teraz."
+    bg = ["Przepis na ciasto drożdżowe z kruszonką i śliwkami.", "Prognoza pogody na weekend: deszcz i wiatr na północy.",
+          "Wyniki meczu ligi: remis po dogrywce i rzutach karnych.", "Nowy rozkład jazdy tramwajów od poniedziałku w centrum."]
+    g.add(Case(id="a", text=scam, sets={"host": {"zysk-ai.xyz"}}))
+    for i, t in enumerate(bg):
+        g.add(Case(id=f"bg{i}", text=t, sets={"host": {f"strona{i}.pl"}}))
+    g.add(Case(id="c", text=scam.replace("1000", "1500"), sets={"host": {"zysk-ai.xyz"}}))
+    g.regroup()
+    grp = {it["case"].id: it["group"] for it in g.items}
+    assert grp["a"] == grp["c"]
+    assert len({grp[f"bg{i}"] for i in range(4)} | {grp["a"]}) == 5

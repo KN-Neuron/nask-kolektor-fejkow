@@ -398,6 +398,45 @@ class Gallery:
         d.group, d.operator = d.group or group, d.operator or operator
         return d
 
+    def regroup(self) -> dict:
+        """Drugi przebieg po wczytaniu całego zbioru: każdy materiał porównany z resztą pełnej galerii (rzadkość śladów i centrowanie tekstu
+        liczone na wszystkich), kampanie i operatorzy policzeni od nowa (spójne składowe krawędzi powyżej progów). Usuwa zależność od
+        kolejności wczytywania: przy galerii z 1-2 materiałów pierwsze decyzje zapadały bez tła. Zwraca liczbę kampanii i operatorów."""
+        if len(self.items) < 2:
+            return {"kampanie": len(self.items), "operatorzy": len(self.items)}
+        self._fit()
+        ids = [it["case"].id for it in self.items]
+        pos = {x: i for i, x in enumerate(ids)}
+        pc, po = list(range(len(ids))), list(range(len(ids)))
+
+        def find(p, i):
+            while p[i] != i:
+                p[i] = p[p[i]]
+                i = p[i]
+            return i
+
+        for i, it in enumerate(self.items):
+            d = self._query(it["case"], 5, ids[i])
+            key = d.key_match() if d.verdict == "znany_operator_nowa_kampania" else (d.matches[0] if d.matches else None)
+            if key is None or key.id not in pos:
+                continue
+            j = pos[key.id]
+            if d.verdict == "znana_kampania":
+                pc[find(pc, i)] = find(pc, j)
+                po[find(po, i)] = find(po, j)
+            to = self.cfg.thresholds.get("operator")
+            bo = max(d.matches, key=lambda m: m.operator_score) if d.matches else None
+            if to is not None and bo is not None and bo.operator_score >= to and bo.id in pos:   # operator niezależnie od kampanii
+                po[find(po, i)] = find(po, pos[bo.id])
+        for i in range(len(ids)):                     # kampania należy do jednego operatora
+            po[find(po, i)] = find(po, find(pc, i))
+        kn, on = {}, {}
+        for i, it in enumerate(self.items):
+            it["group"] = kn.setdefault(find(pc, i), f"K{len(kn) + 1}")
+            it["operator"] = on.setdefault(find(po, find(pc, i)), f"O{len(on) + 1}")
+        self._counter["K"], self._counter["O"] = len(kn), len(on)
+        return {"kampanie": len(kn), "operatorzy": len(on)}
+
     def _new(self, prefix: str) -> str:
         used = {it["group" if prefix == "K" else "operator"] for it in self.items}
         while True:
