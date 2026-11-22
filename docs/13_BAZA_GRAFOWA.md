@@ -241,6 +241,40 @@ Ograniczenia:
 - silnik liczy pospolite domeny (np. instagram.com) jako mocny wspólny ślad; to do poprawy w `embsim` (lista hubów);
 - progi są dobrane na syntetyce; na prawdziwych danych decyzja silnika jest orientacyjna, dokładne zgodności z grafu nie.
 
+## Kontrakt decyzji, zapis transakcyjny i pochodzenie etykiety (`graph/decision.py`, `resume.py`, `provenance.py`)
+
+**Kampania, operator i konto to trzy różne rzeczy.** Dawniej scraper wpisywał ten sam identyfikator twórcy w pole grupy i operatora, więc
+jeden operator nie mógł mieć dwóch kampanii. Teraz galeria ma `group` = kampania (`kam:<operator>#<skrót>`), `operator` = twórca, a konto
+(`fb:<page_id>` albo `AdAccount`) zapisuje się osobno. Dokładna zgodność z grafu rozstrzyga **operatora**; kampanię wskazuje silnik, ale
+tylko wtedy, gdy należy do tego samego operatora, inaczej powstaje nowa kampania tego operatora.
+
+| w grafie | znaczenie |
+|---|---|
+| `(n)-[:CREATED_BY {source, method}]->(Creator)` | operator |
+| `(n)-[:IN_CAMPAIGN {source, method, score}]->(Campaign)-[:RUN_BY]->(Creator)` | kampania operatora (może być kilka) |
+| `(n)-[:HAS_DECISION]->(Decision)` | `verdict`, `source`, `method` (silnik + konfiguracja + `graf-v2`), `score`, `text`, `campaign_id`, `operator_id`, `account_id` |
+| `(Decision)-[:CAMPAIGN | :OPERATOR | :ACCOUNT | :CONFLICTS_WITH]->(…)` | co wybrano i z kim jest konflikt do weryfikacji |
+
+Zapis jednego materiału (węzeł, decyzja, krawędzie, liczniki) to **jedna transakcja**; błąd w środku nie zostawia połowy. Liczniki twórcy
+(`n_ads`, `n_flagged`) liczone są z krawędzi, więc ponowienie ich nie zwiększa. Decyzja ma id z (materiał, metoda), więc powtórka nic nie dubluje,
+a zmiana metody dopisuje nową decyzję obok starej.
+
+**Wznawianie (`scrape.py watch`):** czyta plik od zapamiętanego bajtu, nie rusza niedokończonej ostatniej linii, zapisuje stan atomowo po
+każdej paczce, pomija materiały z istniejącą decyzją (rejestr przetworzonych), a złe linie odkłada do `artifacts/scrape/watch_errors.jsonl`.
+Niedokończony wiersz galerii po awarii jest odcinany przy otwarciu. **Przebudowa twórców (`creators.py build`)** zapisuje wszystko w jednej
+transakcji i niczego nie kasuje przed zapisem; twórcy z historią scrapera (kampanie, decyzje) zostają (`stale = true`), jeśli nie mają członków.
+Uwaga: jedna transakcja na pełnej Mecie (97 tys. reklam) potrzebuje pamięci serwera; lokalnie 1 GB sterty wystarcza dla próbki S1, dla pełnej
+Mety sprawdź przed uruchomieniem na Railway.
+
+**Pochodzenie etykiety scam.** Trzy rodzaje dowodu są osobne: *zdjęcie reklamy*, *blokada konta* i *ocena analityka*. Na twórcy: licznik
+(`label_num`), mianownik (`label_den`), udział (`scam_share`), podstawa (`label_basis`), data (`label_at`), reguła (`label_rule`), wynik
+automatu (`auto_label`) i węzły `LabelEvidence`. Ocena analityka (`provenance.py verdict <id> "nie scam" --by ola`) wygrywa z automatem, ale
+historia zostaje. Do weryfikacji (`needs_review`, `provenance.py review`) trafia twórca, gdy analityk przeczy Mecie, gdy jedna jego strona jest
+w większości zdjęta, a inna (≥ 3 reklamy) nie ma żadnej zdjętej, albo gdy nowy materiał pasuje dokładnie do kilku twórców naraz.
+
+Testy (lokalna, jednorazowa baza, nigdy Railway ani port 7687): `tests/test_graph_contract.py`, instrukcja uruchomienia w jego nagłówku.
+Pokrywają m.in. formularz, który daje dwie kampanie jednego operatora, ponowienia, awarię w środku zapisu i wznowienie importu.
+
 ## Ruch sieciowy (przekierowania, hosty trzecie)
 
 Graf liczy kanał ruchu **tak samo jak silnik `embsim`** (format: [15_FORMAT_KANALU_RUCHU.md](15_FORMAT_KANALU_RUCHU.md)),

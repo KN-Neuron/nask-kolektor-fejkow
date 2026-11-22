@@ -21,32 +21,36 @@ from __future__ import annotations
 
 import argparse
 import sys
+import time
 from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from load import driver, run_batches
+import provenance
+from load import driver
 from subjects import components, fetch, hubs
 
 CREATOR_CYPHER = """
 UNWIND $rows AS r
 MERGE (c:Creator {id: r.id})
-  SET c.name = r.name, c.n_ads = r.n_ads, c.n_flagged = r.n_flagged, c.n_pages = r.n_pages, c.n_payers = r.n_payers,
-      c.label = CASE WHEN toFloat(r.n_flagged) / r.n_ads >= $scam_share THEN 'scam'
-                     WHEN r.n_flagged > 0 THEN 'podejrzany' ELSE 'brak sygnału' END,
-      c.scam_share = toFloat(r.n_flagged) / r.n_ads, c.hub_cap = r.hub_cap
+  SET c.name = r.name, c.n_pages = r.n_pages, c.n_payers = r.n_payers, c.hub_cap = r.hub_cap, c.stale = false
 """
+# liczniki i etykiety liczy provenance.refresh (z krawędzi, z podstawą i datą), nie ta paczka
 AD_CYPHER = """
 UNWIND $rows AS r
 MATCH (a:Ad {id: r.ad}), (c:Creator {id: r.c})
+OPTIONAL MATCH (a)-[old:CREATED_BY]->(o:Creator) WHERE o.id <> r.c
+DELETE old
+WITH DISTINCT a, c
 MERGE (a)-[:CREATED_BY]->(c)
-SET a.label = CASE WHEN a.meta_flag IS NOT NULL THEN 'scam' ELSE c.label END,
-    a.label_source = CASE WHEN a.meta_flag IS NOT NULL THEN 'meta' WHEN c.label <> 'brak sygnału' THEN 'twórca' ELSE null END
 """
 TRACE_CYPHER = {
-    "BY": "UNWIND $rows AS r MATCH (x:Advertiser {key: r.k}), (c:Creator {id: r.c}) MERGE (x)-[:PART_OF]->(c)",
-    "PAID_BY": "UNWIND $rows AS r MATCH (x:Payer {name: r.k}), (c:Creator {id: r.c}) MERGE (x)-[:PART_OF]->(c)",
-    "LINKS_TO": "UNWIND $rows AS r MATCH (x:Domain {name: r.k}), (c:Creator {id: r.c}) MERGE (x)-[:PART_OF]->(c)",
+    "BY": "UNWIND $rows AS r MATCH (x:Advertiser {key: r.k}), (c:Creator {id: r.c}) "
+          "OPTIONAL MATCH (x)-[old:PART_OF]->(o:Creator) WHERE o.id <> r.c DELETE old WITH DISTINCT x, c MERGE (x)-[:PART_OF]->(c)",
+    "PAID_BY": "UNWIND $rows AS r MATCH (x:Payer {name: r.k}), (c:Creator {id: r.c}) "
+               "OPTIONAL MATCH (x)-[old:PART_OF]->(o:Creator) WHERE o.id <> r.c DELETE old WITH DISTINCT x, c MERGE (x)-[:PART_OF]->(c)",
+    "LINKS_TO": "UNWIND $rows AS r MATCH (x:Domain {name: r.k}), (c:Creator {id: r.c}) "
+                "OPTIONAL MATCH (x)-[old:PART_OF]->(o:Creator) WHERE o.id <> r.c DELETE old WITH DISTINCT x, c MERGE (x)-[:PART_OF]->(c)",
 }
 MATERIAL_CYPHER = """
 MATCH (m:Material)-[:ADVERTISED_BY]->(:Advertiser)-[:PART_OF]->(c:Creator)
@@ -55,7 +59,18 @@ RETURN count(DISTINCT m) AS n
 """
 
 
-SCAM_SHARE = 0.5
+SCAM_SHARE = provenance.SCAM_SHARE
+BATCH = 2000
+
+# po przebudowie zostają tylko twórcy, którzy nadal mają członków, kampanie albo decyzje (historia scrapera); resztę kasujemy
+PRUNE = """
+MATCH (c:Creator) WHERE NOT c.id IN $ids
+WITH c, NOT EXISTS { (c)<-[:CREATED_BY]-() } AS empty,
+     EXISTS { (c)<-[:RUN_BY]-(:Campaign) } OR EXISTS { (c)<-[:OPERATOR]-(:Decision) } AS has_history
+FOREACH (_ IN CASE WHEN empty AND NOT has_history THEN [1] ELSE [] END | DETACH DELETE c)
+FOREACH (_ IN CASE WHEN has_history THEN [1] ELSE [] END | SET c.stale = true)
+RETURN count(c) AS seen
+"""
 
 
 def build(session, hub_cap: int) -> None:
@@ -82,12 +97,29 @@ def build(session, hub_cap: int) -> None:
             name += f" (+{len(pages) - 1} stron)"
         rows.append({"id": cid(c), "name": name, "n_ads": len(ads), "n_flagged": sum(info[a]["flagged"] for a in ads if a in info),
                      "n_pages": len(traces[c]["BY"]), "n_payers": len(traces[c]["PAID_BY"]), "hub_cap": hub_cap})
-    session.run("MATCH (c:Creator) DETACH DELETE c").consume()  # pełne przeliczenie: stare grupy mogły się połączyć
-    run_batches(session, CREATOR_CYPHER.replace("$scam_share", str(SCAM_SHARE)), rows, "twórcy")
-    run_batches(session, AD_CYPHER, [{"ad": a, "c": cid(c)} for a, c in sub.items()], "reklamy -> twórca")
-    for kind, q in TRACE_CYPHER.items():
-        run_batches(session, q, [{"k": k, "c": cid(c)} for c, t in traces.items() for k in t[kind]], f"ślady {kind} -> twórca")
-    n_mat = session.run(MATERIAL_CYPHER).single()["n"]
+    ad_rows = [{"ad": a, "c": cid(c)} for a, c in sub.items()]
+    trace_rows = {kind: [{"k": k, "c": cid(c)} for c, t in traces.items() for k in t[kind]] for kind in TRACE_CYPHER}
+    ids = [r["id"] for r in rows]
+
+    def publish(tx):
+        """Cała przebudowa w JEDNEJ transakcji: czytelnicy widzą stary stan albo nowy, nigdy połowę. Nic nie jest kasowane przed zapisem."""
+        def batches(cypher, data):
+            for i in range(0, len(data), BATCH):
+                tx.run(cypher, rows=data[i:i + BATCH]).consume()
+        batches(CREATOR_CYPHER, rows)
+        batches(AD_CYPHER, ad_rows)
+        for kind, q in TRACE_CYPHER.items():
+            batches(q, trace_rows[kind])
+        n = tx.run(MATERIAL_CYPHER).single()["n"]
+        tx.run(PRUNE, ids=ids).consume()
+        provenance.refresh(tx.run, None)
+        tx.run("MERGE (m:GraphMeta {key: 'creators'}) SET m.built_at = datetime(), m.n_creators = $n, m.hub_cap = $h, m.status = 'ready'",
+               n=len(rows), h=hub_cap).consume()
+        return n
+
+    t0 = time.time()
+    n_mat = session.execute_write(publish)
+    print(f"zapisano w jednej transakcji ({time.time() - t0:.0f} s)")
     sz = Counter(r["n_ads"] for r in rows)
     print(f"twórców: {len(rows)}, scam: {sum(r['n_flagged'] >= SCAM_SHARE * r['n_ads'] for r in rows)}, "
           f"podejrzanych: {sum(0 < r['n_flagged'] < SCAM_SHARE * r['n_ads'] for r in rows)}, jednoreklamowych: {sz[1]}, "

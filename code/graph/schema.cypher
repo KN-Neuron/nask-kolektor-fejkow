@@ -58,3 +58,12 @@ CREATE VECTOR INDEX artifact_embedding IF NOT EXISTS FOR (n:Artifact) ON n.embed
 CREATE CONSTRAINT text_hash IF NOT EXISTS FOR (n:Text) REQUIRE n.hash IS UNIQUE;
 CREATE VECTOR INDEX text_embedding IF NOT EXISTS FOR (n:Text) ON n.embedding
   OPTIONS {indexConfig: {`vector.dimensions`: 1024, `vector.similarity_function`: 'cosine'}};
+
+// ---------- Decyzja grafu: kampania, operator i konto osobno (graph/decision.py) ----------
+CREATE CONSTRAINT decision_id        IF NOT EXISTS FOR (n:Decision)        REQUIRE n.id IS UNIQUE;   // (materiał, wersja metody)
+CREATE INDEX decision_node           IF NOT EXISTS FOR (n:Decision) ON (n.node_id);
+
+// ---------- Pochodzenie etykiety scam (graph/provenance.py) ----------
+CREATE CONSTRAINT labelevidence_id   IF NOT EXISTS FOR (n:LabelEvidence)   REQUIRE n.id IS UNIQUE;   // twórca|rodzaj dowodu
+CREATE CONSTRAINT analystverdict_id  IF NOT EXISTS FOR (n:AnalystVerdict)  REQUIRE n.id IS UNIQUE;   // ocena analityka (historia)
+CREATE CONSTRAINT graphmeta_key      IF NOT EXISTS FOR (n:GraphMeta)       REQUIRE n.key IS UNIQUE;   // stan przebudowy twórców

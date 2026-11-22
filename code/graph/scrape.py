@@ -30,11 +30,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 from load import ADS, CASE_CYPHER, META_CYPHER, ROOT, case_record, driver, meta_record, norm_name, reg_domain
+import decision as dec
+import resume
 
 OUT = ROOT / "artifacts" / "scrape"
 GALLERY = OUT / "galeria.jsonl"
 SEED = ADS.parent / "sample_s1.jsonl"
 STATE = OUT / "watch_state.json"
+ERRORS = OUT / "watch_errors.jsonl"
 TOP_K = 5
 
 
@@ -64,9 +67,20 @@ def seed(session, path: Path) -> None:
     with GALLERY.open("w", encoding="utf-8") as f:
         for c in cases:
             cid = creator[c.id]
-            f.write(json.dumps({"case": case_to_dict(c), "group": cid, "operator": cid,
+            f.write(json.dumps({"case": case_to_dict(c), "group": dec.campaign_of(cid, cid), "operator": cid,   # kampania != operator
                                 "vec": None if c.vec is None else [round(float(x), 6) for x in c.vec]}, ensure_ascii=False) + "\n")
+    seed_campaigns(session, creator)
     print(f"galeria: {len(cases)} materiałów, {len(set(creator.values()))} twórców -> {GALLERY}")
+
+
+def seed_campaigns(session, creator: dict[str, str]) -> None:
+    """Kampania domyślna każdego twórcy z próbki (`kam:<twórca>#0`) jako węzeł w grafie, z reklamami startowymi."""
+    rows = [{"ad": a, "c": c, "camp": dec.campaign_of(c, c)} for a, c in creator.items()]
+    for i in range(0, len(rows), 2000):
+        session.run("""UNWIND $rows AS r MATCH (a:Ad {id: r.ad}), (c:Creator {id: r.c})
+            MERGE (k:Campaign {id: r.camp}) ON CREATE SET k.origin = 'seed', k.created_at = datetime()
+            MERGE (k)-[:RUN_BY]->(c)
+            MERGE (a)-[ic:IN_CAMPAIGN]->(k) SET ic.source = 'seed: kampania domyślna twórcy', ic.method = 'seed'""", rows=rows[i:i + 2000]).consume()
 
 
 def open_gallery():
@@ -74,104 +88,35 @@ def open_gallery():
 
     if not GALLERY.exists():
         sys.exit("brak galerii: najpierw `graph/scrape.py seed`")
-    return Gallery.load(GALLERY, profile="meta")
+    cut = resume.repair_gallery(GALLERY)           # niedokończony wiersz po awarii dopisywania
+    if cut:
+        print(f"galeria: odcięto {cut} bajtów niedokończonego wiersza")
+    g = Gallery.load(GALLERY, profile="meta")
+    for it in g.items:                              # stare galerie: w polu grupy było id twórcy
+        it["group"] = dec.campaign_of(it["group"], it.get("operator")) or it["group"]
+    return g
 
 
-def append_gallery(c, group: str) -> None:
+def append_gallery(c, campaign: str, operator: str) -> None:
     from embsim.api import case_to_dict
 
-    with GALLERY.open("a", encoding="utf-8") as f:
-        f.write(json.dumps({"case": case_to_dict(c), "group": group, "operator": group,
-                            "vec": None if c.vec is None else [round(float(x), 6) for x in c.vec]}, ensure_ascii=False) + "\n")
+    resume.append_line(GALLERY, {"case": case_to_dict(c), "group": campaign, "operator": operator,
+                                 "vec": None if c.vec is None else [round(float(x), 6) for x in c.vec]})
 
 
 # --------------------------------------------------------------------------------------------------------------------
 # graf
 
-# dokładne zgodności: ślady nie-huby mają PART_OF do jednego twórcy; identyczny tekst bierzemy, gdy nie jest pospolity
-EXACT = """
-MATCH (n:$label {id: $id})
-CALL (n) {
-  MATCH (n)-[r:BY|PAID_BY|LINKS_TO|ADVERTISED_BY|LANDS_ON]->(x)-[:PART_OF]->(c:Creator)
-  RETURN c, type(r) + ': ' + x.name AS why
-  UNION
-  MATCH (b:Ad {text_hash: n.text_hash})-[:CREATED_BY]->(c:Creator) WHERE n.text_hash IS NOT NULL AND b <> n
-  WITH c, count(b) AS k WHERE k <= 100
-  RETURN c, 'identyczny tekst (' + k + ' reklam)' AS why
-}
-RETURN c.id AS creator, c.name AS name, collect(DISTINCT why) AS why
-ORDER BY size(why) DESC
-"""
-
-DECISION = """
-MATCH (n:$label {id: $id})
-MERGE (c:Creator {id: $creator})
-  ON CREATE SET c.name = $creator_name, c.n_ads = 0, c.n_flagged = 0, c.label = 'brak sygnału', c.scam_share = 0.0, c.new = true
-MERGE (n)-[:CREATED_BY]->(c)
-SET n.verdict = $verdict, n.verdict_text = $text, n.creator_source = $source, n.added_at = datetime(),
-    n.label = CASE WHEN n.meta_flag IS NOT NULL THEN 'scam' ELSE c.label END,
-    n.label_source = CASE WHEN n.meta_flag IS NOT NULL THEN 'meta' WHEN c.label <> 'brak sygnału' THEN 'twórca' ELSE null END
-WITH n, c
-SET c.n_ads = coalesce(c.n_ads, 0) + CASE WHEN n:Ad THEN 1 ELSE 0 END
-WITH n
-UNWIND $matches AS m
-CALL (m) { MATCH (o:Ad {id: m.id}) RETURN o UNION MATCH (o:Material {id: m.id}) RETURN o }
-MERGE (n)-[s:SIMILAR_TO]->(o)
-SET s.score = m.score, s.operator_score = m.operator_score, s.channels = m.channels, s.reasons = m.reasons
-"""
+def node_cypher(kind: str) -> str:
+    return META_CYPHER if kind == "ad" else CASE_CYPHER
 
 
-def q(cypher: str, label: str) -> str:
-    return cypher.replace("$label", label)  # etykieta nie może być parametrem Cyphera; tu tylko "Ad" albo "Material"
-
-
-def write_node(session, kind: str, payload: dict) -> str:
-    """Węzeł jak przy zwykłym ładowaniu (te same krawędzie do stron, płatników, domen...). Zwraca etykietę."""
-    session.run(META_CYPHER if kind == "ad" else CASE_CYPHER, rows=[payload]).consume()
-    return "Ad" if kind == "ad" else "Material"
-
-
-HUB_OF = {"host": "Domain {name: x}", "kit": "PageKit {prefix: x}", "scheme": "UrlScheme {fingerprint: x}"}
-
-
-def only_hubs(session, m) -> list[str]:
-    """Pospolite ślady (hub w grafie), jeśli to JEDYNE, co łączy z najbliższym materiałem; inaczej pusta lista.
-    Silnik embsim potrafi dać 0,95 za samo wspólne google.com; graf wie, że to hub, więc takiego połączenia nie przyjmujemy."""
-    chans = {k for k, v in m.channels.items() if v > 0}
-    if not chans or not chans <= set(HUB_OF):
-        return []
-    hubs = []
-    for ch in chans:
-        vals = m.shared.get(ch, [])
-        if not vals:
-            return []
-        n = session.run(f"UNWIND $v AS x MATCH (h:{HUB_OF[ch]}) WHERE h.hub RETURN count(h) AS n", v=vals).single()["n"]
-        if n < len(vals):
-            return []
-        hubs += vals
-    return hubs
-
-
-def decide_creator(session, label: str, id: str, d, gallery_group: dict) -> tuple[str, str, str]:
-    """(id twórcy, nazwa, źródło przypisania)."""
-    exact = list(session.run(q(EXACT, label), id=id))
-    if exact:
-        e = exact[0]
-        src = "dokładna zgodność: " + "; ".join(e["why"][:3])
-        if len(exact) > 1:
-            src += f" (uwaga: pasuje też do {len(exact) - 1} innych twórców)"
-        return e["creator"], e["name"], src
-    if d.verdict in ("znana_kampania", "znany_operator_nowa_kampania") and d.matches:
-        best = d.matches[0] if d.verdict == "znana_kampania" else max(d.matches, key=lambda m: m.operator_score)
-        g = gallery_group.get(best.id)
-        hubs = only_hubs(session, best)
-        if hubs:
-            why = f"nowy wzorzec: silnik łączył z {best.id} tylko przez pospolity ślad ({', '.join(hubs[:3])}), więc to pomijamy"
-            return f"tw:{id}", "nowy twórca", why
-        if g:
-            name = session.run("MATCH (c:Creator {id: $c}) RETURN c.name AS n", c=g).single()
-            return g, name["n"] if name else g, f"podobieństwo do {best.id} ({d.verdict.replace('_', ' ')})"
-    return f"tw:{id}", "nowy twórca", "nowy wzorzec: brak dokładnej zgodności i podobnego materiału"
+def account_of(kind: str, payload: dict) -> str | None:
+    """Konto reklamowe materiału (osobno od kampanii i operatora): strona reklamodawcy Meta albo pierwsze konto z przypadku."""
+    if kind == "ad" and payload.get("page_id"):
+        return "fb:" + str(payload["page_id"])
+    accs = payload.get("accounts") or []
+    return str(accs[0]) if accs else None
 
 
 def match_rows(d) -> list[dict]:
@@ -231,62 +176,91 @@ def inputs(target: str | None, text: str | None, url: str | None):
     return out
 
 
-def add(session, items, g=None, quiet: bool = False) -> list[dict]:
+def add(session, items, g=None, quiet: bool = False, skip_done: bool = False) -> list[dict]:
+    """Dodaje materiały: silnik decyduje, graf zapisuje kampanię, operatora i konto OSOBNO, w jednej transakcji na materiał.
+
+    `skip_done`: pomija materiały, dla których graf ma już decyzję tej wersji metody (rejestr przetworzonych; używa go `watch`)."""
     g = g or open_gallery()
-    group = {it["case"].id: it["group"] for it in g.items}
+    method = dec.method_version(g)
+    campaign = {it["case"].id: it["group"] for it in g.items}
+    operator = {it["case"].id: it.get("operator") or it["group"] for it in g.items}
+    if skip_done:
+        done = {}
+        for kind in ("ad", "m"):
+            ids = [c.id for k, _, c in items if k == kind]
+            done[kind] = dec.decided(session, "Ad" if kind == "ad" else "Material", ids, method)
+        items = [it for it in items if it[2].id not in done[it[0]]]
     report = []
     for kind, payload, case in items:
         t0 = time.time()
-        dup = case.id in group
+        dup = case.id in campaign
+        label = "Ad" if kind == "ad" else "Material"
         d = g.query(case, TOP_K, exclude_id=case.id)
-        label = write_node(session, kind, payload)
-        cid, cname, src = decide_creator(session, label, case.id, d, group)
-        if "pospolity ślad" in src:  # decyzja silnika poprawiona przez graf (hub)
-            d.verdict = "nowy_wzorzec"
-        text = d.explain() + f"\nTwórca: {cname} [{cid}] ({src})."
-        session.run(q(DECISION, label), id=case.id, creator=cid, creator_name=cname, verdict=d.verdict, text=text, source=src,
-                    matches=match_rows(d)).consume()
+        rows, acc = match_rows(d), account_of(kind, payload)
+
+        def make_rec(tx, d=d, label=label, case=case, rows=rows, acc=acc):
+            rec = dec.resolve(tx, label, case.id, d, gallery_campaign=campaign, gallery_operator=operator, account=acc,
+                              method=method, matches=rows)
+            rec.text = d.explain() + (f"\nKampania: {rec.campaign_id}{' (nowa)' if rec.new_campaign else ''}. "
+                                     f"Operator: {rec.operator_name} [{rec.operator_id}] ({rec.source}).")
+            return rec
+
+        rec = session.execute_write(dec.write_decision, node_cypher(kind), [payload], make_rec)
         if not dup:
-            g.add(case, group=cid, operator=cid)
-            append_gallery(g.items[-1]["case"], cid)
-            group[case.id] = cid
-        report.append({"id": case.id, "decyzja": d.verdict, "wynik": round(d.campaign_score, 2), "twórca": cname, "id_twórcy": cid,
-                       "skąd": src, "nowy w galerii": not dup, "s": round(time.time() - t0, 1)})
+            g.add(case, group=rec.campaign_id, operator=rec.operator_id)
+            append_gallery(g.items[-1]["case"], rec.campaign_id, rec.operator_id)
+            campaign[case.id], operator[case.id] = rec.campaign_id, rec.operator_id
+        report.append({"id": case.id, "decyzja": rec.verdict, "wynik": round(d.campaign_score, 2), "twórca": rec.operator_name,
+                       "id_twórcy": rec.operator_id, "kampania": rec.campaign_id, "konto": rec.account_id, "skąd": rec.source,
+                       "nowa kampania": rec.new_campaign, "do weryfikacji": rec.conflicts, "nowy w galerii": not dup,
+                       "s": round(time.time() - t0, 1)})
         if not quiet:
-            print(f"\n== {case.id}  ({report[-1]['s']} s)\n{text}")
+            print(f"\n== {case.id}  ({report[-1]['s']} s)\n{rec.text}")
     return report
 
 
+BATCH_LINES = 50
+
+
 def watch(session, path: Path, every_min: int) -> None:
-    """Scraper: przetwarza linie dopisane do pliku od poprzedniego przebiegu (stan w artifacts/scrape/watch_state.json)."""
+    """Scraper: przetwarza linie dopisane do pliku od poprzedniego przebiegu; można go przerwać w dowolnym momencie i wznowić.
+
+    Czyta od zapamiętanego bajtu (`resume.read_new`), kończy tylko na pełnych liniach, zapisuje stan atomowo po każdej paczce, pomija to,
+    co graf już rozstrzygnął, a złe linie odkłada do `watch_errors.jsonl` zamiast zatrzymywać import."""
     from embsim.api import case_from_meta_ad
     from fejki.demo.material import load_persons
 
     g = open_gallery()
     persons = load_persons()
     while True:
-        state = json.loads(STATE.read_text()) if STATE.exists() else {}
-        done = state.get(str(path), 0)
-        with path.open(encoding="utf-8") as f:
-            lines = f.readlines()
-        new = [ln for ln in lines[done:] if ln.strip()]
-        items = []
-        for line in new:
-            r = json.loads(line)
-            rec = meta_record(r, persons)
-            rec["page_norm"] = norm_name(rec["page_name"])
-            items.append(("ad", rec, case_from_meta_ad(r)))
-        rep = add(session, items, g, quiet=True)
-        state[str(path)] = len(lines)
-        STATE.parent.mkdir(parents=True, exist_ok=True)
-        STATE.write_text(json.dumps(state))
-        stamp = time.strftime("%F %T")
-        verdicts = {v: sum(r["decyzja"] == v for r in rep) for v in {r["decyzja"] for r in rep}}
-        print(f"[{stamp}] nowych reklam: {len(rep)}  {verdicts}")
-        if rep:
-            with (OUT / "watch_report.jsonl").open("a", encoding="utf-8") as f:
-                for r in rep:
-                    f.write(json.dumps({"at": stamp, **r}, ensure_ascii=False) + "\n")
+        st = resume.load_state(STATE, path)
+        if st.get("reset"):
+            print(f"[{time.strftime('%F %T')}] plik zmieniony lub skrócony: czytam od początku (to, co już rozstrzygnięto, jest pomijane)")
+        offset, head, total = st["offset"], st["head"], 0
+        verdicts: dict[str, int] = {}
+        while True:
+            lines, new_off = resume.read_new(path, offset, BATCH_LINES)
+            if new_off == offset:
+                break
+            items = []
+            for _, line in lines:
+                try:
+                    r = json.loads(line)
+                    rec = meta_record(r, persons)
+                    rec["page_norm"] = norm_name(rec["page_name"])
+                    items.append(("ad", rec, case_from_meta_ad(r)))
+                except Exception as e:                      # zła linia nie blokuje reszty
+                    resume.log_error(ERRORS, line, f"{type(e).__name__}: {e}")
+            rep = add(session, items, g, quiet=True, skip_done=True)
+            resume.save_state(STATE, path, new_off, head)   # dopiero po zapisaniu paczki w grafie i galerii
+            offset, total = new_off, total + len(rep)
+            for r in rep:
+                verdicts[r["decyzja"]] = verdicts.get(r["decyzja"], 0) + 1
+            if rep:
+                with (OUT / "watch_report.jsonl").open("a", encoding="utf-8") as f:
+                    for r in rep:
+                        f.write(json.dumps({"at": time.strftime("%F %T"), **r}, ensure_ascii=False) + "\n")
+        print(f"[{time.strftime('%F %T')}] nowych reklam: {total}  {verdicts}")
         if every_min <= 0:
             return
         time.sleep(every_min * 60)
