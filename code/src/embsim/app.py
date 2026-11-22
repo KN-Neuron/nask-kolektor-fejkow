@@ -331,6 +331,9 @@ with tab_w:
     st.subheader("Na jakich danych to działa")
     guide.render_data()
 
+    st.subheader("Co zmierzyliśmy")
+    guide.render_results()
+
     st.subheader("Walidacja na zbiorze, którego system nie widział")
     st.markdown(
         "Mierzone: skuteczność wskazywania podobnych materiałów i wariantów, poprawność przypisania do istniejących grup, "

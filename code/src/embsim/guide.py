@@ -25,7 +25,7 @@ i kto za nią stoi?* Narzędzie porównuje nowy materiał ze zbiorem znanych inc
 
 GRAPH_DOT = """
 digraph G {
-  rankdir=LR; bgcolor="transparent"; nodesep=0.35; ranksep=0.7;
+  rankdir=LR; bgcolor="white"; nodesep=0.35; ranksep=0.7;
   node [fontname="Helvetica", fontsize=11];
   edge [fontname="Helvetica", fontsize=10];
   subgraph cluster_k1 { label="kampania K1"; color="#c0392b"; fontcolor="#c0392b"; style=rounded;
@@ -97,3 +97,29 @@ def render_graph_explainer() -> None:
 def render_data() -> None:
     st.markdown(DATA_TEXT)
     st.dataframe(pd.DataFrame(DATA_ROWS, columns=["wejście", "format", "przykład"]), use_container_width=True, hide_index=True)
+
+
+RESULTS_ROWS = [
+    ("syntetyczne światy z prawdą (80, podział po światach)", "grupowanie w kampanie, ARI (wyżej = lepiej)", "0,749 [0,730; 0,767]; pierwsza wersja 0,635"),
+    ("j.w.", "doklejanie nowych wzorców do znanych kampanii (niżej = lepiej)", "0,148 [0,131; 0,166]; pierwsza wersja 0,462"),
+    ("syntetyka, dodawanie po jednym", "legalne strony błędnie wpięte w operatora (dev, 42 strony)", "27 → 10 po dodaniu reguły rzadkiego śladu"),
+    ("reklamy Meta, test po czasie (4 481 reklam)", "przypisanie nowej reklamy do twórcy, top-1", "0,63 [0,55; 0,70]"),
+    ("j.w.", "rozpoznanie „znany czy nowy twórca”, AUROC", "0,77 [0,72; 0,82]"),
+    ("reklamy Meta, dodawanie po jednym (665 reklam, 100 twórców)", "zgodność operatora z twórcą, ARI; reklamy w grupach z kilkoma twórcami", "0,57 → 0,63; 38% → 23% po regule rzadkiego śladu"),
+    ("reklamy Meta, nieznani twórcy", "czy twórca przypomina tych, którym Meta zdjęła reklamy, AUROC", "0,64 [0,61; 0,67]; po usunięciu duplikatów tekstu 0,59 (słaby sygnał)"),
+    ("10 przypadków NASK, każdy ukryty po kolei", "przypisanie do właściwej kampanii", "10/10 (próg kalibrowany m.in. na tych przypadkach, więc wynik optymistyczny)"),
+    ("NASK w innych formatach i syntetyka jako zbiór ukryty", "sam HTML, HAR lub zrzut; nowe warianty, nowa kampania, obce", "8/13 i 13/20 w pełni poprawnie"),
+]
+
+RESULTS_TEXT = """
+**Co z tego wynika.** Na danych z prawdą (syntetyka, NASK) metoda grupuje dobrze i odróżnia obce materiały. Na reklamach Meta nie mamy
+prawdziwych etykiet kampanii, więc mierzymy zgodność z twórcą i oznaczeniem zdjęcia reklamy przez Metę: tekst i domena wystarczają do
+przypisania nowej reklamy do twórcy (top-1 0,63), ale do samego rozpoznania „szkodliwy czy nie” sygnał jest słaby (AUROC 0,64). Progi z
+syntetyki są na Mecie zbyt wysokie (optimum ok. 0,5, suwak w pasku bocznym). Pełne tabele i protokoły: `docs/WYNIKI.md`. Wszystkie liczby
+pochodzą z kodu w repozytorium (`embsim/cv.py`, `stream_eval.py`, `meta_incremental.py`, `meta_harm.py`, `jury.py`).
+"""
+
+
+def render_results() -> None:
+    st.dataframe(pd.DataFrame(RESULTS_ROWS, columns=["zbiór", "co mierzymy", "wynik"]), use_container_width=True, hide_index=True)
+    st.markdown(RESULTS_TEXT)

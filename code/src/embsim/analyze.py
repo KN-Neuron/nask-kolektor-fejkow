@@ -294,7 +294,7 @@ def cluster_dot(g: Gallery, campaigns: dict[str, list[int]], title: str, traces:
     for n, b in enumerate(boxes):
         if b["kampania"]:
             inner.setdefault(b["kampania"], []).append(n)
-    lines = ["graph G {", 'rankdir=LR; bgcolor="transparent"; nodesep=0.25; ranksep=0.5; splines=true;',
+    lines = ["graph G {", 'rankdir=LR; bgcolor="white"; nodesep=0.25; ranksep=0.5; splines=true;',
              'node [fontname="Helvetica", fontsize=10]; edge [penwidth=1.3];',
              f'subgraph cluster_op {{ label="{_esc(title, 60)}"; style="rounded"; color="#ff7f0e"; fontname="Helvetica";']
     shown: set[str] = set()
@@ -344,7 +344,7 @@ def network_dot(case: Case, d: Decision, k: int = 5) -> str:
     key = d.key_match()
     if key is not None and key not in ms:
         ms.append(key)
-    lines = ["digraph G {", 'rankdir=LR; bgcolor="transparent"; nodesep=0.3; ranksep=1.2;',
+    lines = ["digraph G {", 'rankdir=LR; bgcolor="white"; nodesep=0.3; ranksep=1.2;',
              'node [fontname="Helvetica", fontsize=10]; edge [fontname="Helvetica", fontsize=9];',
              f'"NOWY" [label="nowy materiał\\n{_esc(case.id, 24)}", shape=box, style="rounded,filled", fillcolor="#fdecea", color="#c0392b", penwidth=2];']
     ops: dict[str, dict[str, list]] = {}
