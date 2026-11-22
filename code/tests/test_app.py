@@ -42,3 +42,16 @@ def test_clusters_tab_gallery_and_neo4j_degrades_gracefully(tmp_path, monkeypatc
     assert at.selectbox and any("kampanii" in o for o in at.selectbox[-1].options)
     at.radio[0].set_value("Graf Neo4j (twórcy z Mety, sieci NASK)").run()    # bez bazy lub pakietu: komunikat, nie wyjątek
     assert not at.exception
+
+
+def test_builtin_example_runs_end_to_end(tmp_path, monkeypatch):
+    monkeypatch.setenv("EMBSIM_EMBED", "hash")
+    monkeypatch.setenv("EMBSIM_GALLERY", str(tmp_path / "gal.jsonl"))
+    root = os.path.dirname(os.path.dirname(__file__))
+    at = AppTest.from_file(os.path.join(root, "src", "embsim", "app.py"), default_timeout=180).run()
+    assert not at.exception
+    [b for b in at.button if b.key == "example_wariant"][0].click().run()
+    assert not at.exception
+    assert int(at.sidebar.metric[0].value) >= 10                          # galeria z przykładu zbudowana
+    assert any("Oczekiwany wynik" in i.value for i in at.info)            # opis przykładu z oczekiwanym werdyktem
+    assert "3. Dopasowanie z przesłankami" in [s.value for s in at.subheader]

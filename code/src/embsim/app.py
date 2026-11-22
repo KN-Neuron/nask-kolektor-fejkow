@@ -7,12 +7,15 @@ przesłankami (wzór: docs/14, bez uczenia) -> sieć kampanii i operatorów -> k
 from __future__ import annotations
 
 import os
+import tempfile
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 from embsim import analyze as A
+from embsim import example as E
+from embsim import guide
 from embsim import graph_view
 from embsim import jury as J
 from embsim.api import DEFAULT_CONFIG, Gallery, demo_thresholds
@@ -89,9 +92,43 @@ with st.sidebar:
 # --- krok 1: wejście ---------------------------------------------------------------------------------------------------
 
 st.title("Kolekcjoner Fejków")
-st.caption("Jedna metoda: podobieństwo to jedno wyrażenie z wagami ustalonymi z góry, bez uczenia (docs/14_WZOR_PODOBIENSTWA.md). "
-           "Strony oszustów nie są odwiedzane.")
-tab_a, tab_k, tab_w = st.tabs(["🔎 Analiza nowego materiału", "🧩 Klastry", "📐 Wzór i wyniki"])
+st.caption("Łączy podejrzane reklamy i strony w kampanie i operatorów oraz pokazuje, dlaczego. Jedno wyrażenie z wagami ustalonymi z góry, "
+           "bez uczenia. Strony oszustów nie są odwiedzane.")
+
+
+def load_example(key: str) -> None:
+    """Przykład wbudowany: galeria ze świata syntetycznego i jeden ukryty materiał wgrany jak własne pliki."""
+    ex = st.session_state.get("example")
+    if ex is None or not Path(ex["galeria"]).exists():
+        ex = st.session_state.example = E.prepare(Path(tempfile.mkdtemp(prefix="embsim_przyklad_")))
+    if st.session_state.get("example_gallery") is not st.session_state.get("gallery"):
+        gal = Gallery(embed_fn=embed_fn(), thresholds=demo_thresholds())
+        with st.spinner("Buduję galerię przykładu…"):
+            A.build_from_folders(gal, ex["galeria"])
+        st.session_state.gallery = st.session_state.example_gallery = gal
+    gal = st.session_state.gallery
+    with st.spinner("Analizuję materiał…"):
+        case, info = A.case_from_inputs(E.uploaded(ex["zapytania"][key]), "", "", False, case_id=f"przykład: {E.EXAMPLES[key]['tytuł'].lower()}")
+    info["źródło"] = "Przykład syntetyczny (generator w repozytorium), materiał ukryty przed galerią"
+    st.session_state.result = (case, info, gal.query(case, 5))
+    st.session_state.result_example = key
+    st.session_state.flash = f"Wczytano przykład: {E.EXAMPLES[key]['tytuł']}. Wynik jest w zakładce „Analiza”, poniżej."
+    st.rerun()
+
+
+with st.expander("Jak to działa i jak tego używać", expanded=(len(g) == 0 and not st.session_state.get("result"))):
+    guide.render_howto()
+    st.markdown("**Zobacz to na przykładzie** (dane syntetyczne, jedno kliknięcie: buduje galerię i analizuje ukryty materiał):")
+    cols = st.columns(3)
+    for col, (key, ex_info) in zip(cols, E.EXAMPLES.items()):
+        col.markdown(f"**{ex_info['tytuł']}**")
+        col.caption(ex_info["opis"])
+        if col.button(f"Pokaż: {ex_info['tytuł'].lower()}", key=f"example_{key}"):
+            load_example(key)
+    st.caption("Przykład jest ilustracyjny: wybrany tak, żeby pokazać wszystkie trzy decyzje, więc nie mierzy jakości. Miary są w zakładce "
+               "„Jak liczymy i wyniki”.")
+
+tab_a, tab_k, tab_w = st.tabs(["🔎 Analiza nowego materiału", "🧩 Klastry", "📐 Jak liczymy i wyniki"])
 
 with tab_a:
     st.subheader("1. Wejście")
@@ -140,10 +177,15 @@ with tab_a:
             with st.spinner("Wyciągam cechy i porównuję z galerią…"):
                 case, info = A.case_from_inputs([(f.name, f.getvalue()) for f in (files or [])], text, url, ocr)
                 st.session_state.result = (case, info, g.query(case, 5))
+                st.session_state.result_example = None
 
     res = st.session_state.get("result")
     if res:
         case, info, d = res
+        ex_key = st.session_state.get("result_example")
+        if ex_key:
+            st.info(f"**Przykład: {E.EXAMPLES[ex_key]['tytuł']}.** Oczekiwany wynik według generatora: **{E.EXAMPLES[ex_key]['oczekiwane']}**. "
+                    "Poniżej widać, co system faktycznie zwrócił i dlaczego.")
         # --- krok 2: cechy ------------------------------------------------------------------------------------------------
         st.subheader("2. Cechy materiału")
         for w in info.get("ostrzeżenia", []):
@@ -254,6 +296,8 @@ CHANNELS = [
 ]
 
 with tab_w:
+    st.subheader("Jak powstaje graf")
+    guide.render_graph_explainer()
     st.subheader("Jak liczymy podobieństwo")
     st.markdown(
         "Podobieństwo dwóch materiałów to **jedno wyrażenie z wagami ustalonymi z góry**. Nie ma tu wytrenowanego modelu: każdy kanał daje liczbę "
@@ -283,6 +327,9 @@ with tab_w:
                      f"(próg {thr.get('operator')}). Pominięte kanały nie miały wspólnego śladu albo danych w obu materiałach.")
     else:
         st.caption("Przeanalizuj materiał w pierwszej zakładce, a tu pojawi się rozbicie jego wyniku na kanały.")
+
+    st.subheader("Na jakich danych to działa")
+    guide.render_data()
 
     st.subheader("Walidacja na zbiorze, którego system nie widział")
     st.markdown(
