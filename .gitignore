@@ -41,3 +41,4 @@ data/synth/
 
 # Zbiory zewnętrzne do oceny (LIAR, BuzzFeed-Webis itd.): lokalnie, nie w repo
 data/zewnetrzne/
+code/models/

@@ -18,6 +18,8 @@ RUN mkdir -p src/embsim src/fejki && touch src/embsim/__init__.py src/fejki/__in
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')"
 COPY src ./src
 COPY config ./config
+# Modele twarzy (YuNet, SFace; OpenCV Zoo, Apache-2.0, ok. 39 MB) pobrane na etapie budowy: wizerunki osób działają bez sieci.
+RUN PYTHONPATH=/app/src python -m embsim.faces --download
 
 ENV PYTHONPATH=/app/src \
     PYTHONUNBUFFERED=1 \

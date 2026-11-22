@@ -125,6 +125,19 @@ Dezinformacja i teksty scam się nie mieszają (połączone międzyklasowo 0,000
 8. **Skala:** wyszukiwanie z blokowaniem kandydatów kosztuje 0,3–47 ms na zapytanie przy galerii ok. 10 tys.; 97 tys. nie mierzyliśmy.
 9. Próbka S1 ma 50% twórców scam (populacja ok. 16%), więc precyzje liczone na S1 nie przenoszą się na całą Metę.
 
+## 5b. Wizerunki osób i bliskie duplikaty obrazów  [NASK-10]
+
+Wykrywanie twarzy (YuNet) i porównanie osadzeń (SFace, kosinus ≥ 0,45 = ta sama osoba), `embsim/faces.py`; bliskie duplikaty obrazów: dHash 64 bity,
+odległość Hamminga ≤ 6, `embsim/imghash.py`. Oba bez treningu u nas, bez nazw osób.
+
+- Na 10 przypadkach NASK twarz łączy przypadki 1 i 2 (kosinus 1,0, ta sama kampania) oraz 48 i 61 (0,52, ta sama kampania); 1 i 48 (0,73) dzielą osobę
+  mimo różnych kampanii (ta sama sieć wg naszego odczytu). Bliskie duplikaty obrazów łączą 2 i 61 oraz 3 i 61 (zrzut strony banku, odległość 4).
+- **Jako składnik wzoru kanał twarzy nie pomógł:** test formatów (B) 8/13 → 7/13, A (10/10) i C (13/20) bez zmian; zrzuty bez tekstu zyskały wynik
+  (0,00 → 0,23–0,38) ale nie przekroczyły progu. Dlatego twarz i podobny obraz są **przesłankami poza wynikiem** (`Match.extra_shared`, widoczne w „Trzech
+  najsilniejszych powodach”), a kanał `face` w `score.py` jest dostępny do włączenia wagą w konfiguracji.
+- Ograniczenia: ta sama osoba występuje też na legalnych stronach (czysta przesłanka, nie dowód); na NASK nie mamy etykiet osób, więc nie mierzymy
+  precyzji dopasowania twarzy; logotypów wewnątrz zrzutu nie wykrywamy.
+
 ## 7a. Przyrostowe dodawanie do galerii (tak działa demo i scraper)  [syntetyka v2, dev, 6 światów]
 
 Dotychczasowe wyniki grupowania były wsadowe (CV). Przy dodawaniu materiałów po jednym (`Gallery.add`, kolejność losowa, konfiguracja domyślna)

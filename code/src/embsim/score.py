@@ -32,6 +32,7 @@ DEFAULT_WEIGHTS = {"text": 1.0, "pixel": 1.0, "kit": 1.0, "scheme": 1.0, "host":
 LEX_WEIGHTS = {**DEFAULT_WEIGHTS, "text_lex": 1.0}   # + kanał leksykalny: TF-IDF znaków (bez modelu), obok semantycznego `text`
 MU_MAX = 0.999
 SEMANTIC = {"text", "image"}
+FACE_RAMP = (0.363, 0.75)   # kosinus twarzy -> wynik kanału `face`: 0 przy 0,363, 1 od 0,75 (embsim/faces.py)
 ROTATING = {"host", "pixel"}   # ślady, które kampanie wymieniają (krótko żyjące domeny, piksele): brak zgodności to nie dowód
 
 
@@ -193,6 +194,13 @@ class Corpus:
             if va is None or vb is None:
                 return None, []
             return float(np.clip((float(va @ vb) - self.mu) / (1 - self.mu), 0, 1)), []
+        if ch == "face":                                   # ta sama osoba na obrazach obu materiałów; brak dopasowania = kanał milczy
+            from .faces import best_match
+
+            m = best_match(a.meta.get("faces"), b.meta.get("faces"))
+            if m is None:
+                return None, []
+            return float(np.clip((m - FACE_RAMP[0]) / (FACE_RAMP[1] - FACE_RAMP[0]), 0, 1)), [f"ta sama osoba na obrazach (kosinus {m:.2f})"]
         sa, sb = self._sets(a, ch), self._sets(b, ch)
         if not sa or not sb:
             return None, []
@@ -221,6 +229,8 @@ class Corpus:
             return self._lex_row(a) is not None and self._lex_row(b) is not None
         if ch in SEMANTIC:
             return self._sv(a) is not None and self._sv(b) is not None
+        if ch == "face":
+            return self.channel(a, b, "face")[0] is not None
         return bool(self._sets(a, ch)) and bool(self._sets(b, ch))
 
     def availability(self, a: Case, b: Case) -> float:

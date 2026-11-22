@@ -18,7 +18,7 @@ from embsim import example as E
 from embsim import guide
 from embsim import graph_view
 from embsim import jury as J
-from embsim.api import DEFAULT_CONFIG, Gallery, demo_thresholds
+from embsim.api import DEFAULT_CONFIG, META_CAMPAIGN_THRESHOLD, Gallery, demo_thresholds
 
 ROOT = Path(__file__).resolve().parents[3]
 GALLERY_FILE = Path(os.environ.get("EMBSIM_GALLERY", ROOT / "code" / "artifacts" / "gallery_demo.jsonl"))
@@ -76,7 +76,9 @@ with st.sidebar:
             if p.is_file():
                 with st.spinner("Liczę wektory i dodaję…"):
                     n = A.build_from_meta(g, p, limit)
-                st.session_state.flash = f"Dodano {n} reklam."
+                g.cfg.thresholds["campaign"] = META_CAMPAIGN_THRESHOLD
+                st.session_state.flash = (f"Dodano {n} reklam. Próg kampanii ustawiony na {META_CAMPAIGN_THRESHOLD} "
+                                          "(optimum na reklamach Meta; suwak poniżej go zmienia).")
                 st.rerun()
             else:
                 st.error("Plik nie istnieje.")
@@ -309,6 +311,8 @@ with tab_w:
         "decyzja: S ≥ t_kampanii → znana kampania;  inaczej S_operatora ≥ t_operatora → ten sam operator;  inaczej → nowy wzorzec",
         language="text")
     st.dataframe(pd.DataFrame(CHANNELS, columns=["kanał", "co porównuje", "jak"]), use_container_width=True, hide_index=True)
+    st.caption("Poza wynikiem, jako przesłanki: ta sama osoba na obrazach (detektor YuNet i SFace, bez nazw osób), bardzo podobny obraz po zmianie "
+               "rozmiaru (odcisk dHash), identyczny tekst, ten sam płatnik i strona reklamodawcy (Meta).")
     thr = g.cfg.thresholds
     st.caption(f"Progi: kampania {thr.get('campaign')} (skalibrowany na stronach z NASK i syntetyki, `config/embsim/demo_calibration.json`), "
                f"operator {thr.get('operator')}. Pełny opis: `docs/14_WZOR_PODOBIENSTWA.md`.")

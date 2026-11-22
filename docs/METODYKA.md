@@ -52,7 +52,7 @@ Wyniki i ograniczenia: [WYNIKI.md](WYNIKI.md).
 |---|---|---|
 | przyjmować zrzut, HAR, HTML, tekst, URL, dane z udostępnionego zbioru | tak (nagrania wideo: tylko metadane z `info.json`) | `analyze.py`, `app.py` |
 | tekst, domeny, przekierowania, linki, struktura stron, metadane infrastruktury | częściowo: tekst, domeny, zasoby, parametry, piksele; przekierowania w wersji 2 | `features.py`, `15_FORMAT_KANALU_RUCHU.md` |
-| wizerunki osób, logotypy, cechy wizualne | **brak** (nazwiska w tekście; kanał obrazu słaby) | — |
+| wizerunki osób, logotypy, cechy wizualne | częściowo: ta sama twarz w dwóch materiałach (SFace) i bliskie duplikaty obrazów (dHash) jako przesłanki; bez nazw osób i bez wykrywania logotypów w zrzucie | `faces.py`, `imghash.py` |
 | duplikaty i warianty | tak | `score.py` (kanały tekstowe) |
 | metoda podobieństwa i grupowania | tak, jedno wyrażenie | `14_WZOR_PODOBIENSTWA.md` |
 | analiza nowego materiału względem zbioru, wskazanie nowej kampanii | tak | `api.py` |

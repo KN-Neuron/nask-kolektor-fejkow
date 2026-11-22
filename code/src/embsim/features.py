@@ -15,6 +15,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -102,9 +103,11 @@ def load_case(root: Path, drop_common: bool = False) -> Case:
             sets["img"].add(k)
             names.setdefault(k, name.rsplit("/", 1)[-1].split("?")[0][:60] or k)
 
+    blobs: list[tuple[str, bytes]] = []          # obrazy do wykrywania twarzy (embsim/faces.py)
     for p in root.rglob("*"):                    # obrazy także z zasobów strony (`*_files`), które _walk pomija
         if p.is_file() and p.suffix.lower() in IMG_EXT:
-            add_img(p.name, p.read_bytes())
+            blobs.append((p.name, p.read_bytes()))
+            add_img(p.name, blobs[-1][1])
     for p in _walk(root):
         ext = p.suffix.lower()
         if ext in {".html", ".htm"}:
@@ -129,6 +132,7 @@ def load_case(root: Path, drop_common: bool = False) -> Case:
             urls += [e["request"]["url"] for e in entries]
             for u, data in har_images(entries):
                 add_img(u, data)
+                blobs.append((u, data))
     for u in urls:
         h = host_of(u)
         if drop_common and h and is_common(h):
@@ -143,4 +147,13 @@ def load_case(root: Path, drop_common: bool = False) -> Case:
     c.sets = {k: v for k, v in sets.items() if v}  # pusty kanał = brak danych, nie „brak podobieństwa”
     if names:
         c.meta["img_names"] = names
+    if blobs and os.environ.get("EMBSIM_FACES", "1") != "0":
+        from .faces import faces_of
+
+        if f := faces_of(blobs):
+            c.meta["faces"] = f                 # osadzenia twarzy (przesłanka, embsim/faces.py)
+        from .imghash import hashes_of
+
+        if hh := hashes_of(blobs, img_key):
+            c.meta["dhash"] = hh                # odciski percepcyjne obrazów (przesłanka, embsim/imghash.py)
     return c

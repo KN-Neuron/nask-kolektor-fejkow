@@ -21,8 +21,8 @@ from .features import Case, registered
 IMG_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 _CHANNEL_PL = {"text": "podobna treść", "text_lex": "podobne brzmienie tekstu", "kit": "ten sam zestaw zasobów strony",
                "scheme": "ten sam schemat parametrów adresu", "host": "wspólna domena", "pixel": "ten sam piksel śledzący",
-               "image": "podobny wygląd", "img": "te same obrazy na stronie"}
-_EXTRA_PL = {"payer": "ten sam płatnik", "page": "ta sama strona reklamodawcy", "text_hash": "identyczny tekst"}
+               "image": "podobny wygląd", "img": "te same obrazy na stronie", "face": "ta sama osoba na obrazach"}
+_EXTRA_PL = {"face": "wizerunek", "dhash": "bardzo podobny obraz (po zmianie rozmiaru, np. logo)", "payer": "ten sam płatnik", "page": "ta sama strona reklamodawcy", "text_hash": "identyczny tekst"}
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -136,8 +136,9 @@ def top_reasons(m: Match, k: int = 3) -> list[str]:
     """Trzy najsilniejsze powody połączenia: kanały wyniku (z wartością) i dokładne zgodności poza wynikiem."""
     out = [f"{_CHANNEL_PL.get(c, c)} ({v:.2f})" + (": " + ", ".join(m.shared[c][:2]) if c in m.shared else "")
            for c, v in sorted(m.channels.items(), key=lambda kv: -kv[1]) if v > 0]
-    out += [f"{_EXTRA_PL.get(c, c)}: {', '.join(v[:2])}" for c, v in m.extra_shared.items()]
-    return out[:k]
+    extra = [f"{_EXTRA_PL.get(c, c)}: {', '.join(v[:2])}" for c, v in m.extra_shared.items()]
+    face = [e for e in extra if e.startswith(_EXTRA_PL["face"])]
+    return (out + extra)[:k] if not face or face[0] in (out + extra)[:k] else (out + extra)[: k - 1] + face[:1]   # wizerunek zawsze widoczny
 
 
 def verdict_style(d: Decision) -> tuple[str, str]:

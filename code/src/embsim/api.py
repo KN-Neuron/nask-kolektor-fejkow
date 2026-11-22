@@ -38,6 +38,8 @@ import numpy as np
 
 from .bench import Config, load_frozen
 from .embed import text_vectors
+from .faces import best_match
+from .imghash import near_pairs
 from .features import Case, load_case, registered
 from .score import Corpus, Score
 
@@ -57,6 +59,9 @@ HOST = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}$")
 # waga jak pozostałych śladów, „rotujący” (brak wspólnego obrazu nie jest dowodem różnicy, bo często po prostu brak danych).
 EXACT_CHANNELS = {"img": 1.0}
 DEMO_CALIBRATION = Path(__file__).resolve().parents[2] / "config" / "embsim" / "demo_calibration.json"
+
+
+META_CAMPAIGN_THRESHOLD = 0.5     # optimum na reklamach Meta w teście po czasie i przyrostowo (docs/WYNIKI.md); progi z syntetyki (0,95) i ze stron (0,725) są tam za wysokie
 
 
 def demo_thresholds() -> dict:
@@ -293,6 +298,10 @@ class Gallery:
             sc, so, it = t
             extra = {ch: sorted(q.sets[ch] & it["case"].sets.get(ch, set()))[:5] for ch in q.sets
                      if ch not in scored and q.sets[ch] & it["case"].sets.get(ch, set())}
+            if "face" not in scored and (fm := best_match(q.meta.get("faces"), it["case"].meta.get("faces"))) is not None:
+                extra["face"] = [f"ta sama osoba na obrazach (podobieństwo twarzy {fm:.2f})"]      # przesłanka, poza wynikiem (zob. faces.py)
+            if "dhash" not in scored and (np_ := near_pairs(q.meta.get("dhash"), it["case"].meta.get("dhash"))):
+                extra["dhash"] = [f"{a} ≈ {b}" for a, b, _ in np_[:2]]      # ten sam obraz po zmianie rozmiaru lub kompresji
             names = {**it["case"].meta.get("img_names", {}), **q.meta.get("img_names", {})}
             shared = {ch: [names.get(x, x) for x in v] if ch == "img" else v for ch, v in sc.shared.items()}
             return Match(it["case"].id, it["group"], it["operator"], round(sc.value, 4), round(so.value, 4),
