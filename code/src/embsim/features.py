@@ -53,9 +53,20 @@ def host_of(url: str) -> str:
     return (urlsplit(url).hostname or "").lower()
 
 
+# Najczęstsze sufiksy wieloczłonowe (podzbiór Public Suffix List, offline): bez nich `a.com.pl` i `b.com.pl` zlewałyby się w `com.pl`.
+MULTI_SUFFIX = {"com.pl", "net.pl", "org.pl", "edu.pl", "gov.pl", "info.pl", "biz.pl", "waw.pl", "krakow.pl", "co.uk", "org.uk", "ac.uk",
+                "gov.uk", "com.au", "net.au", "org.au", "co.jp", "com.br", "com.cn", "com.tr", "com.ua", "com.mx", "co.in", "co.za", "co.nz",
+                "com.ar", "com.sg", "com.hk", "com.tw", "co.kr", "co.il"}
+_IPV4 = re.compile(r"^\d{1,3}(\.\d{1,3}){3}$")
+
+
 def registered(host: str) -> str:
-    """Przybliżenie domeny rejestrowalnej (bez listy sufiksów): dwa ostatnie człony."""
+    """Domena rejestrowalna: dwa ostatnie człony albo trzy, gdy sufiks jest wieloczłonowy (MULTI_SUFFIX); adres IPv4 zostaje w całości."""
+    if _IPV4.match(host):
+        return host
     p = host.split(".")
+    if len(p) >= 3 and ".".join(p[-2:]) in MULTI_SUFFIX:
+        return ".".join(p[-3:])
     return ".".join(p[-2:]) if len(p) >= 2 else host
 
 

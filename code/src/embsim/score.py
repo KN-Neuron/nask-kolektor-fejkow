@@ -127,6 +127,9 @@ class Corpus:
         if len(have) < 3:
             return
         X = np.stack([np.asarray(c.vec, dtype=np.float64) for c in have])
+        X = np.unique(np.round(X, 6), axis=0)              # kopie tego samego tekstu to jeden punkt: nie zerują składowych korekty
+        if len(X) < 3:
+            return
         if len(X) > 5000:
             X = X[np.random.default_rng(0).choice(len(X), size=5000, replace=False)]
         self._mean = X.mean(0)
@@ -144,7 +147,8 @@ class Corpus:
 
     @staticmethod
     def _sv(c: Case):
-        return c.vec_t if c.vec_t is not None else c.vec
+        v = c.vec_t if c.vec_t is not None else c.vec
+        return v if v is not None and np.any(v) else None      # wektor zerowy (zdegenerowany po korekcie) = kanał niedostępny
 
     def _is_hub(self, df: int) -> bool:
         """Hub: występuje w co najmniej `hub_min` materiałach ORAZ w więcej niż `hub_frac` galerii albo w więcej niż `hub_abs` materiałach.
@@ -174,10 +178,16 @@ class Corpus:
     def add_late(self, c: Case) -> Case:
         """Dodaje materiał do korpusu BEZ ponownego dopasowania (słownik TF-IDF, idf i μ zostają z ostatniego dopasowania)."""
         self.cases.append(self.prepare(c))
+        self.n += 1                                       # liczniki częstości śladów (idf, bramka rzadkości, huby) zawsze aktualne
+        for ch, s in c.sets.items():
+            d = self.df.setdefault(ch, {})
+            for x in s:
+                d[x] = d.get(x, 0) + 1
+            self.hubs[ch] = {x for x, n in d.items() if self._is_hub(n)}
         return c
 
     def idf(self, ch: str, x: str) -> float:
-        return math.log((self.n + 1) / (self.df[ch].get(x, 0) + 0.5))
+        return math.log((self.n + 1) / (self.df.get(ch, {}).get(x, 0) + 0.5))
 
     def channel(self, a: Case, b: Case, ch: str) -> tuple[float | None, list[str]]:
         if ch == "text_lex":

@@ -15,7 +15,7 @@ from urllib.parse import urlsplit
 
 import numpy as np
 
-from .api import Decision, Gallery, Match, case_from_folder, case_from_meta_ad, case_from_text
+from .api import Decision, Gallery, has_evidence, Match, case_from_folder, case_from_meta_ad, case_from_text
 from .features import Case, registered
 
 IMG_EXT = {".png", ".jpg", ".jpeg", ".webp"}
@@ -85,6 +85,8 @@ def case_from_inputs(files: list[tuple[str, bytes]], text: str = "", url: str = 
                 images.append(root / Path(name).name)
         case = case_from_folder(root) if any(p.is_file() for p in root.iterdir()) else Case(id="")
         texts = [case.text] if case.text else []
+        if images and not case.text and not any(v for k, v in case.sets.items() if k not in ("img", "page", "payer", "text_hash")):
+            case.meta["screenshot_only"] = True               # sam zrzut: identyczny obraz to ten sam artefakt (reguła dokładna), także po OCR
         if images and ocr:
             for im in images:
                 t, lang = ocr_image(im)
@@ -176,7 +178,7 @@ def build_from_folders(g: Gallery, root: Path, ocr: bool = False, progress=None)
         c.id = d.name
         if ocr and not c.text.strip():
             c.text = "\n".join(t for t in (ocr_image(p)[0] for p in material(d).images[:3]) if t)
-        if c.text.strip() or c.sets:
+        if has_evidence(c):
             g.add(c)
         if progress:
             progress((i + 1) / len(dirs), d.name)
@@ -187,7 +189,7 @@ def build_from_meta(g: Gallery, path: Path, limit: int = 2000) -> int:
     n = 0
     for line in path.open(encoding="utf-8"):
         c = case_from_meta_ad(json.loads(line))
-        if c.text.strip() or c.sets:
+        if has_evidence(c):
             g.add(c)
             n += 1
         if n >= limit:

@@ -58,6 +58,11 @@ HOST = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}$")
 # Kanały dokładnych zgodności dokładane do zamrożonej konfiguracji (nie było ich w kalibracji na syntetyce, która nie ma obrazów):
 # waga jak pozostałych śladów, „rotujący” (brak wspólnego obrazu nie jest dowodem różnicy, bo często po prostu brak danych).
 EXACT_CHANNELS = {"img": 1.0}
+EVIDENCE_SETS = ("host", "kit", "scheme", "pixel", "img")      # ślady, które mogą być podstawą decyzji (page, payer, text_hash są metadanymi)
+
+
+def has_evidence(case: Case) -> bool:
+    return bool(case.text.strip()) or any(case.sets.get(k) for k in EVIDENCE_SETS)
 DEMO_CALIBRATION = Path(__file__).resolve().parents[2] / "config" / "embsim" / "demo_calibration.json"
 
 
@@ -188,7 +193,9 @@ class Decision:
     def explain(self, top_channels: int = 3) -> str:
         """Wyjaśnienie po polsku dla analityka (dezinformacja/CERT): wniosek, najbliższy materiał, powody, dowody spoza wyniku."""
         t = self.thresholds
-        if self.verdict == "duplikat_id" or self.duplicate_of:
+        if self.verdict == "brak_danych":
+            head = "Brak danych do porównania (ani tekstu, ani śladów infrastruktury, ani obrazów): materiału nie przypisano do żadnej grupy."
+        elif self.verdict == "duplikat_id" or self.duplicate_of:
             head = f"Ten materiał ({self.duplicate_of}) jest już w galerii; nic nie dodano."
         elif self.verdict == "znana_kampania" and self.exact_of:
             head = (f"Znana kampania {self.group} (operator {self.operator}): każdy obraz tego materiału jest identyczny (ten sam plik, "
@@ -329,6 +336,9 @@ class Gallery:
         qi = q.sets.get("img")
         if not qi:
             return None
+        only_img = (not q.text.strip() or q.meta.get("screenshot_only")) and not any(v for k, v in q.sets.items() if k in EVIDENCE_SETS and k != "img")
+        if len(qi) < 2 and not only_img:                  # jedno wspólne zdjęcie to zasób (logo, szablon), nie dowód kampanii; wystarczy dopiero
+            return None                                   # jako jedyna informacja (zrzut bez tekstu) albo przy kompletnym zestawie ≥ 2 obrazów
         groups: dict[str, set] = {}
         for it in self.items:
             for x in it["case"].sets.get("img", set()) & qi:
@@ -345,6 +355,8 @@ class Gallery:
             d = self.query(case, k, exclude_id=case.id)
             d.duplicate_of = case.id
             return d
+        if not has_evidence(case):                        # sam identyfikator strony nie jest podstawą do utworzenia kampanii ani operatora
+            return Decision("brak_danych", None, None, 0.0, 0.0, {lv: self.cfg.thresholds.get(lv) for lv in ("campaign", "operator")}, [])
         d = self.query(case, k)
         if group is None:
             group = d.group if d.verdict == "znana_kampania" else self._new("K")
@@ -358,7 +370,8 @@ class Gallery:
         if len(self.items) <= self.refit_below or grown >= max(self.min_refit, int(self.refit_fraction * max(self._fit_n, 1))):
             self._fit()
         else:
-            self._corp[0].add_late(c)                 # bez ponownego dopasowania słownika
+            for corp in self._corp:                   # bez ponownego dopasowania słownika; liczniki śladów w obu poziomach
+                corp.add_late(c)
         d.group, d.operator = d.group or group, d.operator or operator
         return d
 

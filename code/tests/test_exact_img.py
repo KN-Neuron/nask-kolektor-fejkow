@@ -86,10 +86,10 @@ def test_identical_images_mean_same_campaign_but_shared_network_icon_does_not(tm
 
 
 def test_assess_zip_links_new_materials_among_themselves(tmp_path):
-    img = _png(6)
+    img, img2 = _png(6), _png(7)                                                   # kompletny zestaw 2 obrazów (jedno wspólne zdjęcie to zasób, nie dowód)
     src = tmp_path / "src" / "zbior"
-    _case(src, "n1", "nowa kampania alfa", files={"x_files/h.png": img})
-    _case(src, "n2", "nowa kampania alfa wariant", files={"x_files/h.png": img})
+    _case(src, "n1", "nowa kampania alfa", files={"x_files/h.png": img, "x_files/g.png": img2})
+    _case(src, "n2", "nowa kampania alfa wariant", files={"x_files/h.png": img, "x_files/g.png": img2})
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w") as z:
         for f in src.rglob("*"):

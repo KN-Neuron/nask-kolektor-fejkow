@@ -201,6 +201,26 @@ Zastrzeżenia: wartość bezwzględna (2) zależy od wielkości galerii (światy
 kampaniami przekroczy limit, więc trzeba go będzie skalować), wynik dotyczy syntetyki, a na prawdziwych danych nie był sprawdzany.
 Naprawiony przy okazji błąd: dzielenie przez zero w normalizacji, gdy w galerii dominują identyczne teksty.
 
+## 7b. Poprawki po audycie backendu (22.11.2026)
+
+Naprawione i objęte testami (`code/tests/test_api.py`, `test_exact_img.py`); wyniki testu na zbiorze ukrytym bez zmian (A 10/10, B 8/13, C 13/20):
+
+- **Kopie tego samego tekstu** zerowały korektę PCA i po kilku kopiach otwierały nową kampanię (wynik 0,00). Korekta liczona jest teraz na unikalnych wektorach,
+  a wektor zdegenerowany jest traktowany jako brak kanału. Test: 10 kopii tekstu to jedna kampania.
+- **Jedno wspólne zdjęcie** (logo, zasób szablonu) nie wymusza już „znanej kampanii” przy wyniku 0,00. Reguła dokładna wymaga kompletnego zestawu co najmniej
+  dwóch obrazów albo materiału będącego samym zrzutem.
+- **Pierwszy ślad nowego rodzaju po wielu materiałach** przerywał zapytanie (`KeyError: 'img'`); `idf` toleruje kanał, którego nie było przy ostatnim dopasowaniu.
+- **Restart zmieniał werdykt operatora:** późne dodawanie aktualizowało liczniki tylko poziomu kampanii. Liczniki śladów (idf, bramka rzadkości, huby) są
+  teraz aktualizowane w obu poziomach. Słownik TF-IDF, μ i PCA nadal są dopasowywane rzadziej niż liczniki, więc wynik tekstowy może się nieznacznie
+  różnić po restarcie (wersjonowanie transformacji: do zrobienia).
+- **Materiał bez dowodu** (sam `page_id`) nie tworzy kampanii ani operatora: werdykt „brak danych”, nic nie jest dopisywane do galerii.
+- **Domeny:** `registered()` zna najczęstsze sufiksy wieloczłonowe (`com.pl`, `co.uk` i inne) i zostawia adresy IPv4 w całości. To podzbiór Public Suffix List,
+  nie cała lista.
+
+Z audytu zostaje do zrobienia: rozdzielenie tożsamości materiału, odcisku zawartości i statusu importu (pkt 6), spójny zapis kampanii, operatora i konta w grafie
+oraz transakcyjność liczników w `graph/scrape.py` (pkt 7–8, część koleżanki), wersjonowany trwały zapis galerii (24), profile progów wspólne dla UI/CLI/scrapera (12),
+niejednoznaczność dwóch najlepszych kampanii (13), niezależny zbiór relacji kampanijnych (21) i pozostałe rekomendacje P1/P2.
+
 ## 8. Pochodzenie danych
 
 | zbiór | źródło | licencja / uwagi |

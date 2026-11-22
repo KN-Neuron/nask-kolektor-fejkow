@@ -128,3 +128,54 @@ def test_operator_requires_rare_shared_trace_when_op_rare_df_set():
     probe = case_from_text("Q", "Inna treść o samochodach i naprawie silników diesla", kit={"/static/app"})
     assert gal(None).query(probe).verdict == "znany_operator_nowa_kampania"   # bez reguły pospolity ślad skleja
     assert gal(2).query(probe).verdict == "nowy_wzorzec"                       # z regułą: ślad w 3 materiałach nie dowodzi operatora
+
+
+# --- poprawki z audytu backendu ------------------------------------------------------------------------------------------
+
+def test_many_copies_of_same_text_do_not_zero_the_semantic_channel():
+    g = Gallery(cfg(), embed_fn=fake_embed)
+    text = CAMP["A"].format(n=1)
+    for k in range(10):
+        d = g.add(case_from_text(f"copy{k}", text))
+    assert d.verdict == "znana_kampania" and d.campaign_score > 0.9               # 10. kopia nie otwiera nowej kampanii
+    assert len({it["group"] for it in g.items}) == 1
+
+
+def test_first_trace_of_new_kind_after_refit_threshold_does_not_crash():
+    g = Gallery(cfg(), embed_fn=fake_embed, refit_below=5)
+    for i in range(8):
+        g.add(case_from_text(f"h{i}", f"różny tekst numer {i} o ogrodzie", host={f"h{i}.example"}))
+    g.add(case_from_text("img1", "tekst z obrazem", img={"abc123abc123abc1"}))
+    d = g.query(case_from_text("q", "pytanie o obraz", img={"abc123abc123abc1"}))     # wcześniej KeyError: 'img'
+    assert d.matches
+
+
+def test_metadata_only_record_creates_no_group_and_exact_rule_needs_more_than_one_image():
+    g = Gallery(cfg(), embed_fn=fake_embed)
+    empty = case_from_text("m1", "", page={"123"})
+    d = g.add(empty)
+    assert d.verdict == "brak_danych" and len(g) == 0 and "Brak danych" in d.explain()
+    g.add(case_from_text("a", "Oferta pierwsza o ogrodach", img={"logo0123456789ab"}, kit={"/a/b"}))
+    other = case_from_text("b", "Zupełnie inna strona o samochodach i serwisie", img={"logo0123456789ab"}, kit={"/c/d"})
+    assert g.query(other).exact_of is None                                            # jedno wspólne logo nie wymusza kampanii
+
+
+def test_registered_domain_handles_multi_part_suffix_and_ip():
+    from embsim.features import registered
+
+    assert registered("shop.firma.com.pl") == "firma.com.pl" and registered("a.com.pl") == "a.com.pl"
+    assert registered("www.bbc.co.uk") == "bbc.co.uk" and registered("sub.example.com") == "example.com"
+    assert registered("203.0.113.7") == "203.0.113.7"
+
+
+def test_decision_is_same_before_and_after_restart_with_late_added_materials(tmp_path):
+    g = Gallery(cfg(), embed_fn=fake_embed, refit_below=3, refit_fraction=10.0)       # po 3 materiałach tylko późne dodawanie
+    for i in range(3):
+        g.add(case_from_text(f"s{i}", f"Osobna treść numer {i} o ogrodach", host={f"s{i}.example"}))
+    for i in range(4):
+        g.add(case_from_text(f"late{i}", f"Całkiem inna treść {i} o samochodach i serwisie", host={"wspolny.example"}))
+    q = case_from_text("q", "Nowa treść o czymś jeszcze innym", host={"wspolny.example"})
+    before = g.query(q)
+    g.save(tmp_path / "g.jsonl")
+    after = Gallery.load(tmp_path / "g.jsonl", embed_fn=fake_embed).query(q)
+    assert before.verdict == after.verdict
