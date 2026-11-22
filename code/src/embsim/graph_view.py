@@ -136,5 +136,20 @@ def render() -> None:
             st.info("Nic jeszcze nie dodano. Dodawanie: `graph/scrape.py add …` albo scraper `graph/scrape.py watch …`.")
             return
         _table([{k: v for k, v in r.items() if k != "wyjaśnienie"} for r in rows], height=260)
-        pick = st.selectbox("Wyjaśnienie", [r["id"] for r in rows])
-        st.text(next(r["wyjaśnienie"] for r in rows if r["id"] == pick))
+        pick = st.selectbox("Karta materiału", [r["id"] for r in rows],
+                            format_func=lambda i: next(f"{i} · {clusters.VERDICT_PL.get(r['decyzja'], r['decyzja'])} · {r['twórca'] or '—'}"
+                                                       for r in rows if r["id"] == i))
+        card = _q("added_card", pick)
+        if card:
+            st.subheader("Z czym go połączyliśmy i dlaczego")
+            if card["matches"] or card["traces"]:
+                st.graphviz_chart(clusters.added_dot(card), width="stretch")
+                st.caption("Czerwona strzałka: znana kampania · pomarańczowa: ten sam operator (materiał, który rozstrzygnął decyzję) · "
+                           "szara przerywana: inne bliskie materiały. Ramki: twórcy (operatorzy z Mety). Owale: ślady wspólne z bliskimi "
+                           "materiałami; kropkowane = pospolita usługa (np. instagram.com), która niczego nie dowodzi.")
+                _table([{"materiał": m["id"], "twórca": m["creator"], "wynik kampanii": m["score"], "wynik operatora": m["operator_score"],
+                         "powody": " | ".join(m["reasons"][:3]), "treść": m["snippet"]} for m in card["matches"]])
+            else:
+                st.write("Silnik nie zapisał bliskich materiałów ani śladów dla tego materiału.")
+        with st.expander("Wyjaśnienie zapisane przy dodaniu", expanded=not card):
+            st.text(next(r["wyjaśnienie"] for r in rows if r["id"] == pick) or "—")
