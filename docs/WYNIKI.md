@@ -98,6 +98,23 @@ ukryty zbiór (nowe warianty, nowa kampania znanego operatora, 6 negatywów). Ra
   0,560 → 0,723. NASK-10: kampanie {1,2} i {48,61}, operator {1,2,3,48,61}, reszta osobno, czyli dokładnie nasz odczyt. Ryzyko: spójne
   składowe mogą łączyć łańcuchem; na bardzo małej galerii (3 materiały) przeliczenie bywa błędne, więc planista zapisuje je obok decyzji
   podjętej w chwili napływu, a nie zamiast niej.
+- **Ochrona przed łańcuchem w drugim przebiegu** (`LINK_FRAC = 0,8`): krawędzie kampanii łączone od najsilniejszej, a dwie grupy (razem
+  ponad 2 materiały) tylko wtedy, gdy średni wynik WSZYSTKICH par między nimi ≥ 0,8 progu kampanii (średnie wiązanie; reguła identycznego
+  obrazu omija ten warunek). Na syntetyce v1 i NASK-10 wynik bez zmian dla ułamka od 0 do 1,0 (ARI 0,956 / 0,723, NASK zgodny z odczytem),
+  bo nasze kampanie mają po 2–3 materiały i łańcuchów w nich nie ma; ochrona działa na łańcuchach A≈B≈C≈D z niepodobnymi końcami
+  (test `test_regroup_average_link_blocks_chain`). Wartość 0,8 jest więc wyborem ostrożnym, nie dostrojonym: nie mamy danych z łańcuchami.
+- **Kanał `infra`: co daje na NASK-10.** Łączy dwie pary: 1–2 (różne domeny, rejestracja u Dynadot w tej samej godzinie, 2026-10-08 ok.
+  18:00 UTC; nowy, niezależny od domen dowód) oraz 2–3 (para NS Cloudflare i rejestracja NICENIC, ale z domeny `healthlinkq.pro`, którą
+  oba materiały już dzielą: to był ten sam dowód liczony drugi raz). Podwójne liczenie usunięte: ślad infra pochodzący wyłącznie ze
+  wspólnej domeny nie wchodzi do wyniku (`score.py`, `meta["infra_src"]`). Grupy NASK i test jak jury są identyczne z kanałem i bez niego:
+  kanał dokłada przesłanki i siłę dowodu, decyzji na naszych 10 przypadkach nie zmienia.
+- **Wiek domeny w chwili obserwacji** (data rejestracji z RDAP, chwila obserwacji z HAR): domeny stron oszustw 1, 2 i 48 zarejestrowano
+  0–6 dni przed zapisem ruchu, 61 po 39 dniach, a legalny sklep (10) i strona 47 mają 115 i 243 dni. To opis w karcie materiału („świeża
+  domena” ≤ 30 dni), nie składnik wyniku: dwie świeże domeny nie mają przez to wspólnego operatora.
+- **Nowe domeny (np. materiały jury)**: tryb domyślny `auto` bierze zapisany plik, a brakujące domeny pyta krótko w DNS i RDAP (dwie nowe
+  domeny w ok. 1 s; bez crt.sh; wynik tylko w pamięci). Bez sieci bezpiecznik pomija zapytania przez 10 minut. Test jak jury wymusza sam
+  plik, żeby wynik nie zależał od sieci. Certyfikaty z crt.sh (wspólny certyfikat na kilka różnych domen) tylko w pełnym trybie
+  `EMBSIM_INFRA=1`, bo crt.sh odpowiada wolno; w zapisanym pliku dla NASK ich nie ma.
 
 - **Obrazy bez modelu** (`img`): odcisk SHA-256 bajtów obrazów strony z HAR i z zasobów `*_files`; pomijamy obrazy < 2 KB (ikonki,
   reakcje widżetów komentarzy, które krążą między zestawami). Na NASK łączy 1↔2 (11 obrazów), 48↔61 (6), 2↔3 (3) i jedną ikoną z CDN

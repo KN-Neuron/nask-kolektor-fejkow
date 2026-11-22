@@ -138,6 +138,10 @@ def case_from_inputs(files: list[tuple[str, bytes]], text: str = "", url: str = 
 
             enrich(case)                                  # metadane domeny (DNS, RDAP) z usług trzecich, zob. embsim/infra.py
             info.setdefault("url", f"użyto tylko domeny {registered(host)} (adresu nie odwiedzamy)")
+    from .infra import summary as _dom_summary
+
+    if dom := _dom_summary(case):
+        info["domeny"] = "Domeny: " + "; ".join(dom) + "."
     case.id = case_id or "nowy_" + hashlib.sha1((case.text + json.dumps({k: sorted(v) for k, v in case.sets.items()})).encode()).hexdigest()[:8]
     return case, info
 
@@ -169,7 +173,11 @@ def verdict_style(d: Decision) -> tuple[str, str]:
 
 def card_markdown(case: Case, d: Decision) -> str:
     """Karta dla analityka (Markdown): wniosek, powody, najbliższe materiały."""
-    lines = [f"# Karta materiału {case.id}", "", f"**Wniosek:** {verdict_style(d)[1]}", "", d.explain(), "", "## Najbliższe materiały", "",
+    from .infra import summary as _dom_summary
+
+    dom = _dom_summary(case)
+    lines = [f"# Karta materiału {case.id}", "", f"**Wniosek:** {verdict_style(d)[1]}", "", d.explain(), "",
+             *(["## Domeny", "", *[f"- {x}" for x in dom], ""] if dom else []), "## Najbliższe materiały", "",
              "| materiał | kampania | operator | wynik kampanii | wynik operatora | trzy najsilniejsze powody |", "|---|---|---|---|---|---|"]
     for m in d.matches:
         lines.append(f"| {m.id} | {m.group or '-'} | {m.operator or '-'} | {m.campaign_score:.2f} | {m.operator_score:.2f} | "

@@ -17,7 +17,8 @@ REC_B = {"a": [], "asn": {}, "ns": ["ns1.dyna-ns.net", "ns1.prywatny-dns.xyz"], 
 def cache(monkeypatch, tmp_path):
     monkeypatch.setattr(I, "CACHE_FILE", tmp_path / "infra.json")
     monkeypatch.setattr(I, "_CACHE", {"civic.live": REC_A, "across.live": REC_B})
-    monkeypatch.delenv("EMBSIM_INFRA", raising=False)
+    monkeypatch.setattr(I, "_MEM", {})
+    monkeypatch.setenv("EMBSIM_INFRA", "cache")
 
 
 def test_traces_skip_big_providers():
@@ -40,7 +41,7 @@ def test_enrich_from_cache_and_modes(cache, monkeypatch):
 
 def test_net_mode_refetches_errors_and_saves(cache, monkeypatch):
     I._CACHE["zla.live"] = {"errors": ["rdap: HTTPStatusError"]}
-    monkeypatch.setattr(I, "collect", lambda d, resolver=None, get=None: {**REC_B, "errors": []})
+    monkeypatch.setattr(I, "collect", lambda d, resolver=None, get=None, **kw: {**REC_B, "errors": []})
     assert I.lookup("zla.live", net=False) == {"errors": ["rdap: HTTPStatusError"]}
     assert I.lookup("zla.live", net=True)["registrar"] == "Dynadot Inc"
     assert "zla.live" in I.CACHE_FILE.read_text()
@@ -61,3 +62,48 @@ def test_gallery_links_different_domains_by_registration(cache):
     m = next(m for m in g.query(b).matches if m.id == "a")
     assert m.shared.get("infra") == ["rej:Dynadot Inc|2026-10-08T18"] and m.channels["infra"] > 0
     assert any("rejestracja domeny: Dynadot Inc" in r for r in A.top_reasons(m, 6))
+
+
+def test_auto_mode_fetches_new_domain_in_memory_only(cache, monkeypatch):
+    """Tryb domyślny `auto`: domena spoza pliku (np. nowy materiał jury) pobrana szybko z sieci, bez zapisu pliku w repozytorium."""
+    calls = []
+    monkeypatch.setenv("EMBSIM_INFRA", "auto")
+    monkeypatch.setattr(I, "_net_up", lambda: True)
+    monkeypatch.setattr(I, "collect", lambda d, resolver=None, get=None, **kw: calls.append((d, kw)) or {**REC_B, "errors": []})
+    c = I.enrich(Case("n", sets={"host": {"nowa-domena.xyz"}}))
+    assert "ns:prywatny-dns.xyz" in c.sets["infra"] and calls == [("nowa-domena.xyz", {})]   # bez crt.sh w trybie auto
+    assert not I.CACHE_FILE.exists()
+    I.enrich(Case("n2", sets={"host": {"nowa-domena.xyz"}}))
+    assert len(calls) == 1                                     # drugi raz z pamięci
+
+
+def test_auto_mode_offline_breaker(cache, monkeypatch):
+    monkeypatch.setenv("EMBSIM_INFRA", "auto")
+    monkeypatch.setattr(I, "_net_up", lambda: False)
+    monkeypatch.setattr(I, "collect", lambda *a, **k: (_ for _ in ()).throw(AssertionError("sieć mimo bezpiecznika")))
+    assert "infra" not in I.enrich(Case("n", sets={"host": {"nowa-domena.xyz"}})).sets
+    with I.forced("cache"):
+        assert I.mode() == "cache"
+    assert I.mode() == "auto"
+
+
+def test_shared_certificate_and_domain_age():
+    rec = {**REC_B, "certs": [["across.live", "www.across.live", "civic.live"], ["across.live"]]}
+    assert "cert:across.live+civic.live" in I.traces(rec)
+    assert "wspólny certyfikat" in I.describe("cert:across.live+civic.live")
+    from datetime import datetime, timezone
+    assert I.age_days("2026-10-08T18:18:20Z", datetime(2026, 10, 22, tzinfo=timezone.utc)) == 13
+    c = Case("x", meta={"infra": {"civic.live": {"created": "2026-10-08T18:18:20Z", "registrar": "Dynadot Inc", "wiek_dni": 13}}})
+    assert I.summary(c) == ["civic.live: zarejestrowana 2026-10-08, 13 dni przed analizą, świeża domena, rejestrator Dynadot Inc"]
+
+
+def test_no_double_counting_with_shared_domain(cache):
+    """Ślady infra wyłącznie z domeny, którą oba materiały już dzielą (kanał host), nie liczą się drugi raz."""
+    from embsim.score import Corpus
+    I._CACHE["wspolna.live"] = REC_B
+    a = I.enrich(Case("a", text="x", sets={"host": {"wspolna.live", "civic.live"}}))
+    b = I.enrich(Case("b", text="y", sets={"host": {"wspolna.live"}}))
+    c = I.enrich(Case("c", text="z", sets={"host": {"across.live"}}))   # ten sam rekord, ale INNA domena: ślad liczony
+    corp = Corpus([a, b, c, Case("d", text="w", sets={"host": {"inna.pl"}})], None, {"infra": 1.0, "host": 1.0})
+    assert corp.channel(a, b, "infra")[0] is None
+    assert corp.channel(b, c, "infra")[0] > 0

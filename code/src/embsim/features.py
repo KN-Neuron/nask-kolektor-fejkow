@@ -141,6 +141,9 @@ def load_case(root: Path, drop_common: bool = False) -> Case:
             except (ValueError, KeyError):
                 continue
             urls += [e["request"]["url"] for e in entries]
+            seen = sorted(str(e.get("startedDateTime", "")) for e in entries if e.get("startedDateTime"))
+            if seen and (not c.meta.get("observed") or seen[0] < c.meta["observed"]):
+                c.meta["observed"] = seen[0]          # chwila zapisu ruchu: do wieku domeny w chwili obserwacji (embsim/infra.py)
             for u, data in har_images(entries):
                 add_img(u, data)
                 blobs.append((u, data))

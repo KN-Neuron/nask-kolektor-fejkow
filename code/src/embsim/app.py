@@ -224,7 +224,7 @@ with tab_a:
         st.subheader("2. Cechy materiału")
         for w in info.get("ostrzeżenia", []):
             st.warning(w)
-        for k in ("źródło", "url"):
+        for k in ("źródło", "url", "domeny"):
             if k in info:
                 st.caption(info[k])
         cols = st.columns(6)

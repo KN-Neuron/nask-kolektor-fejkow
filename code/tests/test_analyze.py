@@ -160,3 +160,33 @@ def test_batch_screenshot_only_hits_exact_rule(tmp_path):
     rows, _ = A.assess_folder(g, new)
     want = next(it["group"] for it in g.items if it["case"].id == "c2")
     assert rows[0]["kampania"] == want and rows[0]["werdykt"].startswith("Znana kampania"), rows[0]
+
+
+def test_regroup_average_link_blocks_chain(monkeypatch):
+    """Łańcuch A≈B, B≈C, C≈D przy niepodobnych końcach: średnie wiązanie nie skleja wszystkiego w jedną kampanię."""
+    from types import SimpleNamespace
+    from embsim import analyze as A
+    from embsim.api import Gallery, Case, Decision, Match
+    g = Gallery(embed_fn=A.hash_embed, profile="strony")
+    for x in "ABCD":
+        g.add(Case(id=x, text=f"materiał {x} " * 5, sets={"host": {f"{x.lower()}.xyz"}}))
+    sim = {frozenset("AB"): 0.95, frozenset("CD"): 0.95, frozenset("BC"): 0.7, frozenset("AC"): 0.05, frozenset("AD"): 0.0,
+           frozenset("BD"): 0.1}
+    best = {"A": "B", "B": "A", "C": "D", "D": "C"}
+    thr = g.cfg.thresholds
+
+    def q(case, k, exclude):
+        j = best[case.id]
+        s = sim[frozenset(case.id + j)]
+        return Decision("znana_kampania", None, None, s, 0.0, thr, [Match(j, None, None, s, 0.0, 1.0)])
+
+    monkeypatch.setattr(g, "_query", q)
+    monkeypatch.setattr(g, "_fit", lambda: setattr(g, "_corp", (SimpleNamespace(score=lambda a, b: SimpleNamespace(value=sim[frozenset(a.id + b.id)])), None)))
+    best["B"] = "C"                                         # B wskazuje C: jedyny most między parami {A,B} i {C,D}
+    g.link_frac = 0.8
+    g.regroup()
+    grp = {it["case"].id: it["group"] for it in g.items}
+    assert grp["A"] == grp["B"] and grp["C"] == grp["D"] and grp["A"] != grp["C"]
+    g.link_frac = 0.0                                       # bez ochrony: łańcuch skleja wszystko
+    g.regroup()
+    assert len({it["group"] for it in g.items}) == 1

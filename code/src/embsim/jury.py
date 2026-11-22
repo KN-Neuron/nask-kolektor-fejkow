@@ -207,10 +207,14 @@ def table(df: pd.DataFrame) -> str:
 
 
 def run_all(thr=None, nask: Path = NASK, synth: Path = SYNTH) -> dict:
-    """Uruchamia testy dla dostępnych zbiorów; brakujące zbiory są pomijane (None)."""
-    ra = test_a(thr, nask) if nask.is_dir() else None
-    rb = test_b(thr, nask) if nask.is_dir() else None
-    rc = test_c(thr, synth) if (synth / "prawda.json").is_file() else None
+    """Uruchamia testy dla dostępnych zbiorów; brakujące zbiory są pomijane (None). Kanał infra tylko z zapisanego pliku: wynik nie
+    zależy od tego, czy komputer ma akurat sieć."""
+    from .infra import forced
+
+    with forced("cache"):
+        ra = test_a(thr, nask) if nask.is_dir() else None
+        rb = test_b(thr, nask) if nask.is_dir() else None
+        rc = test_c(thr, synth) if (synth / "prawda.json").is_file() else None
     return {"A": ra, "B": rb, "C": rc, "podsumowanie": summary(ra, rb, rc),
             "próg": thr if thr is not None else Gallery(profile="strony").cfg.thresholds.get("campaign")}
 

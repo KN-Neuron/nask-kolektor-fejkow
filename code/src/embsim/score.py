@@ -212,6 +212,13 @@ class Corpus:
                 return None, []
             return float(np.clip((m - FACE_RAMP[0]) / (FACE_RAMP[1] - FACE_RAMP[0]), 0, 1)), [f"ta sama osoba na obrazach (kosinus {m:.2f})"]
         sa, sb = self._sets(a, ch), self._sets(b, ch)
+        if ch == "infra" and sa and sb:                    # bez podwójnego liczenia: ślad infra wzięty WYŁĄCZNIE ze wspólnej domeny to ten sam
+            common = (a.sets.get("host") or set()) & (b.sets.get("host") or set())   # dowód co ślad `host`, więc tu go pomijamy
+            if common:
+                def own(c, s):
+                    src = c.meta.get("infra_src") or {}
+                    return {t for t in s if not (src.get(t) and set(src[t]) <= common)}
+                sa, sb = own(a, sa), own(b, sb)
         if not sa or not sb:
             return None, []
         inter, union = sa & sb, sa | sb

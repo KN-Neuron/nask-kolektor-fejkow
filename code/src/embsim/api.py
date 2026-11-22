@@ -30,6 +30,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -68,6 +69,7 @@ def has_evidence(case: Case) -> bool:
 DEMO_CALIBRATION = Path(__file__).resolve().parents[2] / "config" / "embsim" / "demo_calibration.json"
 
 
+LINK_FRAC = 0.8                    # regroup: grupy łączone, gdy średni wynik par między nimi ≥ 0,8 progu kampanii (docs/WYNIKI.md §5a)
 META_CAMPAIGN_THRESHOLD = 0.5     # optimum na reklamach Meta w teście po czasie i przyrostowo (docs/WYNIKI.md); progi z syntetyki (0,95) i ze stron (0,725) są tam za wysokie
 
 
@@ -266,6 +268,7 @@ class Gallery:
         # pełne dopasowanie przy KAŻDYM dodaniu, dopóki galeria ma ≤ refit_below materiałów (mały korpus: słownik i idf z kilku
         # dokumentów byłyby bezwartościowe); potem późne dodawanie i dopasowanie po urośnięciu o refit_fraction (min. min_refit)
         self.refit_below, self.refit_fraction, self.min_refit = refit_below, refit_fraction, min_refit
+        self.link_frac = float(os.environ.get("EMBSIM_LINK_FRAC", LINK_FRAC))   # regroup: średnie wiązanie, ułamek progu kampanii (0 = bez)
         self.items: list[dict] = []                   # {"case": Case, "group": str, "operator": str}
         self._ids: set[str] = set()
         self._corp: tuple[Corpus, Corpus] | None = None
@@ -423,6 +426,7 @@ class Gallery:
                 i = p[i]
             return i
 
+        edges = []                                    # (wynik, i, j, dokładna): krawędzie kampanii, łączone od najsilniejszej
         for i, it in enumerate(self.items):
             d = self._query(it["case"], 5, ids[i])
             key = d.key_match() if d.verdict == "znany_operator_nowa_kampania" else (d.matches[0] if d.matches else None)
@@ -430,12 +434,34 @@ class Gallery:
                 continue
             j = pos[key.id]
             if d.verdict == "znana_kampania":
-                pc[find(pc, i)] = find(pc, j)
-                po[find(po, i)] = find(po, j)
+                edges.append((d.campaign_score, i, j, d.exact_of is not None))
             to = self.cfg.thresholds.get("operator")
             bo = max(d.matches, key=lambda m: m.operator_score) if d.matches else None
             if to is not None and bo is not None and bo.operator_score >= to and bo.id in pos:   # operator niezależnie od kampanii
                 po[find(po, i)] = find(po, pos[bo.id])
+        cc, tc = self._corp[0], self.cfg.thresholds.get("campaign") or 0.0
+        members = {i: [i] for i in range(len(ids))}
+        pair: dict[tuple[int, int], float] = {}
+
+        def sc(x, y):
+            k = (x, y) if x < y else (y, x)
+            if k not in pair:
+                pair[k] = cc.score(self.items[x]["case"], self.items[y]["case"]).value
+            return pair[k]
+
+        for s_, i, j, exact in sorted(edges, key=lambda e: -e[0]):
+            ri, rj = find(pc, i), find(pc, j)
+            if ri == rj:
+                continue
+            if not exact and self.link_frac and len(members[ri]) + len(members[rj]) > 2:
+                # średnie wiązanie: łączymy dwie grupy tylko, gdy przeciętna para między nimi jest blisko progu kampanii; jedna mocna para
+                # nie skleja łańcuchem A≈B, B≈C dwóch różnych kampanii (zob. docs/WYNIKI.md §5a)
+                mean = sum(sc(x, y) for x in members[ri] for y in members[rj]) / (len(members[ri]) * len(members[rj]))
+                if mean < self.link_frac * tc:
+                    continue
+            pc[ri] = rj
+            members[rj] += members.pop(ri)
+            po[find(po, i)] = find(po, j)
         for i in range(len(ids)):                     # kampania należy do jednego operatora
             po[find(po, i)] = find(po, find(pc, i))
         kn, on = {}, {}
