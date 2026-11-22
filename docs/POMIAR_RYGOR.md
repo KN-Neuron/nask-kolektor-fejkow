@@ -50,3 +50,27 @@ Etykieta twórcy: ma co najmniej jedną zdjętą reklamę. To sygnał egzekwowan
 
 Sygnał jest słaby. Znaczna część to kopiowanie treści między twórcami, a etykieta jest szumna (Meta zdejmuje też spam, a twórca bez zdjętych reklam może być oszustem
 jeszcze nieprzyłapanym).
+
+## 5. Ścieżka online od pustej galerii na reklamach Meta (luka: ocena strumieniowa)
+
+`python -m embsim.online_eval`: 795 reklam z treścią od 120 losowych twórców (min. 3 reklamy, do 10 na twórcę), chronologicznie, galeria zaczyna pusta,
+każda reklama oceniana kodem, którego używają interfejs, CLI i scraper (`Gallery.query` / `add`, profil „meta”). Prawdy kampanii nie ma; proxy to twórca.
+Grupy nie wpływają na wynik kampanii, więc jeden przebieg pozwala przeliczyć dowolny próg. Przedziały: bootstrap po twórcach.
+
+| próg kampanii | uznane | precyzja | czułość (twórca już w galerii) | odrzucenie nowych twórców |
+|---|---|---|---|---|
+| 0,3 | 633 | 0,81 [0,74; 0,89] | 0,76 [0,69; 0,83] | 0,80 [0,73; 0,87] |
+| **0,5 (profil meta)** | 587 | 0,82 [0,74; 0,90] | 0,71 [0,64; 0,78] | 0,87 [0,81; 0,92] |
+| 0,7 | 545 | 0,82 [0,73; 0,90] | 0,66 [0,59; 0,74] | 0,92 [0,86; 0,96] |
+| 0,9 | 515 | 0,82 [0,73; 0,90] | 0,62 [0,55; 0,71] | 0,92 [0,87; 0,97] |
+
+- Rozbicie po rozmiarze galerii przy progu 0,5: do 100 materiałów precyzja 1,00 i czułość 0,85 (mało twórców do pomylenia), 100–300: 0,77 i 0,64, ponad 300: 0,81 i 0,71.
+- **Precyzja nie zależy od progu** (0,81–0,82), więc próg wymienia tylko czułość na odrzucanie nowych. Powód: **90% „błędów” (95 z 106) to reklamy o wyniku ≥ 0,95**, czyli
+  prawie identyczny tekst u innego twórcy. To ta sama treść używana przez wielu twórców (realny sygnał wspólnej kampanii lub operatora), a proxy „twórca” liczy ją jako pomyłkę.
+  Po ich wyłączeniu precyzja wynosi 0,98. Prawdziwą precyzję trzeba mierzyć na etykietach kampanii, których nie mamy.
+- Próg 0,5 (profil „meta”) wypada rozsądnie; podniesienie go zwiększa odrzucanie nowych kosztem czułości i niczego nie poprawia w precyzji.
+
+## 6. Targetowanie reklam Meta (luka: cecha wyłączona)
+
+Targetowanie (wiek, płeć, kraje) jako składnik wyniku obniżało jakość: AUROC „znany czy nowy twórca” spadało z 0,77 do 0,64, a próg dobierał się do 1,00 (`stream_eval.py`,
+profile „treść” i „treść + płatnik”). Cecha zostaje wyłączona z wyniku. Nie sprawdzaliśmy jej jako przesłanki poza wynikiem (jak twarze), więc jej wartość wyjaśniająca jest niezmierzona.
