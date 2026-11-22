@@ -23,6 +23,13 @@ make demo           # interfejs: http://localhost:8501
 make docker-run     # to samo w kontenerze (model tekstu jest w obrazie, działa offline)
 ```
 
+**Docker, sprawdzone 22.11 na commicie 47211f6:** obraz zbudowany z `code/Dockerfile`, kontener uruchomiony **bez sieci**
+(`--network none`) z `-v data/dane/do_udostępnienia:/data:ro`. Galeria z `/data` ma 10 materiałów, 8 kampanii i 6 operatorów. Ocena
+wsadowa folderu `data/testy_apki/A_przypadki_czesciowe`: **5/5 „Znana kampania” z właściwym materiałem** (47 i 48 z samego HAR, 1 i 3
+z samego zrzutu reklamy, 61 z samej strony produktu). Interfejs startuje, `/_stcore/health` zwraca `ok`. Pierwsza budowa pobiera ok.
+1,5 GB (torch CPU, zależności, model tekstu ok. 470 MB). Jeśli model tekstu i modele twarzy są już lokalnie w `code/models/` (pamięć
+HF w `code/models/hf`), budowa bierze je stamtąd zamiast z sieci.
+
 Galerię znanych materiałów buduje się w pasku bocznym interfejsu z folderu przypadków (HTML, HAR, zrzuty) i z pliku reklam Meta (JSONL).
 Zrzut bez tekstu przechodzi przez OCR (do dobrego wyniku potrzebny jest język polski `tesseract-ocr-pol`; kontener go zawiera).
 CLI bez interfejsu: `python -m embsim.cli add <folder | plik.jsonl | --text "...">`.

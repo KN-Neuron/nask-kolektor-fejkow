@@ -18,11 +18,16 @@ COPY pyproject.toml ./
 RUN --mount=type=cache,target=/root/.cache/pip \
     mkdir -p src/embsim src/fejki && touch src/embsim/__init__.py src/fejki/__init__.py \
     && pip install --default-timeout=300 --retries 10 -e .
-# Model tekstu pobrany na etapie budowy (potem HF_HUB_OFFLINE=1).
-RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')"
+# Modele w obrazie, więc demo działa bez sieci (potem HF_HUB_OFFLINE=1). Gdy w kontekście budowy jest `code/models/` (lokalnie, poza
+# repozytorium: model tekstu w pamięci HF `models/hf`, modele twarzy *.onnx), bierzemy je stamtąd zamiast pobierać (przy słabym łączu
+# model tekstu to ok. 470 MB). W czystym klonie katalogu nie ma i oba modele są pobierane jak zwykle.
+ENV HF_HOME=/app/models/hf
+RUN --mount=type=bind,source=.,target=/ctx \
+    mkdir -p /app/models && { [ ! -d /ctx/models ] || cp -r /ctx/models/. /app/models/; } \
+    && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')"
 COPY src ./src
 COPY config ./config
-# Modele twarzy (YuNet, SFace; OpenCV Zoo, Apache-2.0, ok. 39 MB) pobrane na etapie budowy: wizerunki osób działają bez sieci.
+# Modele twarzy (YuNet, SFace; OpenCV Zoo, Apache-2.0, ok. 39 MB): pobierane tylko, gdy nie przyszły z `code/models/`.
 RUN PYTHONPATH=/app/src python -m embsim.faces --download
 
 ENV PYTHONPATH=/app/src \
