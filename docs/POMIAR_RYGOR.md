@@ -86,3 +86,17 @@ Wśród reklam poniżej progu to samo targetowanie ma 82 z 207, z poprawnym twó
 Wniosek: zgodność targetowania jest użyteczną przesłanką („ten sam profil odbiorców”), ale mierzy **tożsamość reklamodawcy**, nie wspólną kampanię: twórca zwykle powtarza
 ustawienia odbiorców, więc zgodność idzie w parze z tym samym twórcą, czyli z proxy, którym mierzymy. Nie traktujemy jej jako dowodu kampanii. Dodanie jej do karty analityka
 (poza wynikiem, jak twarz) wymaga zmiany w `Gallery.query`/`analyze.py` i nie jest wykonane.
+
+## 7. Samotny zrzut reklamy: czy porównanie z treścią kreacji pomoże (pkt 5 z listy luk)
+
+Hipoteza: zrzut bez tekstu strony i bez śladów (test B, „sam zrzut (OCR)”, 3 błędy: przypadki 1, 48 i 61) trzeba porównywać z treścią kreacji reklam, a nie z treścią stron.
+Sprawdzenie na NASK-10 (OCR polski + angielski, galeria bez przypadku zapytania):
+
+- Tekst z OCR zrzutów to **teksty kreacji, które różnią się między wariantami tej samej kampanii**: przypadek 1 „Wydarzenie, które wstrząsnęło całą Polską”, 48 „KŁAMIECIE MILIONOM
+  POLAKÓW!”, 61 „Dziedzictwo gwiazd dla zwykłych ludzi”. Wspólne są tylko elementy interfejsu („Sponsorowane”, „Dowiedz się więcej”).
+- Dopisanie tekstu z OCR zrzutów do tekstu przypadków w galerii nie zmieniło żadnego wyniku (kampania 0,00 dla 1, 48 i 61 w obu wariantach, w tym wynik kanału tekstowego 0,13 i leksykalnego 0,00).
+
+Wniosek: **porównanie z treścią kreacji nie rozwiąże problemu, bo w kampanii zmienia się właśnie treść kreacji, a infrastruktura (to, co łączy warianty) nie jest widoczna na zrzucie reklamy.**
+Jedyny ślad, który zrzut niesie, to wizerunek: ta sama twarz łączy 1 z 2 (kosinus 1,00) i 48 z 61 (0,52). Twarz jest już pokazywana jako przesłanka w wyjaśnieniu (`Match.extra_shared`, „wizerunek”),
+więc analityk widzi kandydata, mimo że werdykt dla samego zrzutu pozostaje „nowy wzorzec”: za mało dowodów, żeby przypisać kampanię. Włączenie twarzy do wyniku dla samych zrzutów
+dało wynik 0,23–0,38 przy progu 0,62, czyli nie wystarcza. Zostawiamy to jako znane ograniczenie: sam zrzut reklamy bez strony docelowej nie wystarcza do przypisania kampanii.
