@@ -39,7 +39,7 @@ import numpy as np
 
 from .bench import Config, load_frozen
 from .embed import text_vectors
-from .faces import best_match
+from .faces import best_match, identify
 from .imghash import near_pairs
 from .features import Case, load_case, registered
 from .score import Corpus, Score
@@ -52,7 +52,7 @@ _CHANNEL_PL = {"text": "podobieństwo treści", "text_lex": "podobne brzmienie t
                "scheme": "ten sam schemat parametrów adresu", "host": "wspólna domena", "pixel": "ten sam piksel śledzący",
                "image": "podobny wygląd", "img": "te same obrazy na stronie",
                "infra": "ta sama obsługa domen (serwer nazw, IP, rejestracja)"}
-_EXTRA_PL = {"payer": "ten sam płatnik", "page": "ta sama strona reklamodawcy", "text_hash": "identyczny tekst"}
+_EXTRA_PL = {"face": "wizerunek", "person": "znana osoba z bazy wizerunków", "dhash": "bardzo podobny obraz", "payer": "ten sam płatnik", "page": "ta sama strona reklamodawcy", "text_hash": "identyczny tekst"}
 # Konfiguracja domyślna (progi z kalibracji na syntetyce v2 z szumem jak w HAR): kampania = nakładanie śladów, operator = zawieranie,
 # kanał leksykalny, korekta PCA embeddingów, korekta o dostępność dowodu. Starsze: "adj", "lex" (syntetyka v1, gorzej przenoszą się).
 DEFAULT_CONFIG = "v4_rare4"
@@ -339,6 +339,8 @@ class Gallery:
                      if ch not in scored and q.sets[ch] & it["case"].sets.get(ch, set())}
             if "face" not in scored and (fm := best_match(q.meta.get("faces"), it["case"].meta.get("faces"))) is not None:
                 extra["face"] = [f"ta sama osoba na obrazach (podobieństwo twarzy {fm:.2f})"]      # przesłanka, poza wynikiem (zob. faces.py)
+            if (both := sorted(set(identify(q.meta.get("faces"))) & set(identify(it["case"].meta.get("faces"))))):
+                extra["person"] = both   # różne zdjęcia tej samej osoby z bazy (faces.py)
             if "dhash" not in scored and (np_ := near_pairs(q.meta.get("dhash"), it["case"].meta.get("dhash"))):
                 extra["dhash"] = [f"{a} ≈ {b}" for a, b, _ in np_[:2]]      # ten sam obraz po zmianie rozmiaru lub kompresji
             names = {**it["case"].meta.get("img_names", {}), **q.meta.get("img_names", {})}

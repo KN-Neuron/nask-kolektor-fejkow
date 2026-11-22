@@ -64,3 +64,33 @@ def test_face_and_near_duplicate_image_become_reasons_outside_the_score():
     m = g.query(q, 3).matches[0]
     assert "face" in m.extra_shared and "dhash" in m.extra_shared
     assert any("wizerunek" in r for r in top_reasons(m, 3))
+
+
+def _unit(*idx_val):
+    v = np.zeros(128)
+    for i, x in idx_val:
+        v[i] = x
+    return list(v / np.linalg.norm(v))
+
+
+def test_identify_names_only_clear_matches():
+    base = {"Osoba A": np.asarray([_unit((0, 1.0))]), "Osoba B": np.asarray([_unit((1, 1.0))])}
+    assert faces.identify([_unit((0, 0.9), (2, 0.4))], base) == {"Osoba A": pytest.approx(0.914, abs=1e-3)}
+    assert faces.identify([_unit((0, 1.0), (1, 1.0))], base) == {}               # tyle samo do A i do B: nie nazywamy nikogo
+    assert faces.identify([_unit((5, 1.0))], base) == {}                          # nikt z bazy
+    assert faces.identify([], base) == {} and faces.identify(None, base) == {}
+
+
+def test_gallery_links_different_photos_of_same_known_person(monkeypatch):
+    """Dwa różne zdjęcia tej samej osoby (do siebie mniej podobne niż próg twarzy, każde blisko wzorca): przesłanka „znana osoba”."""
+    monkeypatch.setattr(faces, "_known", {"Osoba A": np.asarray([_unit((0, 1.0))]), "Osoba B": np.asarray([_unit((1, 1.0))])})
+    f1, f2 = _unit((0, 0.6), (2, 0.8)), _unit((0, 0.6), (3, 0.8))                 # do wzorca 0,6, do siebie 0,36
+    assert faces.best_match([f1], [f2]) is None                                   # samo porównanie twarzy ich nie łączy
+    g = Gallery(embed_fn=lambda texts: np.ones((len(texts), 4)))
+    a = case_from_text("a", "Inwestuj z nami, zysk gwarantowany")
+    a.meta["faces"] = [f1]
+    g.add(a)
+    b = case_from_text("b", "Zupełnie inny tekst reklamy")
+    b.meta["faces"] = [f2]
+    m = next(m for m in g.query(b).matches if m.id == "a")
+    assert m.extra_shared.get("person") == ["Osoba A"]

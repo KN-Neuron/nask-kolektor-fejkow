@@ -41,6 +41,16 @@ tylko zapisanego pliku `code/config/embsim/infra_cache.json` bez sieci, więc wy
 o nowe domeny, a `python -m embsim.infra /ścieżka/do/przypadków` uzupełnia plik. Na NASK: przypadki 1 i 2 mają domeny
 (`civicdaybook.live`, `acrosscommunities.live`) zarejestrowane w Dynadot w odstępie 2 minut, co niezależnie potwierdza kampanię {1,2}.
 
+**Wizerunki znanych osób:** twarze z materiału porównujemy z małą bazą wzorców `code/config/embsim/znane_osoby.json`. Baza zawiera
+6 osób, których nazwiska występują w materiałach NASK: Brzoska, Morawiecki, Olejnik, Glapiński, Lewandowski i Tusk. W pliku są tylko
+osadzenia twarzy (po 128 liczb) i nazwiska, bez samych zdjęć. Interfejs pokazuje, kto jest na materiale. Dwa materiały z różnymi
+zdjęciami tej samej osoby dostają przesłankę „znana osoba”, a do wyniku podobieństwa ona nie wchodzi. Osobę nazywamy tylko przy
+kosinusie co najmniej 0,45 i z zapasem 0,05 nad drugą osobą. Na NASK rozpoznania zgadzają się z nazwiskami w tekstach stron (1: Brzoska
+i Morawiecki, 3: Olejnik i Glapiński, 48: Morawiecki, 61: Tusk). Wyjątek to przypadek 10: wynik „Olejnik 0,56” bez jej nazwiska w
+tekście, niepotwierdzony. Rozbudowa bazy: folder `osoby/<Imię Nazwisko>/*.jpg` (opcjonalnie `zrodla.json` z licencjami), potem
+`python -m embsim.faces --known osoby`. Z każdego zdjęcia bierzemy twarz zgodną z resztą zdjęć danej osoby, a zdjęcia grupowe bez
+zgodnej twarzy odrzucamy.
+
 **Planista (automatyczny skan):** co N minut bierze nowe materiały, ocenia je względem galerii, dopisuje do niej i zapisuje alerty do
 `code/artifacts/watch/alerty.csv`. Ten sam przebieg można uruchomić w interfejsie (zakładka analizy, sekcja „Planista”).
 
@@ -90,3 +100,28 @@ polskiego jest słaby; (6) przy dodawaniu po jednym legalne strony z pospolitymi
 Modele: `paraphrase-multilingual-MiniLM-L12-v2` (Apache-2.0), opcjonalnie `Qwen3-VL-Embedding-2B` (Apache-2.0). Neo4j Community (GPLv3,
 osobny serwer). Dane Meta Ad Library: oficjalne API, warunki Mety. BuzzFeed-Webis (CC BY 4.0) użyto do eksperymentu pomocniczego.
 Pochodzenie każdego zbioru: [docs/WYNIKI.md](docs/WYNIKI.md).
+
+Modele twarzy: YuNet i SFace z OpenCV Zoo (Apache-2.0). Baza wizerunków znanych osób (`code/config/embsim/znane_osoby.json`) to
+osadzenia twarzy policzone ze zdjęć z Wikimedia Commons. Samych zdjęć nie rozpowszechniamy. Źródła i licencje (adresy także w pliku
+bazy, pole `źródła`):
+
+| osoba | plik w Wikimedia Commons | licencja |
+|---|---|---|
+| Adam Glapiński | [Adam Glapiński.jpg](https://commons.wikimedia.org/wiki/File:Adam_Glapi%C5%84ski.jpg) | CC BY-SA 3.0 |
+| Adam Glapiński | [Adam Glapiński.JPG](https://commons.wikimedia.org/wiki/File:Adam_Glapi%C5%84ski.JPG) | CC BY-SA 2.0 |
+| Adam Glapiński | [Prof. Adam Glapinski, Nov 2015.jpg](https://commons.wikimedia.org/wiki/File:Prof._Adam_Glapinski,_Nov_2015.jpg) | CC BY-SA 2.0 |
+| Donald Tusk | [Prime Minister Donald Tusk of Poland in the Oval Office in 2024 (cropped).jpg](https://commons.wikimedia.org/wiki/File:Prime_Minister_Donald_Tusk_of_Poland_in_the_Oval_Office_in_2024_(cropped).jpg) | Public domain |
+| Donald Tusk | [Premier Donald Tusk KPRM.jpg](https://commons.wikimedia.org/wiki/File:Premier_Donald_Tusk_KPRM.jpg) | CC BY 3.0 pl |
+| Mateusz Morawiecki | [Mateusz Morawiecki 2023.jpg](https://commons.wikimedia.org/wiki/File:Mateusz_Morawiecki_2023.jpg) | Public domain |
+| Mateusz Morawiecki | [20230919 Mateusz Morawiecki election banner Medyków Ligota Katowice.jpg](https://commons.wikimedia.org/wiki/File:20230919_Mateusz_Morawiecki_election_banner_Medyk%C3%B3w_Ligota_Katowice.jpg) | CC BY-SA 4.0 |
+| Mateusz Morawiecki | [20230919 Mateusz Morawiecki election banner Stawowa Street Katowice.jpg](https://commons.wikimedia.org/wiki/File:20230919_Mateusz_Morawiecki_election_banner_Stawowa_Street_Katowice.jpg) | CC BY-SA 4.0 |
+| Monika Olejnik | [Monika Olejnik u prezydentowej.jpg](https://commons.wikimedia.org/wiki/File:Monika_Olejnik_u_prezydentowej.jpg) | GFDL 1.2 |
+| Monika Olejnik | [Energa Camerimage Festiwal 2025 Toruń.jpg](https://commons.wikimedia.org/wiki/File:Energa_Camerimage_Festiwal_2025_Toru%C5%84.jpg) | CC BY-SA 4.0 |
+| Monika Olejnik | [Monika Olejnik.JPG](https://commons.wikimedia.org/wiki/File:Monika_Olejnik.JPG) | CC BY-SA 2.0 |
+| Monika Olejnik | [Monika.Olejnik.JPG](https://commons.wikimedia.org/wiki/File:Monika.Olejnik.JPG) | CC BY 3.0 |
+| Rafał Brzoska | [Rafał Brzoska.png](https://commons.wikimedia.org/wiki/File:Rafa%C5%82_Brzoska.png) | CC0 |
+| Rafał Brzoska | [Omenaa Mensah i Rafał Brzoska podczas gali Global Woman of Impact Award 2026.jpg](https://commons.wikimedia.org/wiki/File:Omenaa_Mensah_i_Rafa%C5%82_Brzoska_podczas_gali_Global_Woman_of_Impact_Award_2026.jpg) | CC BY 4.0 |
+| Robert Lewandowski | [Robert Lewandowski (2025).jpg](https://commons.wikimedia.org/wiki/File:Robert_Lewandowski_(2025).jpg) | CC BY 4.0 |
+| Robert Lewandowski | [Robert Lewandowski (2025).png](https://commons.wikimedia.org/wiki/File:Robert_Lewandowski_(2025).png) | CC BY 4.0 |
+| Robert Lewandowski | [Robertlewandowskiatchicagofire.jpg](https://commons.wikimedia.org/wiki/File:Robertlewandowskiatchicagofire.jpg) | CC0 |
+

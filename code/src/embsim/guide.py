@@ -77,7 +77,8 @@ tylko dwa progi decyzyjne. Nowe dane nie wymagają uczenia, ale wymagają **spra
   na zbiorze dev); gotowego polecenia dla cudzych danych nie ma;
 - sprawdziliśmy to na **trzech rodzajach danych**: syntetycznych światach z prawdą (80 światów, podział po światach), reklamach Meta
   (4,5 tys. reklam, test po czasie) i dziesięciu przypadkach NASK; liczby i ograniczenia: `docs/WYNIKI.md`;
-- **wizerunki i obrazy**: porównujemy twarze między materiałami (czy ta sama osoba jest na obrazach obu; nie ustalamy, kim jest) oraz bliskie
+- **wizerunki i obrazy**: porównujemy twarze między materiałami (czy ta sama osoba jest na obrazach obu) i z małą bazą
+  wizerunków znanych osób (zdjęcia z Wikimedia Commons, wolne licencje), więc różne zdjęcia np. tego samego prezesa też się łączą, oraz bliskie
   duplikaty obrazów, np. to samo logo po zmianie rozmiaru. To przesłanki obok wyniku, bo nie poprawiły go w teście; nie wykrywamy logotypów
   wewnątrz zrzutu strony;
 - **czego nie umie**: prawdziwych etykiet kampanii dla Mety nie ma, więc tam mierzymy tylko zgodność z twórcą i z oznaczeniem zdjęcia reklamy

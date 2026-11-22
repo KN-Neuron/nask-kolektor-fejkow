@@ -234,6 +234,13 @@ with tab_a:
                         "infra": "ślady infrastruktury"}[ch], len(case.sets.get(ch, ())))
         if info.get("ocr_język"):
             st.caption(f"OCR: język {info['ocr_język']}, odczytano {info['ocr_znaków']} znaków.")
+        if case.meta.get("faces"):
+            from embsim.faces import identify, known
+
+            who = identify(case.meta["faces"])
+            st.caption(f"Twarze na obrazach: {len(case.meta['faces'])}. "
+                       + ("Znane osoby z bazy wizerunków: " + ", ".join(f"{n} ({v:.2f})" for n, v in who.items()) + "."
+                          if who else "Nikogo z bazy wizerunków." if known() else "Baza wizerunków znanych osób nie jest wczytana."))
         with st.expander("Tekst i ślady"):
             st.write(case.text[:1200] or "(brak tekstu)")
             st.json({k: sorted(v)[:8] for k, v in case.sets.items()})

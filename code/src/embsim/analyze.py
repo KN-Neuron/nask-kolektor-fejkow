@@ -22,7 +22,7 @@ IMG_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 _CHANNEL_PL = {"text": "podobna treść", "text_lex": "podobne brzmienie tekstu", "kit": "ten sam zestaw zasobów strony",
                "scheme": "ten sam schemat parametrów adresu", "host": "wspólna domena", "pixel": "ten sam piksel śledzący",
                "image": "podobny wygląd", "infra": "ta sama obsługa domen (serwer nazw, IP, rejestracja)", "img": "te same obrazy na stronie", "face": "ta sama osoba na obrazach"}
-_EXTRA_PL = {"face": "wizerunek", "dhash": "bardzo podobny obraz (po zmianie rozmiaru, np. logo)", "payer": "ten sam płatnik", "page": "ta sama strona reklamodawcy", "text_hash": "identyczny tekst"}
+_EXTRA_PL = {"face": "wizerunek", "person": "znana osoba", "dhash": "bardzo podobny obraz (po zmianie rozmiaru, np. logo)", "payer": "ten sam płatnik", "page": "ta sama strona reklamodawcy", "text_hash": "identyczny tekst"}
 
 
 # --------------------------------------------------------------------------------------------------------------------
@@ -162,7 +162,7 @@ def top_reasons(m: Match, k: int = 3) -> list[str]:
                                                      if c in m.shared else "")
            for c, v in sorted(m.channels.items(), key=lambda kv: -kv[1]) if v > 0]
     extra = [f"{_EXTRA_PL.get(c, c)}: {', '.join(v[:2])}" for c, v in m.extra_shared.items()]
-    face = [e for e in extra if e.startswith(_EXTRA_PL["face"])]
+    face = [e for e in extra if e.startswith((_EXTRA_PL["face"], _EXTRA_PL["person"]))]
     return (out + extra)[:k] if not face or face[0] in (out + extra)[:k] else (out + extra)[: k - 1] + face[:1]   # wizerunek zawsze widoczny
 
 
