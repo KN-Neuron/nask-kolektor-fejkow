@@ -11,6 +11,9 @@ from __future__ import annotations
 import numpy as np
 
 from . import jury
+from .api import demo_thresholds
+
+T_CFG = demo_thresholds().get("campaign", 0.95)   # próg z konfiguracji (jak w interfejsie)
 
 
 def collect() -> list[tuple[str, float, bool]]:
@@ -41,7 +44,7 @@ def run(items, label):
     neg_max = sc[~y].max(); pos_min_all = sc[y].min()
     print(f"{label}: n={len(items)} (pozytywnych {y.sum()}), najlepsza zrównoważona trafność {best:.3f} na progach {plateau.min():.2f}–{plateau.max():.2f}; "
           f"leave-one-out: trafność {loo_hits/len(items):.3f}, progi wybrane {min(chosen):.2f}–{max(chosen):.2f}; najsilniejszy negatyw {neg_max:.2f}; "
-          f"trafność przy 0,62: {np.mean((sc>=0.62)==y):.3f}")
+          f"trafność przy {T_CFG}: {np.mean((sc>=T_CFG)==y):.3f}")
 
 def main() -> None:
     items = collect()

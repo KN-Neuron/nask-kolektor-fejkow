@@ -72,7 +72,7 @@ DATA_TEXT = """
 **Czy to zadziała na innych danych?** Metoda **nie jest wytrenowana na żadnym zbiorze**: wagi kanałów są równe, a na etykietach dobieramy
 tylko dwa progi decyzyjne. Nowe dane nie wymagają uczenia, ale wymagają **sprawdzenia progów**:
 
-- progi z jednego źródła nie przenoszą się 1:1: dla stron (HTML, HAR, zrzuty) 0,62, dla reklam Meta optimum wyszło ok. 0,5. Suwak w
+- progi z jednego źródła nie przenoszą się 1:1: dla stron (HTML, HAR, zrzuty) 0,70, dla reklam Meta optimum wyszło ok. 0,5. Suwak w
   pasku bocznym zmienia próg od razu. Próg można też dobrać na własnych materiałach z etykietami, tak jak w `embsim/bench.py` (kalibracja
   na zbiorze dev); gotowego polecenia dla cudzych danych nie ma;
 - sprawdziliśmy to na **trzech rodzajach danych**: syntetycznych światach z prawdą (80 światów, podział po światach), reklamach Meta

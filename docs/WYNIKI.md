@@ -118,9 +118,14 @@ ukryty zbiór (nowe warianty, nowa kampania znanego operatora, 6 negatywów). Ra
 | przed (próg 0,95, ślady jak w kalibracji) | 7/10 | 3/13 | 6/20 |
 | + obrazy i bez pospolitych usług, próg 0,95 | 8/10, 0 błędów | 6/13 | 9/20 |
 | + próg 0,725 (kalibracja niżej) | 10/10 | 8/13 | 13/20 |
-| + próg 0,62 i drugi przebieg grupowania (obecnie) | **10/10** | **10/13** | **20/20** |
+| + próg 0,62 i drugi przebieg grupowania | 10/10 | 10/13 | 20/20 |
+| + próg 0,70 (obecnie, dobór po podmiotach, `docs/POMIAR_RYGOR.md` §3a) | **10/10** | **8/13** (+2 dobra grupa, poziom operatora) | **19/20** |
 
-- **Próg 0,62** (obecny, `config/embsim/demo_calibration.json`). Przegląd na tym samym teście: 0,60 i 0,62 dają warianty 15/15 i C 20/20,
+- **Próg 0,70** (obecny, `config/embsim/demo_calibration.json`). Na tym teście 0,62 wypada lepiej, ale ten test to jeden układ galerii, a próg
+  dobrany tylko na nim zostawia na pełnej galerii 5 fałszywych połączeń zamiast 2 i jest najgorszy na losowych galeriach mieszanych. 0,70 ma
+  najmniejszą maksymalną stratę po trzech układach (szczegóły i dobór po podmiotach: `docs/POMIAR_RYGOR.md` §3a). Koszt na tym teście: przypadki 48
+  i 61 jako sam HTML (0,64 i 0,65) dostają „sieć” z właściwą grupą zamiast „kampanii”, wariant s012 (0,674) schodzi do operatora.
+- **Próg 0,62** (poprzedni). Przegląd na tym samym teście: 0,60 i 0,62 dają warianty 15/15 i C 20/20,
   0,65 daje B 9/13, 0,69 daje C 19/20; 0,725 dawało czułość „znanej kampanii” 8/15, bo 7 wariantów miało wynik 0,70–0,72 (dobra grupa,
   zły poziom). Najmocniejszy negatyw ma 0,56, więc zapas jest mały, a próg dobrany na zbiorach, na których go mierzymy.
 - **Drugi przebieg grupowania** (`Gallery.regroup`, wywoływany po wczytaniu folderów i po każdym przebiegu planisty): każdy materiał
@@ -162,8 +167,9 @@ ukryty zbiór (nowe warianty, nowa kampania znanego operatora, 6 negatywów). Ra
   na naszych zbiorach dev, nie na zbiorze ukrytym. Kanał `img` jest dokładany w `Gallery` (wagi jak inne ślady, rotujący); `e_ref`
   przeskalowane tak, że materiały bez obrazów dostają dokładnie ten sam wynik co przed zmianą.
 - **Wg kryteriów walidacji z opisu wyzwania** (test na zbiorze ukrytym, 15 nowych wariantów i przypadków kampanii, 11 negatywów, 13 wejść niepełnych):
-  obecnie (0,62 + drugi przebieg): precyzja decyzji „znana kampania” 15/15, czułość 15/15, obce materiały zostawione osobno 11/11, nowa
-  kampania znanego operatora rozpoznana 4/4, wejścia niepełne trafione dokładnie 10/13. Przy 0,725 było: precyzja 8/8, czułość 8/15,
+  obecnie (0,70 + drugi przebieg): precyzja decyzji „znana kampania” 14/14, czułość 14/15, obce materiały zostawione osobno 11/11, nowa
+  kampania znanego operatora rozpoznana 4/4, wejścia niepełne trafione dokładnie 8/13 (dobra grupa 11/13). Przy 0,62 było: precyzja 15/15,
+  czułość 15/15, wejścia niepełne 10/13. Przy 0,725 było: precyzja 8/8, czułość 8/15,
   wejścia niepełne 8/13. Wyniki zapisane w `code/config/embsim/wyniki_jury.json`.
 - **Słabe nadal**: zrzut samej reklamy nie trafia w stronę docelową innego materiału (B, 3 błędy). OCR działa (tesseract z językiem
   polskim), ale kreacja ma kilkanaście ogólnych słów („Wydarzenie, które wstrząsnęło całą Polską”) bez wspólnego tekstu z artykułem;
