@@ -5,12 +5,12 @@ description = "Kolekcjoner Fejkow: campaign discovery for scam ads (HackNation x
 requires-python = ">=3.11"
 # Zależności demonstratora (wystarczą do `fejki demo ...`).
 dependencies = [
-  "pydantic>=2", "typer", "httpx", "tldextract", "rapidfuzz", "numpy", "scipy", "scikit-learn>=1.3", "joblib", "networkx", "pandas",
+  "pydantic>=2", "neo4j>=5", "typer", "httpx", "tldextract", "rapidfuzz", "numpy", "scipy", "scikit-learn>=1.3", "faiss-cpu", "joblib", "networkx", "pandas",
   "pyyaml", "torch", "sentence-transformers>=5.2", "transformers>=4.57", "python-dotenv", "dnspython", "streamlit>=1.50", "plotly", "pyvis", "beautifulsoup4", "requests", "lxml", "pillow", "pytesseract", "opencv-python-headless>=4.9",
 ]
 [project.optional-dependencies]
 # Część badawcza (embeddingi, LEACE, Leiden, eksperymenty na syntetyce).
-research = ["faiss-cpu", "qwen-vl-utils>=0.0.14", "datasketch", "python-igraph", "leidenalg", "duckdb", "matplotlib", "sentence-transformers", "concept-erasure"]
+research = ["qwen-vl-utils>=0.0.14", "datasketch", "python-igraph", "leidenalg", "duckdb", "matplotlib", "sentence-transformers", "concept-erasure"]
 # Baza grafowa Neo4j (graph/load.py), zob. docs/13_BAZA_GRAFOWA.md.
 graph = ["neo4j>=5"]
 dev = ["pytest", "ruff"]

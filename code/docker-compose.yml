@@ -1,14 +1,22 @@
-# Baza grafowa Neo4j dla Kolekcjonera Fejków. Hasło w code/.env (NEO4J_PASSWORD), wzór w .env.example.
-# Start: docker compose up -d   |   przeglądarka bazy: http://localhost:7474   |   Bolt (z Pythona): bolt://localhost:7687
+# Kolekcjoner Fejków: aplikacja + baza grafowa Neo4j jednym poleceniem (z katalogu code/):
+#   docker compose up --build        -> aplikacja http://localhost:8501 (zakładka grafu działa), przeglądarka bazy http://localhost:7474
+# Przypadki: DATA=/ścieżka/do/przypadków docker compose up --build   (domyślnie ../data/dane/do_udostępnienia)
+# Kolejność: neo4j (zdrowy) -> graf-zasilenie (indeks przypadków, schemat, NASK, syntetyka; ok. 1 min, raz) -> aplikacja.
+# Hasło bazy: NEO4J_PASSWORD z code/.env albo domyślne `fejki-demo` (baza tylko lokalna). Porty 7474/7687 i 8501, zmiana: NEO4J_HTTP_PORT, NEO4J_BOLT_PORT, APP_PORT (testy grafu używają 17687).
+x-graf-env: &graf-env
+  NEO4J_URI: bolt://neo4j:7687
+  NEO4J_USER: neo4j
+  NEO4J_PASSWORD: ${NEO4J_PASSWORD:-fejki-demo}
+
 services:
   neo4j:
     image: neo4j:5.26-community
     container_name: fejki-neo4j
     ports:
-      - "7474:7474"
-      - "7687:7687"
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
     environment:
-      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:?ustaw NEO4J_PASSWORD w code/.env}
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-fejki-demo}
       NEO4J_server_memory_heap_max__size: 1G
       NEO4J_server_memory_pagecache_size: 512M
     volumes:
@@ -18,3 +26,27 @@ services:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:7474 || exit 1"]
       interval: 5s
       retries: 30
+
+  graf-zasilenie:                      # jednorazowe: kończy się po załadowaniu grafu
+    build: .
+    image: kolekcjoner-fejkow
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      <<: *graf-env
+      FEJKI_SYNTH_DIR: /tmp/synth
+    volumes:
+      - ${DATA:-../data/dane/do_udostępnienia}:/data:ro
+    command: ["sh", "-c", "fejki demo build /data --no-ocr && python graph/load.py schema && python graph/load.py nask && python graph/load.py synth"]
+
+  app:
+    image: kolekcjoner-fejkow
+    depends_on:
+      graf-zasilenie:
+        condition: service_completed_successfully
+    environment: *graf-env
+    ports:
+      - "${APP_PORT:-8501}:8501"
+    volumes:
+      - ${DATA:-../data/dane/do_udostępnienia}:/data:ro

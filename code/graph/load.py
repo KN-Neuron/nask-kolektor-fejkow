@@ -348,7 +348,7 @@ MATCH (m:Material {id: mid})-[:IN_CAMPAIGN]->(c:Campaign) MERGE (c)-[:IN_NETWORK
 """
 
 
-SYNTH_DIR = ROOT.parent / "data" / "synth"
+SYNTH_DIR = Path(os.environ.get("FEJKI_SYNTH_DIR", ROOT.parent / "data" / "synth"))   # w kontenerze /data jest tylko do odczytu
 SYNTH_INDEX = ROOT / "artifacts" / "demo" / "index_synth.json"
 
 

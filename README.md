@@ -21,7 +21,14 @@ make install        # venv + zależności (ok. 2 min, ok. 1,3 GB z torchem)
 make test           # testy (bez danych)
 make demo           # interfejs: http://localhost:8501
 make docker-run     # to samo w kontenerze (model tekstu jest w obrazie, działa offline)
+cd code && docker compose up --build    # aplikacja + Neo4j: zakładka grafu działa bez ręcznych kroków
 ```
+
+**Aplikacja z grafem jednym poleceniem:** `docker compose up --build` (z `code/`) stawia Neo4j, potem jednorazowo zasila graf
+(indeks przypadków z `DATA`, domyślnie `../data/dane/do_udostępnienia`, schemat, NASK, syntetyka; ok. 1 min), na koniec aplikację na
+http://localhost:8501 (przeglądarka bazy http://localhost:7474). Hasło bazy: `NEO4J_PASSWORD` z `code/.env` albo domyślne `fejki-demo`.
+Porty zmienia się przez `APP_PORT`, `NEO4J_HTTP_PORT` i `NEO4J_BOLT_PORT`. Sprawdzone 22.11: graf ma 52 materiały (10 NASK + 42
+syntetyki) i 27 kampanii, a aplikacja łączy się z bazą.
 
 **Docker, sprawdzone 22.11 na commicie 47211f6:** obraz zbudowany z `code/Dockerfile`, kontener uruchomiony **bez sieci**
 (`--network none`) z `-v data/dane/do_udostępnienia:/data:ro`. Galeria z `/data` ma 10 materiałów, 8 kampanii i 6 operatorów. Ocena
@@ -75,7 +82,7 @@ Plik `code/.env` (wzór: `code/.env.example`) jest potrzebny tylko do dodatków:
 | zmienna | do czego | bez niej |
 |---|---|---|
 | `META_ACCESS_TOKEN` | wyszukiwanie w Meta Ad Library (planista, scraper) | reklamy Meta wczytuje się z pliku JSONL |
-| `NEO4J_PASSWORD`, `NEO4J_URI` | zakładka grafu w Neo4j (`docker compose up -d`) | zakładka pokazuje ostrzeżenie, reszta działa |
+| `NEO4J_PASSWORD`, `NEO4J_URI` | zakładka grafu w Neo4j (`docker compose up --build`) | w compose domyślne hasło `fejki-demo`; bez bazy zakładka pokazuje ostrzeżenie, reszta działa |
 | `URLSCAN_API_KEY`, `LLM_*`, `YOUTUBE_API_KEY` | tylko poprzedni silnik i eksperymenty | nieużywane w demonstratorze |
 
 ## Wyniki (uczciwie)

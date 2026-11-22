@@ -27,6 +27,7 @@ RUN --mount=type=bind,source=.,target=/ctx \
     && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')"
 COPY src ./src
 COPY config ./config
+COPY graph ./graph
 # Modele twarzy (YuNet, SFace; OpenCV Zoo, Apache-2.0, ok. 39 MB): pobierane tylko, gdy nie przyszły z `code/models/`.
 RUN PYTHONPATH=/app/src python -m embsim.faces --download
 
