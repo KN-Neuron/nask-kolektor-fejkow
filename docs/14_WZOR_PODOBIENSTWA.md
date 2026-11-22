@@ -72,7 +72,7 @@ Decyzja: `S_op ≥ t_operatora` ⇒ ten sam operator.
 | wagi `w_c` | 1 | z góry, nie uczone |
 | `μ`, `μ_L`, `m`, `p`, `idf`, `N` | z korpusu | statystyki tekstów i śladów, **bez etykiet** |
 | `e_ref` | 0,67 | mediana dostępności dowodu na zbiorach dev (bez etykiet w definicji) |
-| `t_kampanii`, `t_operatora` | 0,95 i 0,25 (w demonstratorze dla stron: 0,725 i 0,25) | **jedyne liczby dobierane z etykietami**; 0,95 z syntetyki v2, 0,725 zostaw-jeden na NASK-10 i syntetyce v1 (`config/embsim/demo_calibration.json`) |
+| `t_kampanii`, `t_operatora` | 0,95 i 0,25 (w demonstratorze dla stron: 0,62 i 0,25) | **jedyne liczby dobierane z etykietami**; 0,95 z syntetyki v2, 0,62 zostaw-jeden na NASK-10 i syntetyce v1 (`config/embsim/demo_calibration.json`) |
 
 Decyzja trójstanowa dla nowego materiału: `S ≥ t_kampanii` → znana kampania; w przeciwnym razie `S_op ≥ t_operatora` → znany operator,
 nowa kampania; w przeciwnym razie nowy wzorzec.

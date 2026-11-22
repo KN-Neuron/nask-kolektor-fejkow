@@ -52,7 +52,7 @@ with st.sidebar:
     c1.metric("materiały", s["materiałów"]); c2.metric("kampanie", s["kampanii"]); c3.metric("operatorzy", s["operatorów"])
     st.caption(f"Konfiguracja: `{DEFAULT_CONFIG}`.")
     t_camp = st.slider("Próg: znana kampania", 0.30, 0.99, float(g.cfg.thresholds.get("campaign") or 0.95), 0.005, format="%.3f",
-                       help="Domyślny próg 0,725 jest skalibrowany na stronach (HTML, HAR, zrzuty) z NASK i syntetyki, zostaw-jeden "
+                       help="Domyślny próg 0,62 jest skalibrowany na stronach (HTML, HAR, zrzuty) z NASK i syntetyki, zostaw-jeden "
                             "(config/embsim/demo_calibration.json). Na reklamach Meta optimum wyszło ok. 0,5. Niższy próg łączy "
                             "chętniej (więcej trafień, więcej błędnych połączeń).")
     g.cfg.thresholds["campaign"] = t_camp
@@ -167,7 +167,7 @@ with tab_a:
                     st.session_state.batch = rows
         if st.session_state.get("batch"):
             bdf = pd.DataFrame(st.session_state.batch)
-            st.dataframe(bdf, use_container_width=True, hide_index=True)
+            st.dataframe(bdf, width="stretch", hide_index=True)
             st.caption(" · ".join(f"{k}: {v}" for k, v in bdf["werdykt"].value_counts().items()))
             st.download_button("Pobierz wyniki (CSV)", bdf.to_csv(index=False).encode("utf-8"), "wyniki.csv", key="batch_csv")
 
@@ -222,7 +222,7 @@ with tab_a:
                 st.markdown(f"- {r}")
             st.dataframe(pd.DataFrame([{"materiał": m.id, "kampania": m.group, "operator": m.operator, "wynik kampanii": m.campaign_score,
                                         "wynik operatora": m.operator_score, "powody": "; ".join(A.top_reasons(m))} for m in d.matches]),
-                         use_container_width=True, hide_index=True)
+                         width="stretch", hide_index=True)
             for m in d.matches[:3]:
                 with st.expander(f"Szczegóły: {m.id}"):
                     if m.channels:
@@ -234,7 +234,7 @@ with tab_a:
         if d.matches:
             st.caption("Czerwona strzałka: znana kampania · pomarańczowa: ten sam operator · szara przerywana: za słabe, żeby łączyć. "
                        "Na strzałce wynik i najmocniejszy powód.")
-            st.graphviz_chart(A.network_dot(case, d), use_container_width=False)
+            st.graphviz_chart(A.network_dot(case, d), width="content")
         c1, c2 = st.columns(2)
         c1.download_button("Pobierz kartę dla analityka (Markdown)", A.card_markdown(case, d), file_name=f"karta_{case.id}.md")
         if c2.button("Dodaj materiał do galerii"):
@@ -260,7 +260,7 @@ with tab_k:
             size = lambda o: sum(len(v) for v in idx[o].values())
             ops = sorted(idx, key=lambda o: -size(o))
             st.dataframe(pd.DataFrame([{"operator": o, "kampanie": len(idx[o]), "materiały": size(o)} for o in ops]),
-                         use_container_width=True, hide_index=True, height=200)
+                         width="stretch", hide_index=True, height=200)
             op = st.selectbox("Karta operatora", ops, format_func=lambda o: f"{o} · {len(idx[o])} kampanii · {size(o)} materiałów")
             camps = idx[op]
             all_idx = [i for v in camps.values() for i in v]
@@ -270,17 +270,17 @@ with tab_k:
                 st.markdown(f"- {line}")
             st.caption("Czerwona ramka: ślady jednej kampanii (w środku jej ramki) · niebieska: ślady łączące kampanie w operatora. "
                        "Jedna ramka = jeden zbiór materiałów i wszystko, co go skleja.")
-            st.graphviz_chart(A.cluster_dot(g, camps, f"operator {op}", traces), use_container_width=False)
+            st.graphviz_chart(A.cluster_dot(g, camps, f"operator {op}", traces), width="content")
             st.markdown("**Co skleja ten klaster**")
             if traces:
                 st.dataframe(pd.DataFrame([{**t, "materiały": ", ".join(t["materiały"][:8]) + (f" (+{len(t['materiały']) - 8})" if len(t["materiały"]) > 8 else "")}
-                                           for t in traces[:30]]), use_container_width=True, hide_index=True)
+                                           for t in traces[:30]]), width="stretch", hide_index=True)
             else:
                 st.write("Brak wspólnych śladów poza pospolitymi; grupowanie wynika z podobieństwa treści.")
             mats = [{"materiał": g.items[i]["case"].id, "kampania": g.items[i]["group"], "operator": g.items[i]["operator"],
                      "tekst": (g.items[i]["case"].text.strip().splitlines() or [""])[0][:80]} for i in all_idx]
             with st.expander(f"Materiały ({len(mats)})"):
-                st.dataframe(pd.DataFrame(mats), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(mats), width="stretch", hide_index=True)
             st.download_button("Pobierz kartę klastra (Markdown)", A.cluster_markdown(f"operator {op}", mats, traces), file_name=f"klaster_{op}.md")
 
 
@@ -309,7 +309,7 @@ with tab_w:
         "s_ślad  = 1 − exp(− Σ idf(x)),  idf(x) = ln((N+1) / (df(x)+0,5))   x = wspólny ślad: rzadki waży dużo, pospolity prawie nic\n"
         "decyzja: S ≥ t_kampanii → znana kampania;  inaczej S_operatora ≥ t_operatora → ten sam operator;  inaczej → nowy wzorzec",
         language="text")
-    st.dataframe(pd.DataFrame(CHANNELS, columns=["kanał", "co porównuje", "jak"]), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(CHANNELS, columns=["kanał", "co porównuje", "jak"]), width="stretch", hide_index=True)
     st.caption("Poza wynikiem, jako przesłanki: ta sama osoba na obrazach (detektor YuNet i SFace, bez nazw osób), bardzo podobny obraz po zmianie "
                "rozmiaru (odcisk dHash), identyczny tekst, ten sam płatnik i strona reklamodawcy (Meta).")
     thr = g.cfg.thresholds
@@ -324,7 +324,7 @@ with tab_w:
         if mw.channels:
             vals = list(mw.channels.values())
             st.dataframe(pd.DataFrame([{"kanał": k, "wynik kanału s_c": v} for k, v in mw.channels.items()]),
-                         use_container_width=True, hide_index=True)
+                         width="stretch", hide_index=True)
             st.write(f"S̄ = średnia z {len(vals)} kanałów = **{sum(vals) / len(vals):.3f}**; po korekcie o dostępność dowodu "
                      f"**S = {mw.campaign_score:.3f}** (próg {thr.get('campaign')}); wynik operatora **{mw.operator_score:.3f}** "
                      f"(próg {thr.get('operator')}). Pominięte kanały nie miały wspólnego śladu albo danych w obu materiałach.")
@@ -356,8 +356,8 @@ with tab_w:
     else:
         st.caption(f"Wyniki z {stored['data']}, próg kampanii {stored['próg']}. A: {stored['wyniki']['A']}; B: {stored['wyniki']['B']}; "
                    f"C: {stored['wyniki']['C']}.")
-        st.dataframe(pd.DataFrame(stored["podsumowanie"]), use_container_width=True, hide_index=True)
+        st.dataframe(pd.DataFrame(stored["podsumowanie"]), width="stretch", hide_index=True)
         for k, title in (("A", "A. NASK, ukryty przypadek"), ("B", "B. Format, braki, duplikat"), ("C", "C. Syntetyka jako ukryty zbiór")):
             if stored.get(k):
                 with st.expander(f"{title}: {stored['wyniki'][k]}"):
-                    st.dataframe(pd.DataFrame(stored[k]), use_container_width=True, hide_index=True)
+                    st.dataframe(pd.DataFrame(stored[k]), width="stretch", hide_index=True)

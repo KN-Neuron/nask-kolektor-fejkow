@@ -1,5 +1,5 @@
 {
- "thresholds": {"campaign": 0.725},
+ "thresholds": {"campaign": 0.62},
  "skąd": "Próg kampanii dla materiałów stron (HTML, HAR, zrzuty) w demonstratorze. Zostaw-jeden na zbiorach dev, które mamy z prawdą: 10 przypadków NASK (nasz odczyt: kampanie {1,2} i {48,61}) i syntetyka v1 (data/synth, 42 materiały). Kryterium: zrównoważona trafność (przypięcie do właściwej kampanii i niełączenie obcych ważą po równo, wg kryteriów z opisu wyzwania, pkt 9). Wynik: 0,875 pozytywów przypiętych dobrze, 0,833 materiałów bez pary zostaje osobno; przy 0,95 z kalibracji na syntetyce v2 przypiętych było 2/40. Na NASK każdy próg z przedziału (0,53; 0,82) daje 10/10. Ukrytego zbioru jury ta kalibracja nie widziała. Reklamy Meta mają inną skalę (optimum ok. 0,5, docs/WYNIKI.md §3), więc próg jest suwakiem w interfejsie.",
  "skrypt": "code/scripts/test_jak_jury_embsim.py (raport: code/artifacts/jury/raport_embsim.md)",
  "data": "2026-11-21"

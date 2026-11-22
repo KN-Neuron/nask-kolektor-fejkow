@@ -71,7 +71,7 @@ DATA_TEXT = """
 **Czy to zadziała na innych danych?** Metoda **nie jest wytrenowana na żadnym zbiorze**: wagi kanałów są równe, a na etykietach dobieramy
 tylko dwa progi decyzyjne. Nowe dane nie wymagają uczenia, ale wymagają **sprawdzenia progów**:
 
-- progi z jednego źródła nie przenoszą się 1:1: dla stron (HTML, HAR, zrzuty) 0,725, dla reklam Meta optimum wyszło ok. 0,5. Suwak w
+- progi z jednego źródła nie przenoszą się 1:1: dla stron (HTML, HAR, zrzuty) 0,62, dla reklam Meta optimum wyszło ok. 0,5. Suwak w
   pasku bocznym zmienia próg od razu. Próg można też dobrać na własnych materiałach z etykietami, tak jak w `embsim/bench.py` (kalibracja
   na zbiorze dev); gotowego polecenia dla cudzych danych nie ma;
 - sprawdziliśmy to na **trzech rodzajach danych**: syntetycznych światach z prawdą (80 światów, podział po światach), reklamach Meta
@@ -94,12 +94,12 @@ def render_graph_explainer() -> None:
         st.markdown(GRAPH_TEXT)
     with c2:
         st.caption("Schemat: ramka to kampania, kartki to ślady. Wspólny ślad łączy materiały, pospolity (przerywany) nie łączy.")
-        st.graphviz_chart(GRAPH_DOT, use_container_width=True)
+        st.graphviz_chart(GRAPH_DOT, width="stretch")
 
 
 def render_data() -> None:
     st.markdown(DATA_TEXT)
-    st.dataframe(pd.DataFrame(DATA_ROWS, columns=["wejście", "format", "przykład"]), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(DATA_ROWS, columns=["wejście", "format", "przykład"]), width="stretch", hide_index=True)
 
 
 RESULTS_ROWS = [
@@ -124,5 +124,5 @@ pochodzą z kodu w repozytorium (`embsim/cv.py`, `stream_eval.py`, `meta_increme
 
 
 def render_results() -> None:
-    st.dataframe(pd.DataFrame(RESULTS_ROWS, columns=["zbiór", "co mierzymy", "wynik"]), use_container_width=True, hide_index=True)
+    st.dataframe(pd.DataFrame(RESULTS_ROWS, columns=["zbiór", "co mierzymy", "wynik"]), width="stretch", hide_index=True)
     st.markdown(RESULTS_TEXT)

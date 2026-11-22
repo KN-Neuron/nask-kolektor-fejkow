@@ -34,7 +34,7 @@ def _q(name: str, *args):
 
 
 def _table(rows, **kw):
-    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True, **kw)
+    st.dataframe(pd.DataFrame(rows), width="stretch", hide_index=True, **kw)
 
 
 def render() -> None:
@@ -51,7 +51,11 @@ def render() -> None:
                "nie dowodzą. Dane: baza Neo4j (lokalna albo serwer zespołu, zależnie od NEO4J_URI w code/.env).")
     try:
         _driver()
-    except (ServiceUnavailable, AuthError, KeyError, OSError) as e:  # brak bazy albo hasła: reszta demo działa dalej
+    except KeyError:
+        st.warning("Brak hasła do Neo4j: ustaw `NEO4J_PASSWORD` (i ewentualnie `NEO4J_URI`, `NEO4J_USER`) w `code/.env` albo w zmiennych "
+                   "środowiska i uruchom demo ponownie. Hasło lokalnej bazy to to, z którym uruchomiono `docker compose up -d`.")
+        return
+    except (ServiceUnavailable, AuthError, OSError) as e:  # brak bazy albo złe hasło: reszta demo działa dalej
         st.warning(f"Brak połączenia z Neo4j ({type(e).__name__}). Uruchom bazę (`docker compose up -d`) albo ustaw NEO4J_URI "
                    "w code/.env na serwer zespołu; instrukcja: docs/13_BAZA_GRAFOWA.md.")
         return
@@ -85,13 +89,13 @@ def render() -> None:
                    f"tematy (zapytania): {', '.join(card['topics']) or '—'}")
         st.subheader("Dlaczego to jeden twórca")
         if card["glue"]:
-            st.graphviz_chart(clusters.creator_dot(card), use_container_width=True)
+            st.graphviz_chart(clusters.creator_dot(card), width="stretch")
             _table([{"ślad": clusters.KIND_PL[g["kind"]], "wartość": g["name"], "łączy strony": ", ".join(g["pages"][:8])
                      + (f" (+{len(g['pages']) - 8})" if len(g["pages"]) > 8 else ""), "reklam": g["ads"]} for g in card["glue"]])
         else:
             st.write("Jedna strona, więc nic nie trzeba sklejać.")
             if card["materials"]:
-                st.graphviz_chart(clusters.creator_dot(card), use_container_width=True)
+                st.graphviz_chart(clusters.creator_dot(card), width="stretch")
         if card["materials"]:
             st.subheader("Przypadki NASK i nowe materiały tego twórcy")
             _table(card["materials"])
@@ -115,7 +119,7 @@ def render() -> None:
         card = _q("group_card", pick)
         st.subheader("Co łączy te materiały")
         if card["shared"]:
-            st.graphviz_chart(clusters.group_dot(card), use_container_width=False)
+            st.graphviz_chart(clusters.group_dot(card), width="content")
             _table([{"ślad": clusters.REL_PL[s["rel"]], "wartość": s["name"], "materiały": ", ".join(s["ms"])} for s in card["shared"]])
         else:
             st.write("Brak wspólnych śladów poza hubami; połączenie wynika z podobieństwa treści (tabela niżej).")

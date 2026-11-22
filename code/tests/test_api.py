@@ -185,7 +185,7 @@ def test_profiles_give_same_thresholds_everywhere_and_are_recorded_in_decision()
     from embsim.api import META_CAMPAIGN_THRESHOLD
 
     gm, gs = Gallery(embed_fn=fake_embed, profile="meta"), Gallery(embed_fn=fake_embed, profile="strony")
-    assert gm.cfg.thresholds["campaign"] == META_CAMPAIGN_THRESHOLD and gs.cfg.thresholds["campaign"] == 0.725
+    assert gm.cfg.thresholds["campaign"] == META_CAMPAIGN_THRESHOLD and gs.cfg.thresholds["campaign"] == 0.62
     gm.add(case_from_text("a", "Pierwsza oferta numer jeden o ogrodach"))
     assert gm.query(case_from_text("q", "Pierwsza oferta numer jeden o ogrodach")).profile == "meta"
     assert Gallery(embed_fn=fake_embed, profile="meta", thresholds={"campaign": 0.9}).cfg.thresholds["campaign"] == 0.9   # jawny próg wygrywa
@@ -199,3 +199,12 @@ def test_close_second_campaign_is_flagged_as_ambiguous():
     d = g.query(case_from_text("q", base + " gamma"))
     assert d.verdict == "znana_kampania" and d.alternative and d.alternative[0] in ("K1", "K2")
     assert "niejednoznaczne" in d.explain()
+
+
+def test_matches_have_no_duplicate_ids():
+    from embsim.api import Gallery, Case
+    g = Gallery()
+    g.add(Case(id="a", text="Szokujące: prezes zdradził sposób na zysk. Wpłać 500 zł i obserwuj."))
+    d = g.add(Case(id="b", text="Szokujące: prezes zdradził sposób na zysk. Wpłać 700 zł i obserwuj."))
+    ids = [m.id for m in d.matches]
+    assert len(ids) == len(set(ids))

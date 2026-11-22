@@ -339,7 +339,7 @@ class Gallery:
         if exact is not None:                         # reguła dokładna: identyczne obrazy wygrywają z podobieństwem
             rows.insert(0, rows.pop(exact))
         top = [mk(t) for t in rows[:k]]
-        if all(best_o is not t for t in rows[:k]):    # materiał, który uzasadnia poziom operatora, zawsze na liście przesłanek
+        if all(best_o[2] is not t[2] for t in rows[:k]):    # materiał, który uzasadnia poziom operatora, zawsze na liście przesłanek
             top.append(mk(best_o))
         bc, bo = rows[0], best_o
         if exact is not None:
