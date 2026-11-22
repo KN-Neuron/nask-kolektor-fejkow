@@ -64,7 +64,7 @@ with st.sidebar:
             if p.is_dir():
                 bar = st.progress(0.0)
                 n = A.build_from_folders(g, p, ocr=use_ocr, progress=lambda f, t: bar.progress(f, text=t))
-                st.session_state.flash = f"Wczytano {n} folderów."
+                st.session_state.flash = n.opis("folderów")
                 st.rerun()
             else:
                 st.error("Folder nie istnieje.")
@@ -76,7 +76,7 @@ with st.sidebar:
                 with st.spinner("Liczę wektory i dodaję…"):
                     n = A.build_from_meta(g, p, limit)
                 g.cfg.thresholds["campaign"] = META_CAMPAIGN_THRESHOLD
-                st.session_state.flash = (f"Dodano {n} reklam. Próg kampanii ustawiony na {META_CAMPAIGN_THRESHOLD} "
+                st.session_state.flash = (f"{n.opis('reklam')} Próg kampanii ustawiony na {META_CAMPAIGN_THRESHOLD} "
                                           "(optimum na reklamach Meta; suwak poniżej go zmienia).")
                 st.rerun()
             else:

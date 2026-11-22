@@ -208,3 +208,18 @@ def test_matches_have_no_duplicate_ids():
     d = g.add(Case(id="b", text="Szokujące: prezes zdradził sposób na zysk. Wpłać 700 zł i obserwuj."))
     ids = [m.id for m in d.matches]
     assert len(ids) == len(set(ids))
+
+
+def test_explanation_names_decisive_materials_for_both_levels():
+    """Audyt pkt 10: wyjaśnienie opiera się na materiale, który rozstrzygnął decyzję, osobno dla kampanii i operatora."""
+    from embsim.api import Decision, Match
+    thr = {"campaign": 0.62, "operator": 0.25}
+    a = Match("A", "K1", "O1", 0.9, 0.1, 1.0, {"text": 0.9})
+    b = Match("B", "K2", "O1", 0.3, 0.8, 1.0, {"kit": 0.8}, {"kit": ["/aio/sdk"]})
+    d = Decision("znana_kampania", "K1", "O1", 0.9, 0.8, thr, [a, b], campaign_via="A", operator_via="B")
+    assert d.key_match().id == "A" and d.operator_match().id == "B"
+    assert "Poziom operatora rozstrzyga inny materiał: B" in d.explain() and "/aio/sdk" in d.explain()
+    d2 = Decision("znany_operator_nowa_kampania", None, "O1", 0.3, 0.8, thr, [a, b], campaign_via="A", operator_via="B")
+    assert d2.key_match().id == "B"
+    d3 = Decision("nowy_wzorzec", None, None, 0.3, 0.0, thr, [a, b], campaign_via="A", operator_via=None)
+    assert d3.operator_match() is None and "Poziom operatora" not in d3.explain()   # pospolite ślady nie uzasadniają operatora

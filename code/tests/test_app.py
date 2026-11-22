@@ -18,7 +18,7 @@ def test_app_single_path_end_to_end(tmp_path, monkeypatch):
     assert not at.exception
     assert any("Galeria" in h.value for h in at.sidebar.header)
     at.sidebar.button[0].click().run()                                   # „Dodaj przypadki z folderów”
-    assert not at.exception and any("Wczytano" in s.value for s in at.sidebar.success)
+    assert not at.exception and any("Przyjęto" in s.value for s in at.sidebar.success)
     assert int(at.sidebar.metric[0].value) > 10 and int(at.sidebar.metric[1].value) >= 2   # liczniki aktualne po odświeżeniu
     at.text_area[0].input("Szokujące: znany prezes zdradził sposób na zysk, wpłać 500 zł")   # bez run(): formularz
     [b for b in at.button if b.label == "Analizuj"][0].click().run()

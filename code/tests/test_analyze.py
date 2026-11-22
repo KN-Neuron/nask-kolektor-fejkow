@@ -190,3 +190,33 @@ def test_regroup_average_link_blocks_chain(monkeypatch):
     g.link_frac = 0.0                                       # bez ochrony: łańcuch skleja wszystko
     g.regroup()
     assert len({it["group"] for it in g.items}) == 1
+
+
+def test_import_counters_schema_and_broken_har(tmp_path):
+    """Audyt pkt 27: liczniki przyjęte/pominięte/duplikaty, jeden schemat reklamy, niepełne wpisy HAR nie przerywają reszty."""
+    import json
+    from embsim import analyze as A
+    from embsim.api import Gallery, case_from_meta_ad, meta_record_problem
+
+    p = tmp_path / "ads.jsonl"
+    p.write_text("\n".join([
+        json.dumps({"id": "1", "page_id": "p", "ad_creative_bodies": ["Wariant A oferty inwestycyjnej", "Wariant B oferty", "Wariant A oferty inwestycyjnej"]}),
+        json.dumps({"id": "1", "page_id": "p", "ad_creative_bodies": ["Wariant A oferty inwestycyjnej"]}),      # duplikat id
+        json.dumps({"page_id": "p", "ad_creative_bodies": ["bez id"]}),                                        # błąd schematu
+        "{to nie jest json",
+        json.dumps({"id": "3", "page_id": "q", "ad_creative_bodies": ["This ad was removed because it didn't follow our Advertising Standards."]}),
+    ]), encoding="utf-8")
+    g = Gallery(embed_fn=A.hash_embed, profile="meta")
+    st = A.build_from_meta(g, p)
+    assert (st.przyjete, st.duplikaty, st.odrzucone, st.bez_dowodu) == (1, 1, 2, 1) and int(st) == 1
+    assert "Przyjęto 1" in st.opis("reklam") and "linia 3: brak pola id" in st.opis()
+    c = case_from_meta_ad({"id": "9", "ad_creative_bodies": ["A", "B", "A"]})
+    assert c.meta["warianty_tresci"] == 2 and "B" in c.text                                     # jawne warianty, bez powtórzeń
+    assert meta_record_problem({"id": "x", "ad_creative_bodies": 5}) and meta_record_problem([1]) == "rekord nie jest obiektem JSON"
+
+    d = tmp_path / "przypadki" / "zly_har"
+    d.mkdir(parents=True)
+    (d / "ruch.har").write_text(json.dumps({"log": {"entries": [{"request": {"url": "https://scam-x.xyz/a/b/c.js?utm_id=1"}},
+                                                                 {"response": {}}, "śmieć", {"request": {}}]}}), encoding="utf-8")
+    c = A.case_from_folder(d)
+    assert "scam-x.xyz" in c.sets["host"] and c.meta["har_pominiete_wpisy"] == 3

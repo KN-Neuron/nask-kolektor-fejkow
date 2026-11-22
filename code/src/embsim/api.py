@@ -128,6 +128,40 @@ def _first(v):
     return v[0] if isinstance(v, list) and v else v
 
 
+MAX_VARIANTS = 5                   # najwyżej tyle RÓŻNYCH wariantów treści reklamy wchodzi do tekstu
+
+
+def meta_record_problem(r) -> str | None:
+    """Jeden schemat wejścia dla reklamy Meta (plik JSON/JSONL, interfejs, CLI, planista). None = rekord poprawny, inaczej powód odrzucenia.
+
+    Wymagane: obiekt z `id`. Pola treści (`ad_creative_bodies`, `ad_creative_link_titles`, `ad_creative_link_captions`) to lista napisów
+    albo napis; `beneficiary_payers` lista obiektów. Brak treści nie jest błędem schematu (reklama usunięta przez Metę), tylko brakiem dowodu."""
+    if not isinstance(r, dict):
+        return "rekord nie jest obiektem JSON"
+    if not str(r.get("id") or "").strip():
+        return "brak pola id"
+    for k in ("ad_creative_bodies", "ad_creative_link_titles", "ad_creative_link_captions"):
+        v = r.get(k)
+        if v is not None and not isinstance(v, (str, list)):
+            return f"pole {k}: oczekiwano listy napisów"
+    if r.get("beneficiary_payers") is not None and not isinstance(r["beneficiary_payers"], list):
+        return "pole beneficiary_payers: oczekiwano listy"
+    return None
+
+
+def _variants(v) -> list[str]:
+    """Wszystkie RÓŻNE warianty pola treści (karuzela, testy A/B), w kolejności z rekordu."""
+    if isinstance(v, str) and v[:1] in "[{":
+        import ast
+
+        try:
+            v = ast.literal_eval(v)
+        except (ValueError, SyntaxError):
+            pass
+    vals = v if isinstance(v, list) else [v]
+    return list(dict.fromkeys(x.strip() for x in vals if isinstance(x, str) and x.strip()))
+
+
 def case_from_meta_ad(r: dict) -> Case:
     """Rekord z Meta Ad Library (pola jak w ads.jsonl) -> Case.
 
@@ -137,6 +171,10 @@ def case_from_meta_ad(r: dict) -> Case:
     body, title, cap = (_first(r.get(k)) for k in ("ad_creative_bodies", "ad_creative_link_titles", "ad_creative_link_captions"))
     flagged = any(f in " ".join(str(_first(r.get(k)) or "") for k in ("ad_creative_bodies", "ad_creative_link_captions")) for f in FLAGS)
     text = "" if flagged else "\n".join(x for x in (title, body) if isinstance(x, str) and x.strip())
+    bodies = [] if flagged else _variants(r.get("ad_creative_bodies"))
+    extra = [b for b in bodies[1:MAX_VARIANTS] if b != body]   # kolejne RÓŻNE warianty treści (pierwszy już jest w tekście)
+    if extra:
+        text = "\n".join([text, *extra])
     sets: dict[str, set[str]] = {}
     if not flagged and isinstance(cap, str) and HOST.match(cap.lower().strip()):
         sets["host"] = {registered(cap.lower().strip())}
@@ -151,6 +189,7 @@ def case_from_meta_ad(r: dict) -> Case:
     meta = {k: r.get(k) for k in ("page_id", "page_name", "ad_creation_time", "ad_delivery_start_time", "ad_delivery_stop_time",
                                   "_query") if r.get(k) is not None}
     meta["flagged_by_meta"] = flagged
+    meta["warianty_tresci"] = len(bodies)
     return Case(id=str(r["id"]), text=text, sets=sets, meta=meta)
 
 
@@ -184,19 +223,34 @@ class Decision:
     exact_of: str | None = None                       # wszystkie obrazy materiału są w tym materiale galerii (reguła dokładna)
     profile: str | None = None                        # profil progów galerii ("strony", "meta"), z którym wydano werdykt
     alternative: tuple | None = None                  # (kampania, wynik) drugiej kampanii o zbliżonym wyniku (różnica < AMBIGUITY_MARGIN)
+    campaign_via: str | None = None                   # materiał, który rozstrzygnął poziom kampanii (najwyższy wynik kampanii albo reguła dokładna)
+    operator_via: str | None = None                   # materiał, który rozstrzygnął poziom operatora (może być INNY niż campaign_via)
 
     def to_dict(self) -> dict:
         from dataclasses import asdict
 
         return asdict(self)
 
+    def _by_id(self, x: str | None) -> Match | None:
+        return next((m for m in self.matches if m.id == x), None) if x else None
+
     def key_match(self) -> Match | None:
-        """Materiał, który uzasadnia werdykt: przy „ten sam operator” ten z najwyższym wynikiem operatora, inaczej najbliższy kampanii."""
+        """Materiał, który uzasadnia werdykt: przy „ten sam operator” ten, który rozstrzygnął poziom operatora, inaczej ten, który rozstrzygnął
+        poziom kampanii (zapisane w decyzji: `operator_via`, `campaign_via`; dla starszych decyzji jak dawniej z listy dopasowań)."""
         if not self.matches:
             return None
         if self.verdict == "znany_operator_nowa_kampania":
-            return max(self.matches, key=lambda m: m.operator_score)
-        return self.matches[0]
+            return self.operator_match()
+        return self._by_id(self.campaign_via) or self.matches[0]
+
+    def operator_match(self) -> Match | None:
+        """Materiał, który uzasadnia poziom operatora (przy znanej kampanii może to być inny materiał niż najbliższy treścią). None, gdy
+        poziomu operatora nic nie uzasadnia (np. brak wspólnego RZADKIEGO śladu: pospolite ślady nie dowodzą wspólnego operatora)."""
+        if not self.matches:
+            return None
+        if self.campaign_via is not None:             # decyzja z zapisanym uzasadnieniem: bez zgadywania z listy
+            return self._by_id(self.operator_via)
+        return max(self.matches, key=lambda m: m.operator_score)
 
     def explain(self, top_channels: int = 3) -> str:
         """Wyjaśnienie po polsku dla analityka (dezinformacja/CERT): wniosek, najbliższy materiał, powody, dowody spoza wyniku."""
@@ -238,6 +292,12 @@ class Decision:
                          "nawet przy podobnej treści.")
         else:
             lines.append("Porównano wszystkie kanały wyniku.")
+        om = self.operator_match()
+        if om is not None and om.id != m.id and self.verdict in ("znana_kampania", "znany_operator_nowa_kampania", "nowy_wzorzec") \
+                and om.operator_score > 0:
+            sh = "; ".join(f"{_CHANNEL_PL.get(k, k)}: " + ", ".join(v[:2]) for k, v in list(om.shared.items())[:2])
+            lines.append(f"Poziom operatora rozstrzyga inny materiał: {om.id}" + (f" (operator {om.operator})" if om.operator else "")
+                         + f", wynik operatora {om.operator_score:.2f}" + (f"; wspólne ślady: {sh}" if sh else "") + ".")
         return "\n".join(lines)
 
 
@@ -355,16 +415,17 @@ class Gallery:
         if all(best_o[2] is not t[2] for t in rows[:k]):    # materiał, który uzasadnia poziom operatora, zawsze na liście przesłanek
             top.append(mk(best_o))
         bc, bo = rows[0], best_o
+        via = {"campaign_via": bc[2]["case"].id, "operator_via": bo[2]["case"].id if bo[1].value > 0 else None}
         if exact is not None:
             return Decision("znana_kampania", bc[2]["group"], bc[2]["operator"], bc[0].value, bo[1].value, thr, top,
-                            exact_of=bc[2]["case"].id)
+                            exact_of=bc[2]["case"].id, **via)
         if thr["campaign"] is not None and bc[0].value >= thr["campaign"]:
             alt = next((t for t in rows if t[2]["group"] != bc[2]["group"]), None)       # druga kampania o zbliżonym wyniku: niejednoznaczność
             ambiguous = (alt[2]["group"], round(alt[0].value, 3)) if alt and alt[0].value >= thr["campaign"] and bc[0].value - alt[0].value < AMBIGUITY_MARGIN else None
-            return Decision("znana_kampania", bc[2]["group"], bc[2]["operator"], bc[0].value, bo[1].value, thr, top, alternative=ambiguous)
+            return Decision("znana_kampania", bc[2]["group"], bc[2]["operator"], bc[0].value, bo[1].value, thr, top, alternative=ambiguous, **via)
         if thr["operator"] is not None and bo[1].value >= thr["operator"]:
-            return Decision("znany_operator_nowa_kampania", None, bo[2]["operator"], bc[0].value, bo[1].value, thr, top)
-        return Decision("nowy_wzorzec", None, None, bc[0].value, bo[1].value, thr, top)
+            return Decision("znany_operator_nowa_kampania", None, bo[2]["operator"], bc[0].value, bo[1].value, thr, top, **via)
+        return Decision("nowy_wzorzec", None, None, bc[0].value, bo[1].value, thr, top, **via)
 
     def _exact(self, q: Case, rows: list) -> int | None:
         """Indeks wiersza, którego materiał zawiera WSZYSTKIE obrazy zapytania (dokładny SHA-256), z co najmniej jednym obrazem
@@ -431,14 +492,14 @@ class Gallery:
         edges = []                                    # (wynik, i, j, dokładna): krawędzie kampanii, łączone od najsilniejszej
         for i, it in enumerate(self.items):
             d = self._query(it["case"], 5, ids[i])
-            key = d.key_match() if d.verdict == "znany_operator_nowa_kampania" else (d.matches[0] if d.matches else None)
+            key = d.key_match()
             if key is None or key.id not in pos:
                 continue
             j = pos[key.id]
             if d.verdict == "znana_kampania":
                 edges.append((d.campaign_score, i, j, d.exact_of is not None))
             to = self.cfg.thresholds.get("operator")
-            bo = max(d.matches, key=lambda m: m.operator_score) if d.matches else None
+            bo = d.operator_match()
             if to is not None and bo is not None and bo.operator_score >= to and bo.id in pos:   # operator niezależnie od kampanii
                 po[find(po, i)] = find(po, pos[bo.id])
         cc, tc = self._corp[0], self.cfg.thresholds.get("campaign") or 0.0

@@ -74,9 +74,16 @@ def case_from_inputs(files: list[tuple[str, bytes]], text: str = "", url: str = 
                 try:
                     recs = [json.loads(l) for l in data.decode("utf-8").splitlines() if l.strip()] if low.endswith(".jsonl") else json.loads(data)
                     recs = recs if isinstance(recs, list) else [recs]
-                    if recs and "id" in recs[0] and ("page_id" in recs[0] or "ad_creative_bodies" in recs[0]):
-                        c = case_from_meta_ad(recs[0])
-                        info["źródło"] = f"reklama Meta (1 z {len(recs)} rekordów w pliku)"
+                    from .api import meta_record_problem
+
+                    good = [x for x in recs if meta_record_problem(x) is None and ("page_id" in x or "ad_creative_bodies" in x)]
+                    if good:
+                        c = case_from_meta_ad(good[0])
+                        info["źródło"] = (f"reklama Meta {c.id} (analizowana pierwsza poprawna z {len(recs)} rekordów w pliku"
+                                          + (f", {len(recs) - len(good)} odrzuconych przez schemat" if len(recs) > len(good) else "")
+                                          + "; wiele reklam naraz: pasek boczny „Reklamy Meta (JSONL)”)")
+                        if c.meta.get("warianty_tresci", 0) > 1:
+                            info["źródło"] += f"; wariantów treści: {c.meta['warianty_tresci']}"
                         return c, info
                 except (ValueError, KeyError):
                     pass
@@ -195,35 +202,85 @@ def gallery_summary(g: Gallery) -> dict:
 # budowa galerii
 
 
-def build_from_folders(g: Gallery, root: Path, ocr: bool = False, progress=None, regroup: bool = True) -> int:
+class ImportStats(int):
+    """Wynik wczytania (int = liczba przyjętych materiałów) z licznikami: przyjęte, duplikaty, bez dowodu, odrzucone (błąd schematu)."""
+
+    def __new__(cls, przyjete=0, duplikaty=0, bez_dowodu=0, odrzucone=0, powody=None):
+        obj = super().__new__(cls, przyjete)
+        obj.przyjete, obj.duplikaty, obj.bez_dowodu, obj.odrzucone = przyjete, duplikaty, bez_dowodu, odrzucone
+        obj.powody = list(powody or [])[:20]
+        return obj
+
+    def opis(self, co: str = "materiałów") -> str:
+        s = f"Przyjęto {self.przyjete} {co}"
+        rest = [f"{n} {t}" for n, t in ((self.duplikaty, "duplikatów (to samo id już w galerii)"),
+                                        (self.bez_dowodu, "bez dowodu (brak tekstu, śladów i obrazów)"),
+                                        (self.odrzucone, "odrzuconych (błąd schematu)")) if n]
+        return s + (", pominięto: " + ", ".join(rest) if rest else "") + "." + (" Np. " + "; ".join(self.powody[:3]) + "." if self.powody else "")
+
+
+def build_from_folders(g: Gallery, root: Path, ocr: bool = False, progress=None, regroup: bool = True) -> ImportStats:
     """Galeria z folderów przypadków (HTML, HAR, zrzuty). OCR tylko dla przypadków bez tekstu (sam zrzut), żeby było szybko."""
     from .material import load_case as material
 
     dirs = sorted((d for d in root.iterdir() if d.is_dir()), key=lambda d: (len(d.name), d.name))
+    ok = dup = empty = bad = 0
+    why = []
     for i, d in enumerate(dirs):
-        c = case_from_folder(d)
+        try:
+            c = case_from_folder(d)
+        except Exception as e:                        # uszkodzony materiał nie przerywa wczytywania reszty
+            bad += 1
+            why.append(f"{d.name}: {type(e).__name__}")
+            continue
         c.id = d.name
         if ocr and not c.text.strip():
             c.text = "\n".join(t for t in (ocr_image(p)[0] for p in material(d).images[:3]) if t)
-        if has_evidence(c):
+        if c.id in g._ids:
+            dup += 1
+        elif has_evidence(c):
             g.add(c)
+            ok += 1
+        else:
+            empty += 1
+            why.append(f"{d.name}: bez dowodu")
         if progress:
             progress((i + 1) / len(dirs), d.name)
     if regroup:
         g.regroup()                                   # kampanie od nowa na pełnej galerii (bez zależności od kolejności)
-    return len(dirs)
+    return ImportStats(ok, dup, empty, bad, why)
 
 
-def build_from_meta(g: Gallery, path: Path, limit: int = 2000) -> int:
-    n = 0
-    for line in path.open(encoding="utf-8"):
-        c = case_from_meta_ad(json.loads(line))
-        if has_evidence(c):
+def build_from_meta(g: Gallery, path: Path, limit: int = 2000) -> ImportStats:
+    """Reklamy Meta z JSONL (jeden rekord na linię, schemat: api.meta_record_problem). Błędna linia nie przerywa reszty."""
+    from .api import meta_record_problem
+
+    n = dup = empty = bad = 0
+    why = []
+    for no, line in enumerate(path.open(encoding="utf-8"), 1):
+        if not line.strip():
+            continue
+        try:
+            r = json.loads(line)
+        except ValueError:
+            bad += 1
+            why.append(f"linia {no}: niepoprawny JSON")
+            continue
+        if problem := meta_record_problem(r):
+            bad += 1
+            why.append(f"linia {no}: {problem}")
+            continue
+        c = case_from_meta_ad(r)
+        if c.id in g._ids:
+            dup += 1
+        elif has_evidence(c):
             g.add(c)
             n += 1
+        else:
+            empty += 1
         if n >= limit:
             break
-    return n
+    return ImportStats(n, dup, empty, bad, why)
 
 
 def hash_embed(texts, dim: int = 96):

@@ -140,7 +140,12 @@ def load_case(root: Path, drop_common: bool = False) -> Case:
                 entries = json.loads(p.read_text(encoding="utf-8", errors="ignore"))["log"]["entries"]
             except (ValueError, KeyError):
                 continue
-            urls += [e["request"]["url"] for e in entries]
+            good = [e["request"]["url"] for e in entries
+                    if isinstance(e, dict) and isinstance(e.get("request"), dict) and isinstance(e["request"].get("url"), str)]
+            if len(good) < len(entries):              # niepełne wpisy HAR (np. przerwany zapis) pomijamy, reszta materiału zostaje
+                c.meta["har_pominiete_wpisy"] = c.meta.get("har_pominiete_wpisy", 0) + len(entries) - len(good)
+            urls += good
+            entries = [e for e in entries if isinstance(e, dict)]
             seen = sorted(str(e.get("startedDateTime", "")) for e in entries if e.get("startedDateTime"))
             if seen and (not c.meta.get("observed") or seen[0] < c.meta["observed"]):
                 c.meta["observed"] = seen[0]          # chwila zapisu ruchu: do wieku domeny w chwili obserwacji (embsim/infra.py)

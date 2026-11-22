@@ -10,11 +10,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 # Zależności w osobnych warstwach (cache). torch w wersji CPU: obraz kilka razy mniejszy. Osobna warstwa torcha: gdy pobieranie reszty
-# zależności przerwie się (np. przekroczony czas odczytu z PyPI), ponowna budowa nie pobiera torcha od nowa.
-RUN pip install --no-cache-dir --default-timeout=300 --retries 10 torch --index-url https://download.pytorch.org/whl/cpu
+# zależności przerwie się (np. przekroczony czas odczytu z PyPI), ponowna budowa nie pobiera torcha od nowa. Pamięć podręczna pip
+# (BuildKit, poza obrazem): przy słabej sieci kolejna próba bierze już pobrane pakiety zamiast pobierać wszystko od nowa.
+RUN --mount=type=cache,target=/root/.cache/pip \
+    pip install --default-timeout=300 --retries 10 torch --index-url https://download.pytorch.org/whl/cpu
 COPY pyproject.toml ./
-RUN mkdir -p src/embsim src/fejki && touch src/embsim/__init__.py src/fejki/__init__.py \
-    && pip install --no-cache-dir --default-timeout=300 --retries 10 -e .
+RUN --mount=type=cache,target=/root/.cache/pip \
+    mkdir -p src/embsim src/fejki && touch src/embsim/__init__.py src/fejki/__init__.py \
+    && pip install --default-timeout=300 --retries 10 -e .
 # Model tekstu pobrany na etapie budowy (potem HF_HUB_OFFLINE=1).
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('paraphrase-multilingual-MiniLM-L12-v2')"
 COPY src ./src
