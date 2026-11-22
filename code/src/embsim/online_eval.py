@@ -41,6 +41,7 @@ def load(path: Path, n_creators: int, seed: int):
         c = case_from_meta_ad(r)
         if r.get("page_id") and not c.meta.get("flagged_by_meta") and c.text.strip():
             c.meta["page_id"] = str(r["page_id"])
+            c.meta["targeting"] = "|".join(str(r.get(k)) for k in ("target_ages", "target_gender", "target_locations") if r.get(k))   # przesłanka, nie wynik
             cases.append(c)
     by = defaultdict(list)
     for c in cases:
@@ -60,19 +61,23 @@ def load(path: Path, n_creators: int, seed: int):
 def replay(sel) -> list[dict]:
     g = Gallery(profile="meta")
     owner: dict[str, str] = {}
+    tgt: dict[str, str] = {}
     seen: set[str] = set()
     rows, t0 = [], time.time()
     for n, c in enumerate(sel, 1):
         page = c.meta["page_id"]
-        row = {"page": page, "known": page in seen, "size": len(g), "score": 0.0, "hit": False}
+        row = {"page": page, "known": page in seen, "size": len(g), "score": 0.0, "hit": False, "tgt": None}
         if len(g):
             d = g.query(copy.deepcopy(c), 5)
             if d.matches:
                 best = max(d.matches, key=lambda m: m.campaign_score)
                 row["score"], row["hit"] = float(best.campaign_score), owner.get(best.id) == page
+                if c.meta["targeting"] and tgt.get(best.id):
+                    row["tgt"] = tgt[best.id] == c.meta["targeting"]       # to samo targetowanie co najlepsze dopasowanie (None = brak danych)
         rows.append(row)
         g.add(copy.deepcopy(c))
         owner[c.id] = page
+        tgt[c.id] = c.meta["targeting"]
         seen.add(page)
         if n % 200 == 0:
             log(f"[online] {n}/{len(sel)} reklam, {time.time() - t0:.0f}s")
@@ -119,6 +124,14 @@ def main() -> None:
         m = metrics(rows, t)
         ci = {k: boot(rows, t, k) for k in ("precyzja", "czułość", "odrzucenie")}
         print(f"t={t:.1f}: uznane {m['uznane']:>4}  " + "  ".join(f"{k} {m[k]:.2f} [{ci[k][0]:.2f}; {ci[k][1]:.2f}]" for k in ci))
+    print("\nTARGETOWANIE JAKO PRZESŁANKA (poza wynikiem): precyzja uznanych (t = 0,5) wg zgodności targetowania z najlepszym dopasowaniem")
+    pred = [r for r in rows if r["score"] >= 0.5 and r["tgt"] is not None]
+    for lab, flag in (("to samo targetowanie", True), ("inne targetowanie", False)):
+        sub = [r for r in pred if r["tgt"] is flag]
+        print(f"{lab:<22} n={len(sub):>4}  precyzja {np.mean([r['hit'] for r in sub]) if sub else float('nan'):.2f}")
+    low = [r for r in rows if r["score"] < 0.5 and r["tgt"] is not None and r["size"] > 0]
+    sub = [r for r in low if r["tgt"] is True]
+    print(f"poniżej progu, to samo targetowanie: n={len(sub)} z {len(low)}, z poprawnym twórcą najlepszego dopasowania {np.mean([r['hit'] for r in sub]) if sub else float('nan'):.2f}")
     print("\nROZMIAR GALERII (t = 0,5)")
     for name, lo, hi in STAGES:
         sub = [r for r in rows if lo <= r["size"] < hi]

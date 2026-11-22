@@ -70,7 +70,19 @@ Grupy nie wpływają na wynik kampanii, więc jeden przebieg pozwala przeliczyć
   Po ich wyłączeniu precyzja wynosi 0,98. Prawdziwą precyzję trzeba mierzyć na etykietach kampanii, których nie mamy.
 - Próg 0,5 (profil „meta”) wypada rozsądnie; podniesienie go zwiększa odrzucanie nowych kosztem czułości i niczego nie poprawia w precyzji.
 
-## 6. Targetowanie reklam Meta (luka: cecha wyłączona)
+## 6. Targetowanie reklam Meta jako przesłanka (luka: cecha wyłączona z wyniku)
 
-Targetowanie (wiek, płeć, kraje) jako składnik wyniku obniżało jakość: AUROC „znany czy nowy twórca” spadało z 0,77 do 0,64, a próg dobierał się do 1,00 (`stream_eval.py`,
-profile „treść” i „treść + płatnik”). Cecha zostaje wyłączona z wyniku. Nie sprawdzaliśmy jej jako przesłanki poza wynikiem (jak twarze), więc jej wartość wyjaśniająca jest niezmierzona.
+Jako składnik wyniku targetowanie (wiek, płeć, kraje) obniżało jakość: AUROC „znany czy nowy twórca” spadało z 0,77 do 0,64, a próg dobierał się do 1,00 (`stream_eval.py`).
+Zostaje poza wynikiem. Zmierzyliśmy je jako **przesłankę** w tym samym przebiegu online co w pkt 5 (`online_eval.py`): czy zgodność targetowania z najlepszym dopasowaniem
+mówi coś o tym, że to ten sam twórca (próg 0,5, reklamy uznane za znaną kampanię, z danymi o targetowaniu po obu stronach):
+
+| targetowanie względem najlepszego dopasowania | reklamy | precyzja (ten sam twórca) |
+|---|---|---|
+| to samo | 448 | 0,89 |
+| inne | 139 | 0,60 |
+
+Wśród reklam poniżej progu to samo targetowanie ma 82 z 207, z poprawnym twórcą najlepszego dopasowania w 0,55 przypadków.
+
+Wniosek: zgodność targetowania jest użyteczną przesłanką („ten sam profil odbiorców”), ale mierzy **tożsamość reklamodawcy**, nie wspólną kampanię: twórca zwykle powtarza
+ustawienia odbiorców, więc zgodność idzie w parze z tym samym twórcą, czyli z proxy, którym mierzymy. Nie traktujemy jej jako dowodu kampanii. Dodanie jej do karty analityka
+(poza wynikiem, jak twarz) wymaga zmiany w `Gallery.query`/`analyze.py` i nie jest wykonane.
