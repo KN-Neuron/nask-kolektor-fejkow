@@ -33,6 +33,14 @@ Po wczytaniu folderów grupy są liczone drugi raz na pełnej galerii, więc wyn
 JavaScriptu, bez adresów prywatnych, z limitem czasu). Gdy strona nie działa albo ukrywa treść przed botami, zostaje domena i schemat
 parametrów adresu. Odznacz „Pobierz stronę spod adresu”, jeśli nie chcesz odwiedzać adresu.
 
+**Metadane domen (kanał `infra`):** dla domen materiału bierzemy publiczne metadane z DNS i RDAP: serwer nazw, adres IP, rejestratora
+i godzinę rejestracji, a także parę serwerów nazw Cloudflare, którą Cloudflare przydziela na konto. Dzięki temu łączymy strony na
+różnych domenach z tej samej partii rejestracji albo z tego samego konta. Ślady wielkich dostawców (Cloudflare, AWS, popularne DNS
+rejestratorów) pomijamy. Zapytania idą do resolwera DNS i rdap.org, nigdy do stron oszustów. Domyślnie (`EMBSIM_INFRA=cache`) używamy
+tylko zapisanego pliku `code/config/embsim/infra_cache.json` bez sieci, więc wynik jest powtarzalny. `EMBSIM_INFRA=1` dopytuje sieć
+o nowe domeny, a `python -m embsim.infra /ścieżka/do/przypadków` uzupełnia plik. Na NASK: przypadki 1 i 2 mają domeny
+(`civicdaybook.live`, `acrosscommunities.live`) zarejestrowane w Dynadot w odstępie 2 minut, co niezależnie potwierdza kampanię {1,2}.
+
 **Planista (automatyczny skan):** co N minut bierze nowe materiały, ocenia je względem galerii, dopisuje do niej i zapisuje alerty do
 `code/artifacts/watch/alerty.csv`. Ten sam przebieg można uruchomić w interfejsie (zakładka analizy, sekcja „Planista”).
 

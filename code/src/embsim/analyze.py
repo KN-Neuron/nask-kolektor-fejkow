@@ -21,7 +21,7 @@ from .features import Case, registered, scheme_fp
 IMG_EXT = {".png", ".jpg", ".jpeg", ".webp"}
 _CHANNEL_PL = {"text": "podobna treść", "text_lex": "podobne brzmienie tekstu", "kit": "ten sam zestaw zasobów strony",
                "scheme": "ten sam schemat parametrów adresu", "host": "wspólna domena", "pixel": "ten sam piksel śledzący",
-               "image": "podobny wygląd", "img": "te same obrazy na stronie", "face": "ta sama osoba na obrazach"}
+               "image": "podobny wygląd", "infra": "ta sama obsługa domen (serwer nazw, IP, rejestracja)", "img": "te same obrazy na stronie", "face": "ta sama osoba na obrazach"}
 _EXTRA_PL = {"face": "wizerunek", "dhash": "bardzo podobny obraz (po zmianie rozmiaru, np. logo)", "payer": "ten sam płatnik", "page": "ta sama strona reklamodawcy", "text_hash": "identyczny tekst"}
 
 
@@ -133,6 +133,10 @@ def case_from_inputs(files: list[tuple[str, bytes]], text: str = "", url: str = 
             if sch := scheme_fp(u):                       # schemat parametrów adresu (np. utm_visit, cuuid) bez odwiedzania strony
                 case.sets.setdefault("scheme", set()).add(sch)
             case.meta["url"] = url.strip()
+            case.meta["landing_hosts"] = [host]
+            from .infra import enrich
+
+            enrich(case)                                  # metadane domeny (DNS, RDAP) z usług trzecich, zob. embsim/infra.py
             info.setdefault("url", f"użyto tylko domeny {registered(host)} (adresu nie odwiedzamy)")
     case.id = case_id or "nowy_" + hashlib.sha1((case.text + json.dumps({k: sorted(v) for k, v in case.sets.items()})).encode()).hexdigest()[:8]
     return case, info
@@ -148,7 +152,10 @@ def confidence_label(evidence: float) -> str:
 
 def top_reasons(m: Match, k: int = 3) -> list[str]:
     """Trzy najsilniejsze powody połączenia: kanały wyniku (z wartością) i dokładne zgodności poza wynikiem."""
-    out = [f"{_CHANNEL_PL.get(c, c)} ({v:.2f})" + (": " + ", ".join(m.shared[c][:2]) if c in m.shared else "")
+    from .infra import describe
+
+    out = [f"{_CHANNEL_PL.get(c, c)} ({v:.2f})" + (": " + ", ".join(describe(x) if c == "infra" else x for x in m.shared[c][:2])
+                                                     if c in m.shared else "")
            for c, v in sorted(m.channels.items(), key=lambda kv: -kv[1]) if v > 0]
     extra = [f"{_EXTRA_PL.get(c, c)}: {', '.join(v[:2])}" for c, v in m.extra_shared.items()]
     face = [e for e in extra if e.startswith(_EXTRA_PL["face"])]
@@ -223,7 +230,7 @@ def hash_embed(texts, dim: int = 96):
 # --------------------------------------------------------------------------------------------------------------------
 # klastry w galerii (bez bazy): operator -> kampanie -> materiały, plus ślady, które je sklejają
 
-TRACE_LABEL = {"img": "ten sam obraz", "host": "domena", "kit": "zestaw zasobów", "scheme": "schemat adresu", "pixel": "piksel",
+TRACE_LABEL = {"img": "ten sam obraz", "infra": "obsługa domen", "host": "domena", "kit": "zestaw zasobów", "scheme": "schemat adresu", "pixel": "piksel",
                "payer": "płatnik",
                "page": "strona reklamodawcy", "text_hash": "identyczny tekst"}
 HUB_FRACTION = 0.2          # ślad obecny w więcej niż 20% galerii (min. 10 materiałów) niczego nie dowodzi (tracker, CDN)
@@ -250,7 +257,10 @@ def shared_traces(g: Gallery, idx: list[int]) -> list[dict]:
                 for x in s:
                     inside[(ch, x)].append(g.items[i]["case"].id)
     names = {k: v for i in idx for k, v in g.items[i]["case"].meta.get("img_names", {}).items()}   # obraz: nazwa pliku zamiast skrótu
-    rows = [{"ślad": TRACE_LABEL[ch], "wartość": names.get(x, x) if ch == "img" else x, "materiały": ms, "w galerii": df[(ch, x)]}
+    from .infra import describe
+
+    rows = [{"ślad": TRACE_LABEL[ch], "wartość": names.get(x, x) if ch == "img" else describe(x) if ch == "infra" else x, "materiały": ms,
+             "w galerii": df[(ch, x)]}
             for (ch, x), ms in inside.items() if len(ms) >= 2 and df[(ch, x)] <= cap]
     imgs: dict[tuple, list[dict]] = {}                # obrazy wspólne dla tych samych materiałów: jeden wiersz (para 1–2 ma ich 11)
     for r in [r for r in rows if r["ślad"] == TRACE_LABEL["img"]]:

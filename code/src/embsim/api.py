@@ -49,7 +49,8 @@ __all__ = ["Case", "Decision", "Gallery", "Match", "case_from_folder", "case_fro
 FLAGS = ("removed because it didn", "later disabled for not following")
 _CHANNEL_PL = {"text": "podobieństwo treści", "text_lex": "podobne brzmienie tekstu", "kit": "ten sam zestaw zasobów strony",
                "scheme": "ten sam schemat parametrów adresu", "host": "wspólna domena", "pixel": "ten sam piksel śledzący",
-               "image": "podobny wygląd", "img": "te same obrazy na stronie"}
+               "image": "podobny wygląd", "img": "te same obrazy na stronie",
+               "infra": "ta sama obsługa domen (serwer nazw, IP, rejestracja)"}
 _EXTRA_PL = {"payer": "ten sam płatnik", "page": "ta sama strona reklamodawcy", "text_hash": "identyczny tekst"}
 # Konfiguracja domyślna (progi z kalibracji na syntetyce v2 z szumem jak w HAR): kampania = nakładanie śladów, operator = zawieranie,
 # kanał leksykalny, korekta PCA embeddingów, korekta o dostępność dowodu. Starsze: "adj", "lex" (syntetyka v1, gorzej przenoszą się).
@@ -57,9 +58,9 @@ DEFAULT_CONFIG = "v4_rare4"
 HOST = re.compile(r"^(?:[a-z0-9-]+\.)+[a-z]{2,}$")
 # Kanały dokładnych zgodności dokładane do zamrożonej konfiguracji (nie było ich w kalibracji na syntetyce, która nie ma obrazów):
 # waga jak pozostałych śladów, „rotujący” (brak wspólnego obrazu nie jest dowodem różnicy, bo często po prostu brak danych).
-EXACT_CHANNELS = {"img": 1.0}
+EXACT_CHANNELS = {"img": 1.0, "infra": 1.0}   # infra: metadane domen (embsim/infra.py), brak danych to nie różnica
 AMBIGUITY_MARGIN = 0.05                                          # różnica wyniku do drugiej kampanii, poniżej której pokazujemy obie hipotezy
-EVIDENCE_SETS = ("host", "kit", "scheme", "pixel", "img")      # ślady, które mogą być podstawą decyzji (page, payer, text_hash są metadanymi)
+EVIDENCE_SETS = ("host", "kit", "scheme", "pixel", "img", "infra")      # ślady, które mogą być podstawą decyzji (page, payer, text_hash są metadanymi)
 
 
 def has_evidence(case: Case) -> bool:
@@ -77,7 +78,9 @@ def demo_thresholds() -> dict:
 
 def case_from_folder(root: str | Path) -> Case:
     """Materiał z folderu w ścieżce demonstratora: bez śladów z pospolitych usług (Google, Meta, CDN), zob. features.load_case."""
-    return load_case(Path(root), drop_common=True)
+    from .infra import enrich
+
+    return enrich(load_case(Path(root), drop_common=True))
 
 
 def with_exact_channels(cfg: Config) -> Config:
