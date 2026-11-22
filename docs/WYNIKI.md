@@ -57,6 +57,38 @@ Próbka S1 (14 936 reklam, 2 002 twórców), chronologicznie 50/20/30; test: 4 4
 - Optymalny próg na Mecie wyszedł ok. 0,5, a nie 0,95 (kalibracja na syntetyce): **progi zależą od zbioru** (suwak w interfejsie).
 - Płatnik jest silnie związany z definicją twórcy w grafie, więc profil z płatnikiem jest częściowo tautologiczny.
 
+## 3a. Meta: niezależny sprawdzian na etykiecie usunięć Mety  [prawdziwe dane, etykieta zewnętrzna]
+
+Jedyna etykieta w naszych danych, której nie tworzyliśmy sami i której metoda nie widzi: Meta usuwa reklamy łamiące zasady (treść
+zastąpiona tekstem „removed because it didn't follow…” / „later disabled…”). Stronę reklamodawcy uznajemy za „skażoną”, gdy ma choć
+jedną taką reklamę. Dla każdej z 9 622 reklam Z TREŚCIĄ w próbce S1 (2 002 strony, 975 skażonych) bierzemy najbliższą reklamę
+INNEJ strony (tekst + leksyka + domena) i pytamy, czy skażenie sąsiada przewiduje skażenie reklamy. Poziom bazowy 0,339. Przedziały:
+bootstrap po stronach. Skrypt: `code/scripts/walidacja_usuniecia.py` (6 min).
+
+| wynik podobieństwa | reklam | P(skażona \| sąsiad skażony) − P(skażona \| sąsiad czysty) | w tym bez identycznych tekstów |
+|---|---|---|---|
+| 0,0–0,3 | 1 268 | +0,204 [+0,096; +0,323] | +0,204 |
+| 0,3–0,5 | 3 871 | +0,114 [+0,042; +0,188] | +0,114 |
+| 0,5–0,7 | 1 373 | +0,201 [+0,044; +0,361] | +0,201 |
+| 0,7–0,9 | 227 | **+0,391** [+0,124; +0,645] | +0,391 |
+| 0,9–1,0 | 2 883 | +0,374 [+0,265; +0,480] | **−0,059** (314 reklam) |
+| identyczny tekst na różnych stronach | 2 569 | **+0,434** | – |
+
+AUROC przewidywania skażenia z sąsiada: 0,641.
+
+Wnioski (uczciwie):
+- **Identyczna kreacja na różnych stronach to najmocniejszy sygnał** (+0,43): ten sam tekst puszczany z wielu stron reklamodawców to
+  wzorzec sieci oszustów, a nie przypadek. To potwierdza na etykiecie zewnętrznej regułę „identyczny tekst” w przesłankach.
+- **Parafrazy w paśmie 0,7–0,9 też niosą sygnał** (+0,39), wyraźnie ponad tło.
+- **Poniżej 0,7 przewaga +0,11–0,20 jest taka sama jak przy wyniku 0,0–0,3**, czyli to efekt tematu i populacji (oszustwa skupiają się
+  w kilku tematach), a nie łączenia kampanii. Na tym poziomie podobieństwo nie dowodzi wspólnej kampanii, zgodnie z progiem Meta 0,5–0,62.
+- **Prawie identyczne, ale NIE identyczne teksty (≥ 0,9) nie niosą sygnału** (−0,06 na 314 reklamach): to szablony katalogowe (sklepy,
+  wydawnictwa) z podmienioną nazwą produktu. Ten sam wzorzec znalazła ocena online (`docs/POMIAR_RYGOR.md`: 90% błędów to prawie identyczny
+  tekst u innego twórcy). Wynik tekstu bliski 1 bez wspólnej domeny czy obrazu nie powinien sam przesądzać o kampanii na Mecie; to kandydat
+  do poprawki wzoru (kara za szablon albo wymóg drugiego kanału), jeszcze nie wprowadzona.
+- Ograniczenia: skażenie mówi „oszust”, nie „ta sama kampania”; egzekwowanie Mety jest niepełne (część „czystych” stron to niewykryte
+  oszustwa), więc różnice są raczej zaniżone; próbka S1 ma nadreprezentację oszustów (50% twórców).
+
 ## 4. Obraz  [prawdziwe zrzuty]
 
 | porównanie | AUC | AP | top-1 |
