@@ -310,7 +310,7 @@ def _default_embed(model: str):
 
 
 PROFILES = {
-    "strony": lambda: demo_thresholds(),                                  # HTML, HAR, zrzuty (NASK i syntetyka): próg kampanii 0,725
+    "strony": lambda: demo_thresholds(),                                  # HTML, HAR, zrzuty (NASK i syntetyka): próg kampanii z config/embsim/demo_calibration.json
     "meta": lambda: {"campaign": META_CAMPAIGN_THRESHOLD},                # reklamy z Meta Ad Library: próg kampanii 0,5
 }
 

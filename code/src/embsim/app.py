@@ -52,7 +52,7 @@ with st.sidebar:
     c1.metric("materiały", s["materiałów"]); c2.metric("kampanie", s["kampanii"]); c3.metric("operatorzy", s["operatorów"])
     st.caption(f"Konfiguracja: `{DEFAULT_CONFIG}`.")
     t_camp = st.slider("Próg: znana kampania", 0.30, 0.99, float(g.cfg.thresholds.get("campaign") or 0.95), 0.005, format="%.3f",
-                       help="Domyślny próg 0,62 jest skalibrowany na stronach (HTML, HAR, zrzuty) z NASK i syntetyki, zostaw-jeden "
+                       help="Domyślny próg 0,70 jest skalibrowany na stronach (HTML, HAR, zrzuty) z NASK i syntetyki, z podziałem po podmiotach "
                             "(config/embsim/demo_calibration.json). Na reklamach Meta optimum wyszło ok. 0,5. Niższy próg łączy "
                             "chętniej (więcej trafień, więcej błędnych połączeń).")
     g.cfg.thresholds["campaign"] = t_camp

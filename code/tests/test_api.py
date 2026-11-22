@@ -182,10 +182,10 @@ def test_decision_is_same_before_and_after_restart_with_late_added_materials(tmp
 
 
 def test_profiles_give_same_thresholds_everywhere_and_are_recorded_in_decision():
-    from embsim.api import META_CAMPAIGN_THRESHOLD
+    from embsim.api import META_CAMPAIGN_THRESHOLD, demo_thresholds
 
     gm, gs = Gallery(embed_fn=fake_embed, profile="meta"), Gallery(embed_fn=fake_embed, profile="strony")
-    assert gm.cfg.thresholds["campaign"] == META_CAMPAIGN_THRESHOLD and gs.cfg.thresholds["campaign"] == 0.62
+    assert gm.cfg.thresholds["campaign"] == META_CAMPAIGN_THRESHOLD and gs.cfg.thresholds["campaign"] == demo_thresholds()["campaign"]
     gm.add(case_from_text("a", "Pierwsza oferta numer jeden o ogrodach"))
     assert gm.query(case_from_text("q", "Pierwsza oferta numer jeden o ogrodach")).profile == "meta"
     assert Gallery(embed_fn=fake_embed, profile="meta", thresholds={"campaign": 0.9}).cfg.thresholds["campaign"] == 0.9   # jawny próg wygrywa

@@ -1,11 +1,11 @@
 {
- "próg": 0.62,
+ "próg": 0.7,
  "data": "2026-11-22",
  "podsumowanie": [
   {
    "kryterium": "Skuteczność: podobne materiały i warianty tych samych kampanii",
    "miara": "trafione na poziomie kampanii",
-   "wynik": "15/15 (100%)",
+   "wynik": "14/15 (93%)",
    "jak liczone": "nowy wariant znanej kampanii rozpoznany jako ta sama kampania, wskazany właściwy materiał"
   },
   {
@@ -17,13 +17,13 @@
   {
    "kryterium": "Poprawność przypisywania do istniejących grup",
    "miara": "precyzja decyzji „znana kampania”",
-   "wynik": "15/15 (100%)",
+   "wynik": "14/14 (100%)",
    "jak liczone": "z decyzji „znana kampania” ile wskazało właściwą grupę"
   },
   {
    "kryterium": "",
    "miara": "czułość decyzji „znana kampania”",
-   "wynik": "15/15 (100%)",
+   "wynik": "14/15 (93%)",
    "jak liczone": "z nowych wariantów ile dostało decyzję „znana kampania” z właściwą grupą"
   },
   {
@@ -41,13 +41,13 @@
   {
    "kryterium": "Interpretowalność",
    "miara": "decyzje połączeniowe z podanymi przesłankami",
-   "wynik": "19/19 (100%)",
+   "wynik": "18/18 (100%)",
    "jak liczone": "każda decyzja „kampania”/„sieć” ma co najmniej jeden wskazany powód (wspólne ślady, kanały)"
   },
   {
    "kryterium": "Odporność: duplikaty, niekompletne dane, format",
    "miara": "dobra decyzja (dokładnie)",
-   "wynik": "10/13 (77%)",
+   "wynik": "8/13 (62%)",
    "jak liczone": "sam HTML, sam HAR, sam zrzut, ten sam materiał drugi raz"
   },
   {
@@ -63,7 +63,7 @@
    "oczekiwane": "kampania",
    "wynik": "kampania",
    "najbliższy": "2",
-   "wynik kampanii": 0.959,
+   "wynik kampanii": 0.941,
    "wynik operatora": 0.9,
    "ocena": "OK"
   },
@@ -72,7 +72,7 @@
    "oczekiwane": "kampania",
    "wynik": "kampania",
    "najbliższy": "1",
-   "wynik kampanii": 0.959,
+   "wynik kampanii": 0.941,
    "wynik operatora": 0.848,
    "ocena": "OK"
   },
@@ -155,7 +155,7 @@
    "wejście": "sam HTML",
    "wynik": "kampania",
    "najbliższy": "2",
-   "wynik kampanii": 0.883,
+   "wynik kampanii": 0.874,
    "ocena": "OK"
   },
   {
@@ -163,7 +163,7 @@
    "wejście": "sam HAR",
    "wynik": "kampania",
    "najbliższy": "2",
-   "wynik kampanii": 0.933,
+   "wynik kampanii": 0.912,
    "ocena": "OK"
   },
   {
@@ -177,10 +177,10 @@
   {
    "przypadek": "48",
    "wejście": "sam HTML",
-   "wynik": "kampania",
+   "wynik": "sieć",
    "najbliższy": "61",
    "wynik kampanii": 0.64,
-   "ocena": "OK"
+   "ocena": "częściowo (dobra grupa, inny poziom)"
   },
   {
    "przypadek": "48",
@@ -201,10 +201,10 @@
   {
    "przypadek": "61",
    "wejście": "sam HTML",
-   "wynik": "kampania",
+   "wynik": "sieć",
    "najbliższy": "48",
    "wynik kampanii": 0.653,
-   "ocena": "OK"
+   "ocena": "częściowo (dobra grupa, inny poziom)"
   },
   {
    "przypadek": "61",
@@ -235,7 +235,7 @@
    "wejście": "zrzut znanej reklamy (OCR)",
    "wynik": "kampania",
    "najbliższy": "1",
-   "wynik kampanii": 0.108,
+   "wynik kampanii": 0.111,
    "ocena": "OK"
   },
   {
@@ -251,7 +251,7 @@
    "wejście": "zrzut znanej reklamy (OCR)",
    "wynik": "kampania",
    "najbliższy": "48",
-   "wynik kampanii": 0.051,
+   "wynik kampanii": 0.052,
    "ocena": "OK"
   }
  ],
@@ -297,12 +297,12 @@
    "typ": "nowy wariant znanej kampanii",
    "prawda": "O2-K2",
    "oczekiwane": "kampania",
-   "wynik": "kampania",
+   "wynik": "nowy",
    "najbliższy": "s010",
    "prawda najbliższego": "O2-K2",
    "wynik kampanii": 0.674,
    "wynik operatora": 0.0,
-   "ocena": "OK"
+   "ocena": "BŁĄD: nie rozpoznano"
   },
   {
    "materiał": "s015",
@@ -499,7 +499,7 @@
  ],
  "wyniki": {
   "A": "10/10 OK, 0 częściowo, 0 błędów",
-  "B": "10/13 OK, 0 częściowo, 3 błędów",
-  "C": "20/20 OK, 0 częściowo, 0 błędów"
+  "B": "8/13 OK, 2 częściowo, 3 błędów",
+  "C": "19/20 OK, 0 częściowo, 1 błędów"
  }
 }

@@ -125,7 +125,8 @@ def test_fetch_builds_html_and_har(tmp_path, monkeypatch):
 def test_regroup_removes_order_dependence():
     from embsim import analyze as A
     from embsim.api import Gallery, Case
-    g = Gallery(embed_fn=A.hash_embed, profile="strony")
+    # próg jawny: test sprawdza niezależność od kolejności, nie kalibrację (hash_embed daje tu parze wynik 0,67, model tekstu wyższy)
+    g = Gallery(embed_fn=A.hash_embed, profile="strony", thresholds={"campaign": 0.62})
     scam = "Prezes ujawnił sekret: wpłać 1000 zł na platformę AI i zarabiaj codziennie bez wysiłku. Zarejestruj się teraz."
     bg = ["Przepis na ciasto drożdżowe z kruszonką i śliwkami.", "Prognoza pogody na weekend: deszcz i wiatr na północy.",
           "Wyniki meczu ligi: remis po dogrywce i rzutach karnych.", "Nowy rozkład jazdy tramwajów od poniedziałku w centrum."]
